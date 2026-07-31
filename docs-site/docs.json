@@ -23,8 +23,13 @@
     "eyebrows": "section"
   },
   "fonts": {
-    "heading": { "family": "Inter", "weight": 200 },
-    "body": { "family": "Inter" }
+    "heading": {
+      "family": "Inter",
+      "weight": 200
+    },
+    "body": {
+      "family": "Inter"
+    }
   },
   "api": {
     "openapi": "../api-spec/libertynet-v1.yaml",
@@ -33,12 +38,24 @@
       "proxy": true
     },
     "examples": {
-      "languages": ["curl", "typescript", "python"]
+      "languages": [
+        "curl",
+        "typescript",
+        "python"
+      ]
     }
   },
-  "search": { "prompt": "Search the docs" },
+  "search": {
+    "prompt": "Search the docs"
+  },
   "contextual": {
-    "options": ["copy", "view", "chatgpt", "claude", "mcp"]
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "mcp"
+    ]
   },
   "navigation": {
     "languages": [
@@ -113,40 +130,19 @@
             ]
           }
         ]
-      },
-      {
-        "language": "zh",
-        "groups": [
-          {
-            "group": "从这里开始",
-            "pages": [
-              "zh/index",
-              "zh/quickstart",
-              "zh/status"
-            ]
-          },
-          {
-            "group": "核心概念",
-            "pages": [
-              "zh/concepts/overview",
-              "zh/concepts/identity",
-              "zh/concepts/credits"
-            ]
-          },
-          {
-            "group": "参考",
-            "pages": [
-              "zh/reference/errors"
-            ]
-          }
-        ]
       }
     ]
   },
   "navbar": {
     "links": [
-      { "label": "Status", "href": "https://docs.libertynet.ai/status" },
-      { "label": "GitHub", "href": "https://github.com/LibertyNetHQ" }
+      {
+        "label": "Status",
+        "href": "https://docs.libertynet.ai/status"
+      },
+      {
+        "label": "GitHub",
+        "href": "https://github.com/LibertyNetHQ"
+      }
     ],
     "primary": {
       "type": "button",
@@ -163,18 +159,39 @@
       {
         "header": "Developers",
         "items": [
-          { "label": "Quickstart", "href": "https://docs.libertynet.ai/quickstart" },
-          { "label": "API reference", "href": "https://docs.libertynet.ai/api-reference" },
-          { "label": "Capability status", "href": "https://docs.libertynet.ai/status" },
-          { "label": "Error dictionary", "href": "https://docs.libertynet.ai/reference/errors" }
+          {
+            "label": "Quickstart",
+            "href": "https://docs.libertynet.ai/quickstart"
+          },
+          {
+            "label": "API reference",
+            "href": "https://docs.libertynet.ai/api-reference"
+          },
+          {
+            "label": "Capability status",
+            "href": "https://docs.libertynet.ai/status"
+          },
+          {
+            "label": "Error dictionary",
+            "href": "https://docs.libertynet.ai/reference/errors"
+          }
         ]
       },
       {
         "header": "Community",
         "items": [
-          { "label": "Discord", "href": "https://discord.gg/libertynet" },
-          { "label": "Showcase", "href": "https://docs.libertynet.ai/community#showcase" },
-          { "label": "Contributing", "href": "https://docs.libertynet.ai/contributing" }
+          {
+            "label": "Discord",
+            "href": "https://discord.gg/libertynet"
+          },
+          {
+            "label": "Showcase",
+            "href": "https://docs.libertynet.ai/community#showcase"
+          },
+          {
+            "label": "Contributing",
+            "href": "https://docs.libertynet.ai/contributing"
+          }
         ]
       }
     ]
@@ -193,5 +210,6 @@
       "title": "Nothing here",
       "description": "That page does not exist. Try the quickstart."
     }
-  }
+  },
+  "$localeNote": "Navigation is declared once, for English. Translations live at docs-site/<locale>/<slug>.mdx and are picked up automatically by site/build.mjs; a page with no translation falls back to English behind a visible notice. Locale registry: site/build/locales.mjs."
 }

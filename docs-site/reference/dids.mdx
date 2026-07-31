@@ -70,7 +70,7 @@ form == fallback   →  body == hex(sha256(key))[0:10]
 <CodeGroup>
 
 ```typescript TypeScript
-import { verifyIdBinding, parseDid, sameIdentity, fingerprint } from "@libertynet/sdk";
+import { verifyIdBinding, parseDid, sameIdentity, fingerprint } from "libertynet-sdk";
 
 verifyIdBinding(did, publicKey);      // boolean
 parseDid(did);                        // { did, form, tag, body } | null

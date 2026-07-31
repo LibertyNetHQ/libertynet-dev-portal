@@ -1,0 +1,137 @@
+name: Docs drift watch
+
+# The AI documentation-maintenance loop.
+#
+# The problem it solves: this repository makes claims about a system that lives
+# somewhere else and changes without asking. Documentation that nothing checks
+# becomes false quietly — and "quietly" is the part that matters, because a
+# reader cannot tell a stale page from a current one.
+#
+# So: probe the live API on a schedule, and when what it does stops matching what
+# we say, open a pull request that describes the drift precisely. A human still
+# decides what the fix is. This does not edit prose on its own, and deliberately
+# so — an automation that rewrites its own honesty claims is not a safeguard, it
+# is a laundering step.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"     # daily, off the hour so we are not in the stampede
+  workflow_dispatch:          # and on demand
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  drift:
+    name: Compare docs against the live API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Probe the live API
+        id: probe
+        run: |
+          set +e
+          node tools/check-api-sync.mjs --json > /tmp/drift.json
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          cat /tmp/drift.json
+
+      - name: Summarise
+        id: summary
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d = json.load(open("/tmp/drift.json"))
+          if not d.get("reachable"):
+              print("## Registry unreachable\n")
+              print(d.get("message", ""))
+              raise SystemExit(0)
+
+          ident = d.get("identitySummary") or {}
+          total = ident.get("total", 0)
+          rejected = ident.get("rejected", [])
+          print(f"## Live API check\n")
+          print(f"- registry: `{d['registry']}`")
+          print(f"- identities verifying: {total - len(rejected)}/{total}")
+
+          findings = d.get("findings", [])
+          if not findings:
+              print("\n**In sync.** Nothing to do.")
+          else:
+              print(f"\n### {len(findings)} drift finding(s)\n")
+              for f in findings:
+                  print(f"- **[{f['severity']}]** `{f['endpoint']}` — claimed `{f['claimed']}`"
+                        + (f", observed `{f.get('observed')}`" if f.get("observed") else ""))
+                  print(f"  - {f['detail']}")
+          PY
+
+      - name: Draft a pull request describing the drift
+        if: steps.probe.outputs.exit == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="docs-drift/$(date -u +%Y-%m-%d)"
+
+          # One open drift PR at a time. A second one for the same finding is
+          # noise, and noise is how a real alert gets ignored.
+          if gh pr list --state open --head "$BRANCH" --json number -q '.[0].number' | grep -q .; then
+            echo "A drift PR for today is already open — leaving it alone."
+            exit 0
+          fi
+
+          git config user.name  "libertynet-docs-bot"
+          git config user.email "noreply@libertynet.ai"
+          git checkout -b "$BRANCH"
+
+          mkdir -p reports
+          cp /tmp/drift.json "reports/drift-$(date -u +%Y-%m-%d).json"
+
+          {
+            echo "# Docs drift — $(date -u +%Y-%m-%d)"
+            echo
+            echo "The live API no longer matches what \`api-spec/status.json\` claims."
+            echo
+            python3 -c "
+          import json
+          d=json.load(open('/tmp/drift.json'))
+          for f in d.get('findings',[]):
+              print(f\"## [{f['severity']}] {f['endpoint']}\n\")
+              print(f\"- claimed: \`{f['claimed']}\`\")
+              if f.get('observed'): print(f\"- observed: \`{f['observed']}\`\")
+              print(f\"\n{f['detail']}\n\")
+          "
+            echo "## What to do"
+            echo
+            echo "Decide which side is wrong, then fix that side:"
+            echo
+            echo "- **overclaim** — the docs promise something the API no longer does."
+            echo "  Either restore the endpoint or downgrade its status."
+            echo "- **underclaim** — the API does more than the docs admit. Developers are"
+            echo "  being told to ignore something real. Upgrade its status."
+            echo "- **critical** — an identity on the live registry failed id-binding."
+            echo "  That is corruption or forgery. Do not treat it as a docs problem."
+            echo
+            echo "After editing \`api-spec/status.json\`, run \`node tools/check-docs-drift.mjs\`"
+            echo "so every page, badge and SDK agrees again."
+          } > "reports/drift-$(date -u +%Y-%m-%d).md"
+
+          git add reports/
+          git commit -m "docs: live API drift detected $(date -u +%Y-%m-%d)"
+          git push -u origin "$BRANCH"
+
+          gh pr create \
+            --title "Docs drift: live API disagrees with status.json ($(date -u +%Y-%m-%d))" \
+            --body-file "reports/drift-$(date -u +%Y-%m-%d).md" \
+            --label "docs-drift"
+
+      - name: Fail the run if drift was found
+        if: steps.probe.outputs.exit == '1'
+        run: |
+          echo "::error::The live API disagrees with the documented capability matrix."
+          exit 1

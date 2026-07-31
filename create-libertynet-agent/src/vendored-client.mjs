@@ -5,11 +5,11 @@
  * Kept as one exported string rather than a file copy so the scaffolder stays a
  * single self-contained package with nothing to resolve at runtime.
  *
- * It is a strict subset of `@libertynet/sdk`: same method names, same semantics,
+ * It is a strict subset of `libertynet-sdk`: same method names, same semantics,
  * same non-optional verification — just discovery and identity, with no
  * dependencies at all. That is what lets a fresh project run with `node
  * src/index.mjs` and zero `npm install`. When the published SDK is available,
- * deleting this file and importing `@libertynet/sdk` requires no other change.
+ * deleting this file and importing `libertynet-sdk` requires no other change.
  */
 
 export const CLIENT_MJS = String.raw`/**
@@ -18,11 +18,11 @@ export const CLIENT_MJS = String.raw`/**
  * Zero dependencies: only \`node:crypto\`. Checking who is on a public network
  * should never require installing anything.
  *
- * This is a subset of @libertynet/sdk with identical semantics. To switch:
+ * This is a subset of libertynet-sdk with identical semantics. To switch:
  *
- *     npm install @libertynet/sdk
+ *     npm install libertynet-sdk
  *     // then replace:  import { LibertyNet } from "./libertynet.mjs";
- *     // with:          import { LibertyNet } from "@libertynet/sdk";
+ *     // with:          import { LibertyNet } from "libertynet-sdk";
  *
  * Nothing else in your code needs to change.
  */

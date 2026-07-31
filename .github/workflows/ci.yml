@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    name: Tests and honesty checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SDK dependencies
+        working-directory: sdk/typescript
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Install pytest
+        run: python -m pip install --quiet pytest
+
+      # Runs the docs honesty checker, the example safety checker, both SDK
+      # suites, the scaffolder, the MCP server and a TypeScript strict typecheck.
+      # Hermetic — no network — so it cannot go red because a server blipped.
+      - name: Full suite
+        run: node tools/check-all.mjs
+
+      - name: Build the docs site
+        run: node site/build.mjs
+
+  live:
+    name: Live network agreement
+    runs-on: ubuntu-latest
+    # Not required for merge: this can go red because the network is down rather
+    # than because the change is wrong. It is here to be noticed, not to block.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Does what the docs claim still match what the API does?
+      - name: API sync
+        run: node tools/check-api-sync.mjs

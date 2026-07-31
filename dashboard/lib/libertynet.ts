@@ -1,13 +1,13 @@
 /**
  * Browser client for the dashboard.
  *
- * A trimmed mirror of `@libertynet/sdk` with the same non-negotiables: identity
+ * A trimmed mirror of `libertynet-sdk` with the same non-negotiables: identity
  * verification is not optional, and a `not_yet_wired` value is never returned as
  * if it were a measurement.
  *
  * It is duplicated here rather than imported because the SDK is not published
  * yet and a `file:` dependency across the repo would make this app unbuildable
- * for anyone who cloned only part of it. When `@libertynet/sdk` ships, this file
+ * for anyone who cloned only part of it. When `libertynet-sdk` ships, this file
  * is deleted and the import changes.
  */
 

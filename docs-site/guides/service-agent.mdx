@@ -96,7 +96,7 @@ accepting a claim, not a proof.
     ```javascript
     import * as ed from "@noble/ed25519";
     import { base58 } from "@scure/base";
-    import { verifyIdBinding, decodePublicKey } from "@libertynet/sdk";
+    import { verifyIdBinding, decodePublicKey } from "libertynet-sdk";
 
     function authenticate({ did, publicKey, challenge, signature }) {
       // 1. id-binding FIRST. A valid signature from an unbound key proves nothing.

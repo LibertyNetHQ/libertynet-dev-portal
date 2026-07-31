@@ -2,7 +2,7 @@
  * LibertyNet TypeScript SDK.
  *
  * ```ts
- * import { LibertyNet } from "@libertynet/sdk";
+ * import { LibertyNet } from "libertynet-sdk";
  *
  * const ln = new LibertyNet();
  * const nodes = await ln.discovery.online();

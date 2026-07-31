@@ -16,7 +16,7 @@ node tools/check-all.mjs --live   # + tests against the live registry
 | `api-spec/status.json` | **The capability matrix.** Every status badge in the docs, both SDKs and the OpenAPI spec derive from this one file. |
 | `api-spec/libertynet-v1.yaml` | OpenAPI 3.1 — 19 operations, each carrying `x-ln-status`, each probed against production. |
 | `docs-site/` | Mintlify site: 35 pages, English + Chinese, Living Language skin. |
-| `sdk/typescript/` | `@libertynet/sdk` — 48 tests. |
+| `sdk/typescript/` | `libertynet-sdk` — 48 tests. |
 | `sdk/python/` | `libertynet` — 52 tests, dependency-free core. |
 | `create-libertynet-agent/` | CLI scaffolder — 4 templates, 44 tests, zero-dependency output. |
 | `mcp-server/` | MCP server for AI assistants — 6 tools, 29 tests, zero dependencies. |
@@ -109,7 +109,7 @@ Stated here rather than left for someone to discover:
 
 - **Nothing is deployed.** The docs site, the dashboard and the MCP server all build, but
   choosing hosts and domains is the project owner's call, not a side effect of a docs PR.
-- **Nothing is published.** `@libertynet/sdk`, `libertynet` and `create-libertynet-agent`
+- **Nothing is published.** `libertynet-sdk`, `libertynet` and `create-libertynet-agent`
   are not on npm or PyPI. Every page that shows an install command says so.
 - **Mintlify is not connected.** The site is configured for the free tier and
   `docs.libertynet.ai`, but nobody has linked the repository or pointed the DNS.

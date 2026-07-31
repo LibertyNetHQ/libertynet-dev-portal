@@ -129,7 +129,7 @@ print(f"{verified}/{len(nodes)} 个身份通过验证")
 **为什么有两种 DID 编码？** 同一个密钥会以短形式 `did:svrp:n:<8位hex>`（公钥 SHA-256 的截断）
 和全形式 `did:svrp:<64位hex>`（公钥本身）两种样子出现。绑定里存短的，运行中的守护进程报全的。
 **它们是同一个节点。** 在这里做字符串比较会骗你——详见
-[身份](/zh/concepts/identity)。
+[身份](/concepts/identity)。
 </Note>
 
 ## 4. 或者用 SDK 一行搞定

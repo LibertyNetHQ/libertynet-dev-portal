@@ -26,6 +26,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { LOCALES } from "../site/build/locales.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const ROOT = path.resolve(HERE, "..");
@@ -330,16 +331,46 @@ async function checkNavigation(pages) {
     }
   }
 
-  const onDisk = new Set(pages.map((f) => path.relative(DOCS, f).replace(/\.mdx$/, "")));
+  // Navigation is declared once, for English. Translations live under
+  // docs-site/<locale>/ and are resolved per-locale by the builder, so they are
+  // not nav entries and must not be treated as orphans. What we DO check is the
+  // reverse: a translation whose English original has been deleted or renamed is
+  // now unreachable, and that is worth failing on.
+  const localeDirs = new Set(LOCALES.map((l) => l.code).filter((c) => c !== "en"));
+  const isTranslation = (slug) => localeDirs.has(slug.split("/")[0]);
+
+  const all = pages.map((f) => path.relative(DOCS, f).replace(/\.mdx$/, ""));
+  const english = new Set(all.filter((s) => !isTranslation(s)));
+  const translations = all.filter(isTranslation);
 
   for (const page of listed) {
-    if (!onDisk.has(page)) fail("navigation", `docs.json lists "${page}" but no such .mdx exists`);
+    if (!english.has(page)) fail("navigation", `docs.json lists "${page}" but no such .mdx exists`);
   }
-  for (const page of onDisk) {
+  for (const page of english) {
     if (!listed.has(page)) fail("navigation", `${page}.mdx exists but is not in docs.json (orphan)`);
   }
+  for (const t of translations) {
+    const slug = t.split("/").slice(1).join("/");
+    if (!english.has(slug)) {
+      fail(
+        "navigation",
+        `${t}.mdx has no English original at ${slug}.mdx — it is unreachable, and its ` +
+          `English source was probably renamed`,
+      );
+    }
+  }
 
-  notes.push(`navigation: ${listed.size} pages listed, ${onDisk.size} on disk`);
+  const byLocale = {};
+  for (const t of translations) {
+    const code = t.split("/")[0];
+    byLocale[code] = (byLocale[code] ?? 0) + 1;
+  }
+  const coverage = Object.entries(byLocale)
+    .map(([c, n]) => `${c}:${n}`)
+    .join(" ");
+
+  notes.push(`navigation: ${listed.size} listed, ${english.size} English pages`);
+  notes.push(`translations: ${translations.length} pages — ${coverage}`);
 }
 
 // ---------------------------------------------------------------------------

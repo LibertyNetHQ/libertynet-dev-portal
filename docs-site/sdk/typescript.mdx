@@ -1,6 +1,6 @@
 ---
 title: "TypeScript SDK"
-description: "@libertynet/sdk — every method, with runnable examples."
+description: "libertynet-sdk — every method, with runnable examples."
 ---
 
 import { Status } from '/snippets/status.mdx';
@@ -15,12 +15,12 @@ cd dev-portal/sdk/typescript
 npm install && npm run build
 ```
 
-Then reference it from your project with `"@libertynet/sdk": "file:../dev-portal/sdk/typescript"`.
+Then reference it from your project with `"libertynet-sdk": "file:../dev-portal/sdk/typescript"`.
 </Warning>
 
 ```bash
 # What it will be:
-npm install @libertynet/sdk
+npm install libertynet-sdk
 ```
 
 Node 20+. Works in browsers. Three dependencies, all audited: `@noble/ed25519`,
@@ -29,7 +29,7 @@ Node 20+. Works in browsers. Three dependencies, all audited: `@noble/ed25519`,
 ## Getting started
 
 ```typescript
-import { LibertyNet } from "@libertynet/sdk";
+import { LibertyNet } from "libertynet-sdk";
 
 const ln = new LibertyNet();
 
@@ -126,7 +126,7 @@ Pure functions, no network.
 import {
   verifyIdBinding, assertIdBinding, parseDid,
   didFromPublicKey, sameIdentity, fingerprint, decodePublicKey,
-} from "@libertynet/sdk";
+} from "libertynet-sdk";
 
 verifyIdBinding("did:svrp:n:268d4fe0", key);   // → boolean
 assertIdBinding(did, key);                      // → throws IdentityError
@@ -216,7 +216,7 @@ const final = await ln.binding.waitForTerminal(request.binding_session_id, {
 import {
   LibertyNetError, ApiError, AuthError,
   IdentityError, NotYetWiredError, TransportError,
-} from "@libertynet/sdk";
+} from "libertynet-sdk";
 
 try {
   await ln.operator.nodes();

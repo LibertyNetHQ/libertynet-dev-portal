@@ -555,14 +555,14 @@ ${typeNote}
 
 ## Using the published SDK instead
 
-\`src/libertynet.mjs\` is a strict subset of \`@libertynet/sdk\` with identical
+\`src/libertynet.mjs\` is a strict subset of \`libertynet-sdk\` with identical
 method names and semantics. To switch:
 
 \`\`\`bash
-npm install @libertynet/sdk
+npm install libertynet-sdk
 \`\`\`
 
-Then change \`from "./libertynet.mjs"\` to \`from "@libertynet/sdk"\` and delete
+Then change \`from "./libertynet.mjs"\` to \`from "libertynet-sdk"\` and delete
 the local file. Nothing else changes.
 
 ## Two things worth knowing early

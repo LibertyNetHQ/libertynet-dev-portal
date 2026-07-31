@@ -1,5 +1,5 @@
 {
-  "name": "@libertynet/mcp-server",
+  "name": "libertynet-mcp-server",
   "version": "0.1.0",
   "description": "MCP server giving AI assistants access to the LibertyNet docs, capability matrix and live network.",
   "type": "module",
