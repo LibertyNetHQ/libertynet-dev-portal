@@ -50,12 +50,17 @@ echo \"  \$(sudo find ${REMOTE_ROOT} -type f | wc -l) files, \$(sudo du -sh ${RE
 rm -f "$TARBALL"
 
 cyan "› verifying"
+# Served through Caddy itself with a Host header rather than a throwaway HTTP
+# server: it exercises the real vhost, and it avoids pkill — which, matching on a
+# command line, cheerfully killed its own SSH session the first time round.
 gcloud compute ssh "$INSTANCE" --zone "$ZONE" --quiet --command "
-cd ${REMOTE_ROOT} && (python3 -m http.server 8123 >/dev/null 2>&1 &) ; sleep 2
-for p in /index.html /quickstart/index.html /ar/quickstart/index.html /llms.txt; do
-  printf '  %-32s %s\n' \"\$p\" \"\$(curl -s -o /dev/null -w '%{http_code}' localhost:8123\$p)\"
+for p in / /quickstart /ar/quickstart /ja/quickstart /llms.txt /sitemap.xml; do
+  code=\$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: docs.libertynet.ai' http://localhost\$p)
+  # 308 is Caddy redirecting to HTTPS, which is the correct answer over plain HTTP.
+  printf '  %-24s %s\n' \"\$p\" \"\$code\"
 done
-pkill -f 'http.server 8123' || true
+echo
+echo \"  on disk: \$(sudo find ${REMOTE_ROOT} -type f | wc -l) files\"
 "
 
 cyan "✓ deployed"
