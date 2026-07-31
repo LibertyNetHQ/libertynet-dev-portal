@@ -1,0 +1,65 @@
+{
+  "$comment": "Arabic — RTL. The build stamps dir=rtl on <html> and mirrors the layout. Latin technical identifiers (did:svrp:, last_seen, status) are wrapped in bidi isolation at render time so they read left-to-right inside Arabic sentences.",
+  "locale": "ar",
+  "dir": "rtl",
+  "nav": {
+    "search": "ابحث في الوثائق",
+    "searchPlaceholder": "بحث…",
+    "searchNoResults": "لا توجد نتائج مطابقة.",
+    "menu": "القائمة",
+    "onThisPage": "في هذه الصفحة",
+    "language": "اللغة",
+    "theme": "المظهر",
+    "themeDark": "داكن",
+    "themeLight": "فاتح",
+    "themeSystem": "حسب النظام",
+    "previous": "السابق",
+    "next": "التالي",
+    "editPage": "تحرير هذه الصفحة",
+    "copyPage": "نسخ الصفحة",
+    "copied": "تم النسخ",
+    "home": "الرئيسية"
+  },
+  "status": {
+    "implemented": "مُنفَّذ",
+    "not_yet_wired": "غير موصول بعد",
+    "testing": "قيد الاختبار",
+    "planned": "مُخطَّط له",
+    "implementedHelp": "يعمل على نقطة نهاية عامة. يمكنك استدعاؤه الآن.",
+    "not_yet_wiredHelp": "نقطة النهاية تعمل وتُرجع 200، لكن مصدر بياناتها غير موصول. تُرجع أصفارًا وتصرّح بذلك.",
+    "testingHelp": "الشيفرة موجودة واختباراتها تنجح، لكن لا شيء عام يقدّمها بعد.",
+    "plannedHelp": "مُصمَّم وغير مبني. لا يوجد شيء خلفه."
+  },
+  "callout": {
+    "note": "ملاحظة",
+    "tip": "نصيحة",
+    "info": "معلومة",
+    "warning": "تحذير",
+    "danger": "انتبه",
+    "check": "مُتحقَّق منه"
+  },
+  "translation": {
+    "missingTitle": "لم تُترجم بعد",
+    "missingBody": "لم تُترجم هذه الصفحة إلى {language} بعد، لذا فأنت تقرأ الأصل الإنجليزي. غيابها ليس لأنها غير مهمة — بل لأنها لم تُكتب بعد. المساهمات مُرحَّب بها.",
+    "helpTranslate": "ساعد في ترجمة هذه الصفحة",
+    "viewOriginal": "عرض الأصل الإنجليزي"
+  },
+  "safety": {
+    "creditsTestUnit": "الـ Credits وحدة اختبارية. ليست نقدًا، وغير قابلة للاسترداد، ولا تمثّل أي حق في قيمة مستقبلية.",
+    "notYetCounting": "لا شيء يُحتسب بعد: تُرجع نقطة النهاية هذه القيمة 0 مع \"source\": \"not_yet_wired\". هذا يعني أنه لا يجري القياس — لا أنك لم تكسب شيئًا.",
+    "activeNotOnline": "‏status: \"active\"‏ لا تعني «متصل». العقدة التي توقفت عن الإبلاغ تحتفظ بهذه القيمة إلى الأبد. الحقل الوحيد الذي يتقادم هو last_seen.",
+    "signatureNotIdentity": "التوقيع الصحيح ليس هوية صحيحة. تحقّق أولًا من ارتباط الهوية (id-binding) ثم من التوقيع.",
+    "noValueMovement": "لا توجد نقطة نهاية في هذه الواجهة تنقل قيمة. لا محفظة، ولا مبادلة، ولا رهن، ولا تحويل رموز، ولا تداول.",
+    "noApiKey": "لا يوجد مفتاح API. الاكتشاف عام — وإذا طلب منك شيء تقديم طلب للحصول على مفتاح لقراءة الشبكة، فذلك خطأ."
+  },
+  "footer": {
+    "developers": "المطوّرون",
+    "community": "المجتمع",
+    "builtWith": "كل ادعاء في هذا الموقع يُفحَص في خطوة البناء. إذا خالفت صفحة ما الواجهة البرمجية فتلك علة — أبلغ عنها.",
+    "reportIssue": "الإبلاغ عن مشكلة"
+  },
+  "meta": {
+    "siteName": "LibertyNet للمطوّرين",
+    "tagline": "ابنِ على LibertyNet. أول استدعاء ناجح في أقل من خمس دقائق."
+  }
+}

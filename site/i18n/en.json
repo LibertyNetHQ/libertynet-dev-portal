@@ -1,0 +1,64 @@
+{
+  "$comment": "UI chrome for the docs site. Long-form page content lives in docs-site/<locale>/*.mdx. Keys here are shared by every page, so a locale with only this file still gets a fully localised interface around English content.",
+  "locale": "en",
+  "nav": {
+    "search": "Search the docs",
+    "searchPlaceholder": "Search…",
+    "searchNoResults": "Nothing matched.",
+    "menu": "Menu",
+    "onThisPage": "On this page",
+    "language": "Language",
+    "theme": "Theme",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "themeSystem": "System",
+    "previous": "Previous",
+    "next": "Next",
+    "editPage": "Edit this page",
+    "copyPage": "Copy page",
+    "copied": "Copied",
+    "home": "Home"
+  },
+  "status": {
+    "implemented": "Implemented",
+    "not_yet_wired": "Not yet wired",
+    "testing": "Testing",
+    "planned": "Planned",
+    "implementedHelp": "Live on a public endpoint. Call it today.",
+    "not_yet_wiredHelp": "The endpoint is live and returns 200, but its data source is not connected. It returns zeros and says so.",
+    "testingHelp": "Code exists and its tests pass, but nothing public serves it yet.",
+    "plannedHelp": "Designed, not built. There is nothing behind it."
+  },
+  "callout": {
+    "note": "Note",
+    "tip": "Tip",
+    "info": "Info",
+    "warning": "Warning",
+    "danger": "Careful",
+    "check": "Verified"
+  },
+  "translation": {
+    "missingTitle": "Not translated yet",
+    "missingBody": "This page has not been translated into {language} yet, so you are reading the English original. The translation is not missing because it is unimportant — it just has not been written. Contributions welcome.",
+    "helpTranslate": "Help translate this page",
+    "viewOriginal": "View the English original"
+  },
+  "safety": {
+    "creditsTestUnit": "Credits are a test unit. Not cash, not redeemable, not a claim on future value.",
+    "notYetCounting": "Nothing is counting yet: this endpoint returns 0 with \"source\": \"not_yet_wired\". That means nothing is being measured — not that you earned nothing.",
+    "activeNotOnline": "status: \"active\" does not mean online. A node that stopped reporting keeps that string forever. Only last_seen decays.",
+    "signatureNotIdentity": "A valid signature is not a valid identity. Verify the id-binding first, then the signature.",
+    "noValueMovement": "No endpoint in this API moves value. No wallet, no swap, no staking, no token transfer, no trading.",
+    "noApiKey": "There is no API key. Discovery is public — if something asks you to apply for a key to read the network, it is wrong."
+  },
+  "footer": {
+    "developers": "Developers",
+    "community": "Community",
+    "builtWith": "Every claim on this site is checked by a build step. If a page disagrees with the API, that is a bug — report it.",
+    "reportIssue": "Report a problem"
+  },
+  "meta": {
+    "siteName": "LibertyNet Developers",
+    "tagline": "Build on LibertyNet. First successful call in under five minutes."
+  }
+}

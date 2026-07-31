@@ -1,0 +1,63 @@
+{
+  "locale": "pt",
+  "nav": {
+    "search": "Pesquisar na documentação",
+    "searchPlaceholder": "Pesquisar…",
+    "searchNoResults": "Nenhum resultado.",
+    "menu": "Menu",
+    "onThisPage": "Nesta página",
+    "language": "Idioma",
+    "theme": "Tema",
+    "themeDark": "Escuro",
+    "themeLight": "Claro",
+    "themeSystem": "Sistema",
+    "previous": "Anterior",
+    "next": "Próxima",
+    "editPage": "Editar esta página",
+    "copyPage": "Copiar página",
+    "copied": "Copiado",
+    "home": "Início"
+  },
+  "status": {
+    "implemented": "Implementado",
+    "not_yet_wired": "Não conectado",
+    "testing": "Em testes",
+    "planned": "Planejado",
+    "implementedHelp": "No ar em um endpoint público. Você pode chamar agora.",
+    "not_yet_wiredHelp": "O endpoint está no ar e retorna 200, mas sua fonte de dados não está conectada. Ele retorna zeros e diz isso explicitamente.",
+    "testingHelp": "O código existe e os testes passam, mas nada público serve isso ainda.",
+    "plannedHelp": "Projetado, não construído. Não há nada por trás."
+  },
+  "callout": {
+    "note": "Nota",
+    "tip": "Dica",
+    "info": "Informação",
+    "warning": "Aviso",
+    "danger": "Atenção",
+    "check": "Verificado"
+  },
+  "translation": {
+    "missingTitle": "Ainda não traduzido",
+    "missingBody": "Esta página ainda não foi traduzida para {language}, então você está lendo o original em inglês. Não falta por ser sem importância — apenas ainda não foi escrita. Contribuições são bem-vindas.",
+    "helpTranslate": "Ajude a traduzir esta página",
+    "viewOriginal": "Ver o original em inglês"
+  },
+  "safety": {
+    "creditsTestUnit": "Credits são uma unidade de teste. Não são dinheiro, não são resgatáveis e não representam direito algum sobre valor futuro.",
+    "notYetCounting": "Nada está sendo contado ainda: este endpoint retorna 0 com \"source\": \"not_yet_wired\". Isso significa que nada está sendo medido — não que você não ganhou nada.",
+    "activeNotOnline": "status: \"active\" não significa online. Um nó que parou de reportar mantém esse valor para sempre. Só last_seen envelhece.",
+    "signatureNotIdentity": "Uma assinatura válida não é uma identidade válida. Verifique primeiro o id-binding e depois a assinatura.",
+    "noValueMovement": "Nenhum endpoint desta API move valor. Sem carteira, sem swap, sem staking, sem transferência de tokens, sem trading.",
+    "noApiKey": "Não existe API key. A descoberta é pública — se algo pedir que você solicite uma chave para ler a rede, está errado."
+  },
+  "footer": {
+    "developers": "Desenvolvedores",
+    "community": "Comunidade",
+    "builtWith": "Cada afirmação deste site é verificada no build. Se uma página discorda da API, isso é um bug — reporte.",
+    "reportIssue": "Reportar um problema"
+  },
+  "meta": {
+    "siteName": "LibertyNet para desenvolvedores",
+    "tagline": "Construa na LibertyNet. Primeira chamada bem-sucedida em menos de cinco minutos."
+  }
+}

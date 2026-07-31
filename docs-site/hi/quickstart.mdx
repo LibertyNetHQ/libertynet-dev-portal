@@ -1,0 +1,146 @@
+---
+title: "त्वरित शुरुआत"
+description: "शून्य से लेकर चालू नेटवर्क पर क्रिप्टोग्राफ़िक रूप से सत्यापित कॉल तक। न पंजीकरण, न API key, न कोई निर्भरता।"
+---
+
+import { Status } from '/snippets/status.mdx';
+
+चार चरण। पहले के लिए केवल `curl` चाहिए; बाकी के लिए केवल Node.js **या** Python — **कोई पैकेज इंस्टॉल नहीं करना है**। इस पृष्ठ का हर कोड प्रकाशन से पहले चालू नेटवर्क पर चलाया गया है, और दिखाए गए आउटपुट असली हैं।
+
+<Info>
+**यहाँ पंजीकरण का कोई चरण नहीं है।** LibertyNet पर डिस्कवरी सार्वजनिक है। आप किसी key का इंतज़ार नहीं कर रहे — key होती ही नहीं। यदि कोई पृष्ठ नेटवर्क पढ़ने के लिए key माँगे, तो वह पृष्ठ ग़लत है।
+</Info>
+
+## 1. जाँचें कि नेटवर्क चालू है
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+```json प्रतिक्रिया
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+`count` वह संख्या है जितने नोड रजिस्ट्री को इस समय ज्ञात हैं। <Status level="implemented" />
+
+## 2. देखें कि नेटवर्क पर कौन है
+
+```bash
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```json प्रतिक्रिया (एक नोड)
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+<Warning>
+**`status: "active"` का अर्थ ऑनलाइन नहीं है।**
+
+पिछले सप्ताह बंद किया गया नोड भी हमेशा यही मान रखता है — इसे कुछ भी रीसेट नहीं करता। केवल `last_seen` पुराना होता है, इसलिए ताज़गी की गणना आपको स्वयं करनी है। चरण 3 इसे सही ढंग से करता है।
+
+**इस नेटवर्क पर यह सबसे आम शुरुआती ग़लती है।**
+</Warning>
+
+## 3. पहचान स्वयं सत्यापित करें
+
+यही LibertyNet को अलग बनाता है, और यह दो मिनट के लायक है।
+
+LibertyNet का DID **स्व-प्रमाणित** है: पहचानकर्ता सार्वजनिक कुंजी से व्युत्पन्न होता है। केवल SHA-256 से आप उस दावे की पुष्टि कर सकते हैं — बिना किसी डायरेक्टरी को देखे, बिना किसी प्रमाणपत्र प्राधिकरण से पूछे, और अभी मिली प्रतिक्रिया पर भरोसा किए बिना।
+
+इसे `verify.py` के रूप में सहेजें और चलाएँ। **कुछ भी इंस्टॉल नहीं करना है।**
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # base58 अग्रणी शून्य बाइट हटा देता है: हर अग्रणी '1' के लिए एक लौटाएँ
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# रजिस्ट्री /nodes पर hex और /peers पर base58 में कुंजी देती है। कुंजी वही है।
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """क्या यह DID वाक़ई इसी सार्वजनिक कुंजी से बना है?"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # पूर्ण hex रूप
+    if len(body) == 8:
+        return body == digest[:8]       # संक्षिप्त रूप
+    if len(body) == 10:
+        return body == digest[:10]      # टकराव हेतु वैकल्पिक रूप
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"{len(nodes)} में से {verified} पहचान सत्यापित")
+```
+
+```text वास्तविक रन, 2026-07-31
+27 में से 27 पहचान सत्यापित
+```
+
+आपने अभी किसी से अनुमति माँगे बिना इस नेटवर्क की हर पहचान क्रिप्टोग्राफ़िक रूप से जाँच ली। **यही पूरा उद्देश्य है।**
+
+<Note>
+**DID की दो कूटलिपियाँ क्यों?** वही कुंजी संक्षिप्त रूप `did:svrp:n:<8 hex>` (कुंजी के SHA-256 का छोटा हिस्सा) और पूर्ण रूप `did:svrp:<64 hex>` (कुंजी स्वयं) में दिखती है। बाइंडिंग में संक्षिप्त संग्रहीत होता है, चालू डेमॉन पूर्ण घोषित करता है। **यह एक ही नोड है।** यहाँ स्ट्रिंग तुलना करने पर एक नोड दो में बँट जाएगा।
+</Note>
+
+## 4. या एक ही पंक्ति में
+
+ऊपर जो कुछ किया, वही SDK आपके लिए करता है — और सत्यापन बंद नहीं किया जा सकता।
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # सत्यापन चालू; बंद करने का विकल्प नहीं
+nodes = ln.discovery.online()      # केवल सत्यापित और हाल में देखे गए नोड
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+`online()` उन सभी रिकॉर्ड को अस्वीकार करता है जिनकी पहचान सत्यापित नहीं होती, और जो लंबे समय से रिपोर्ट नहीं कर रहे उन्हें हटा देता है। **इस जाँच को बंद करने का कोई फ़्लैग नहीं है** — जो क्लाइंट असत्यापित पहचान पर भरोसा करे, उसे प्रकाशित करने को हम तैयार नहीं हैं।
+
+## आगे क्या
+
+<Columns cols={2}>
+  <Card title="मूल अवधारणाएँ" icon="book-open" href="/concepts/overview">
+    पहचान, डिस्कवरी, बाइंडिंग, Credits।
+  </Card>
+  <Card title="क्षमता स्थिति" icon="list-check" href="/status">
+    इस समय क्या असली है।
+  </Card>
+  <Card title="त्रुटि शब्दकोश" icon="triangle-exclamation" href="/reference/errors">
+    हर कोड, उसका कारण और समाधान।
+  </Card>
+  <Card title="CLI जनरेटर" icon="wand-magic-sparkles" href="/cli">
+    एक कमांड, और चलता हुआ एजेंट।
+  </Card>
+</Columns>

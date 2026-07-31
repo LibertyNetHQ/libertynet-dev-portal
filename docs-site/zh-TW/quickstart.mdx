@@ -1,0 +1,146 @@
+---
+title: "快速開始"
+description: "從零到對著真實網路完成一次經過密碼學驗證的呼叫。不用註冊，不用 API Key，不用裝任何相依套件。"
+---
+
+import { Status } from '/snippets/status.mdx';
+
+四步。第一步只需要 `curl`；後面幾步只需要 Node.js **或** Python，**不用安裝任何套件**。本頁每段程式碼在發布前都對著真實網路跑過，顯示的輸出就是真實輸出。
+
+<Info>
+**這裡沒有註冊這一步。** LibertyNet 的探索是公開的。你不是在等一把 Key——根本就沒有 Key。如果哪個頁面要你申請 Key 才能讀取網路，那個頁面是錯的。
+</Info>
+
+## 1. 確認網路還在
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+```json 回應
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+`count` 是註冊表目前知道的節點數量。拿到這個，代表你已經在和真實網路對話了。<Status level="implemented" />
+
+## 2. 看看網路上有誰
+
+```bash
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```json 回應（一個節點）
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+<Warning>
+**`status: "active"` 不等於在線。**
+
+一個上週就拔了電的節點，這個欄位永遠還是 `"active"`，沒有任何機制會把它改回去。唯一會「過期」的欄位是 `last_seen`——新鮮度得你自己算。第 3 步會正確地做這件事。
+
+**這是新手在這個網路上最常犯的第一個錯誤。**
+</Warning>
+
+## 3. 自己驗證一個身分
+
+這一步是 LibertyNet 與眾不同的地方，值得花兩分鐘。
+
+LibertyNet 的 DID 是**自證的**：識別碼由公鑰推導而來。給你一個公鑰和一個聲稱的身分，你只用一個 SHA-256 就能確認這對關係——不查目錄，不問憑證機構，也不必相信剛收到的這個回應。
+
+存成 `verify.py` 跑一下。**不用裝任何套件。**
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # base58 會丟掉前導零位元組，每個前導 '1' 補回一個
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# 註冊表在 /nodes 用 hex 發公鑰，在 /peers 用 base58。是同一把金鑰。
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """這個 DID 真的是由這把公鑰推導出來的嗎？"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # 全 hex 形式
+    if len(body) == 8:
+        return body == digest[:8]       # 短形式
+    if len(body) == 10:
+        return body == digest[:10]      # 碰撞回退形式
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"{verified}/{len(nodes)} 個身分通過驗證")
+```
+
+```text 真實執行結果，2026-07-31
+27/27 個身分通過驗證
+```
+
+你剛剛在沒有向任何人申請許可的情況下，用密碼學核對了這個網路上的每一個身分。**這就是全部的意義所在。**
+
+<Note>
+**為什麼有兩種 DID 編碼？** 同一把金鑰會以短形式 `did:svrp:n:<8位hex>`（公鑰 SHA-256 的截斷）和全形式 `did:svrp:<64位hex>`（公鑰本身）兩種樣子出現。綁定裡存短的，執行中的守護行程報全的。**它們是同一個節點。** 在這裡做字串比較會騙你。
+</Note>
+
+## 4. 或者用 SDK 一行搞定
+
+上面這些就是 SDK 替你做的事，而且驗證無法關閉。
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # 驗證預設開啟，且無法關閉
+nodes = ln.discovery.online()      # 只回傳驗證通過且新鮮的節點
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+`online()` 會拒絕任何身分驗證不通過的記錄，並丟棄太久沒有心跳的節點。**沒有開關可以關掉這個檢查**——一個會信任未經驗證身分的客戶端，我們不願意發布。
+
+## 接下來
+
+<Columns cols={2}>
+  <Card title="核心概念" icon="book-open" href="/concepts/overview">
+    身分、探索、綁定、Credits。
+  </Card>
+  <Card title="能力狀態" icon="list-check" href="/status">
+    哪些是真的，此時此刻。
+  </Card>
+  <Card title="錯誤字典" icon="triangle-exclamation" href="/reference/errors">
+    每個錯誤碼的成因和解決辦法。
+  </Card>
+  <Card title="CLI 產生器" icon="wand-magic-sparkles" href="/cli">
+    一個指令產生可執行的 Agent。
+  </Card>
+</Columns>

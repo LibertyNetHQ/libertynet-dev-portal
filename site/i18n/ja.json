@@ -1,0 +1,63 @@
+{
+  "locale": "ja",
+  "nav": {
+    "search": "ドキュメントを検索",
+    "searchPlaceholder": "検索…",
+    "searchNoResults": "一致するものがありません。",
+    "menu": "メニュー",
+    "onThisPage": "このページの内容",
+    "language": "言語",
+    "theme": "テーマ",
+    "themeDark": "ダーク",
+    "themeLight": "ライト",
+    "themeSystem": "システムに従う",
+    "previous": "前へ",
+    "next": "次へ",
+    "editPage": "このページを編集",
+    "copyPage": "ページをコピー",
+    "copied": "コピーしました",
+    "home": "ホーム"
+  },
+  "status": {
+    "implemented": "実装済み",
+    "not_yet_wired": "未接続",
+    "testing": "テスト段階",
+    "planned": "計画中",
+    "implementedHelp": "公開エンドポイントで稼働中。今すぐ呼び出せます。",
+    "not_yet_wiredHelp": "エンドポイントは稼働していて 200 を返しますが、データソースが接続されていません。ゼロを返し、そのことを明示します。",
+    "testingHelp": "コードは存在しテストも通りますが、公開しているものはまだありません。",
+    "plannedHelp": "設計済み、未実装。背後には何もありません。"
+  },
+  "callout": {
+    "note": "注記",
+    "tip": "ヒント",
+    "info": "情報",
+    "warning": "警告",
+    "danger": "注意",
+    "check": "検証済み"
+  },
+  "translation": {
+    "missingTitle": "未翻訳",
+    "missingBody": "このページはまだ{language}に翻訳されていないため、英語の原文を表示しています。重要でないからではなく、単にまだ書かれていないだけです。翻訳の貢献を歓迎します。",
+    "helpTranslate": "このページの翻訳を手伝う",
+    "viewOriginal": "英語の原文を見る"
+  },
+  "safety": {
+    "creditsTestUnit": "Credits はテスト単位です。現金ではなく、換金できず、将来の価値に対する請求権でもありません。",
+    "notYetCounting": "まだ何も計測していません。このエンドポイントは 0 と \"source\": \"not_yet_wired\" を返します。これは「計測されていない」という意味であり、「稼ぎがゼロ」という意味ではありません。",
+    "activeNotOnline": "status: \"active\" はオンラインを意味しません。報告を止めたノードもこの文字列のままです。古くなるのは last_seen だけです。",
+    "signatureNotIdentity": "署名が有効でも身元が有効とは限りません。先に id-binding を検証し、その後で署名を検証してください。",
+    "noValueMovement": "この API に価値を移動させるエンドポイントはありません。ウォレット、スワップ、ステーキング、トークン送金、取引のいずれもありません。",
+    "noApiKey": "API キーは存在しません。ディスカバリーは公開です。ネットワークを読むためにキーの申請を求めるものがあれば、それは誤りです。"
+  },
+  "footer": {
+    "developers": "開発者向け",
+    "community": "コミュニティ",
+    "builtWith": "このサイトのすべての記述はビルド時に検証されています。ページと API が食い違っていればそれはバグです。報告してください。",
+    "reportIssue": "問題を報告"
+  },
+  "meta": {
+    "siteName": "LibertyNet 開発者",
+    "tagline": "LibertyNet で開発する。5 分以内に最初の呼び出しを成功させる。"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "locale": "zh-CN",
+  "nav": {
+    "search": "搜索文档",
+    "searchPlaceholder": "搜索…",
+    "searchNoResults": "没有匹配结果。",
+    "menu": "菜单",
+    "onThisPage": "本页目录",
+    "language": "语言",
+    "theme": "主题",
+    "themeDark": "深色",
+    "themeLight": "浅色",
+    "themeSystem": "跟随系统",
+    "previous": "上一页",
+    "next": "下一页",
+    "editPage": "编辑此页",
+    "copyPage": "复制页面",
+    "copied": "已复制",
+    "home": "首页"
+  },
+  "status": {
+    "implemented": "已实现",
+    "not_yet_wired": "尚未接通",
+    "testing": "测试中",
+    "planned": "规划中",
+    "implementedHelp": "已在公开端点上线，现在就能调用。",
+    "not_yet_wiredHelp": "端点在线并返回 200，但背后没有接数据源。它返回零，并如实说明。",
+    "testingHelp": "代码存在且测试通过，但还没有任何公开服务提供它。",
+    "plannedHelp": "已设计，未构建。背后什么都没有。"
+  },
+  "callout": {
+    "note": "注意",
+    "tip": "提示",
+    "info": "说明",
+    "warning": "警告",
+    "danger": "小心",
+    "check": "已验证"
+  },
+  "translation": {
+    "missingTitle": "尚未翻译",
+    "missingBody": "本页还没有翻译成{language}，所以你看到的是英文原文。不是因为它不重要——只是还没有人写。欢迎贡献翻译。",
+    "helpTranslate": "帮忙翻译这一页",
+    "viewOriginal": "查看英文原文"
+  },
+  "safety": {
+    "creditsTestUnit": "Credits 是测试单位。不是现金，不可兑换，不代表对未来价值的任何主张。",
+    "notYetCounting": "还没有东西在计数：这个端点返回 0 并带 \"source\": \"not_yet_wired\"。意思是没有在度量——不是你没赚到。",
+    "activeNotOnline": "status: \"active\" 不等于在线。停止上报的节点这个字段永远还是 active。只有 last_seen 会过期。",
+    "signatureNotIdentity": "签名有效不等于身份有效。先验 id-binding，再验签名。",
+    "noValueMovement": "这套 API 里没有任何端点会转移价值。没有钱包、没有 swap、没有质押、没有代币转账、没有交易。",
+    "noApiKey": "这里没有 API Key。发现是公开的——如果哪里要你申请 Key 才能读取网络，那是错的。"
+  },
+  "footer": {
+    "developers": "开发者",
+    "community": "社区",
+    "builtWith": "本站每一条声明都由构建步骤核对。如果某页与 API 不符，那是 bug——请报告。",
+    "reportIssue": "报告问题"
+  },
+  "meta": {
+    "siteName": "LibertyNet 开发者",
+    "tagline": "在 LibertyNet 上开发。5 分钟内完成第一次成功调用。"
+  }
+}

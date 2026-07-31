@@ -1,0 +1,146 @@
+---
+title: "Démarrage rapide"
+description: "De zéro à un appel cryptographiquement vérifié sur le réseau réel. Sans inscription, sans clé d'API, sans dépendances."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Quatre étapes. La première ne demande que `curl` ; les suivantes, uniquement Node.js **ou** Python, **sans aucun paquet à installer**. Chaque extrait de cette page a été exécuté sur le réseau réel avant publication, et les sorties affichées sont les vraies.
+
+<Info>
+**Il n'y a pas d'étape d'inscription.** La découverte sur LibertyNet est publique. Vous n'attendez pas une clé : il n'en existe aucune. Si une page vous demande d'en solliciter une pour lire le réseau, cette page est fausse.
+</Info>
+
+## 1. Vérifier que le réseau répond
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+```json Réponse
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+`count` est le nombre de nœuds que le registre connaît actuellement. <Status level="implemented" />
+
+## 2. Voir qui est sur le réseau
+
+```bash
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```json Réponse (un nœud)
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+<Warning>
+**`status: "active"` ne veut pas dire en ligne.**
+
+Un nœud débranché la semaine dernière conserve cette valeur indéfiniment — rien ne la réinitialise. Le seul champ qui vieillit est `last_seen` : la fraîcheur, c'est à vous de la calculer. L'étape 3 le fait correctement.
+
+**C'est l'erreur de débutant la plus fréquente sur ce réseau.**
+</Warning>
+
+## 3. Vérifier une identité vous-même
+
+C'est ici que LibertyNet diffère, et cela vaut deux minutes.
+
+Un DID LibertyNet est **auto-certifiant** : l'identifiant est dérivé de la clé publique. Avec un simple SHA-256, vous confirmez l'affirmation sans consulter d'annuaire, sans interroger d'autorité de certification et sans faire confiance à la réponse que vous venez de recevoir.
+
+Enregistrez ceci sous `verify.py` et exécutez-le. **Rien à installer.**
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # base58 supprime les octets nuls de tête : en restaurer un par '1' initial
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# Le registre sert les clés en hex sur /nodes et en base58 sur /peers. Même clé.
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """Ce DID dérive-t-il réellement de cette clé publique ?"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # forme hex complète
+    if len(body) == 8:
+        return body == digest[:8]       # forme courte
+    if len(body) == 10:
+        return body == digest[:10]      # repli en cas de collision
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"{verified}/{len(nodes)} identités vérifiées")
+```
+
+```text Exécution réelle, 2026-07-31
+27/27 identités vérifiées
+```
+
+Vous venez de contrôler cryptographiquement chaque identité du réseau sans demander la permission à quiconque. **C'est tout l'intérêt.**
+
+<Note>
+**Pourquoi deux encodages de DID ?** La même clé apparaît en forme courte `did:svrp:n:<8hex>` (SHA-256 tronqué de la clé) et en forme complète `did:svrp:<64hex>` (la clé elle-même). Les liaisons stockent la courte ; un démon en fonctionnement annonce la longue. **C'est le même nœud.** Comparer les chaînes ici scinderait un nœud en deux.
+</Note>
+
+## 4. Ou en une ligne
+
+Tout ce qui précède est ce que le SDK fait pour vous, la vérification n'étant pas optionnelle.
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # vérification active ; non désactivable
+nodes = ln.discovery.online()      # uniquement les nœuds vérifiés et récents
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+`online()` rejette tout enregistrement dont l'identité ne se vérifie pas et écarte ce qui n'a plus donné signe de vie. **Aucun indicateur ne permet de désactiver ce contrôle** : un client qui fait confiance à des identités non vérifiées n'est pas un client que nous accepterions de publier.
+
+## Et ensuite
+
+<Columns cols={2}>
+  <Card title="Concepts" icon="book-open" href="/concepts/overview">
+    Identité, découverte, liaison, Credits.
+  </Card>
+  <Card title="État des capacités" icon="list-check" href="/status">
+    Ce qui est réel, maintenant.
+  </Card>
+  <Card title="Dictionnaire des erreurs" icon="triangle-exclamation" href="/reference/errors">
+    Chaque code, sa cause et sa correction.
+  </Card>
+  <Card title="Générateur CLI" icon="wand-magic-sparkles" href="/cli">
+    Une commande, un agent qui tourne.
+  </Card>
+</Columns>

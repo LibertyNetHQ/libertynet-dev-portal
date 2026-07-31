@@ -1,0 +1,63 @@
+{
+  "locale": "de",
+  "nav": {
+    "search": "Dokumentation durchsuchen",
+    "searchPlaceholder": "Suchen…",
+    "searchNoResults": "Keine Treffer.",
+    "menu": "Menü",
+    "onThisPage": "Auf dieser Seite",
+    "language": "Sprache",
+    "theme": "Design",
+    "themeDark": "Dunkel",
+    "themeLight": "Hell",
+    "themeSystem": "System",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "editPage": "Diese Seite bearbeiten",
+    "copyPage": "Seite kopieren",
+    "copied": "Kopiert",
+    "home": "Start"
+  },
+  "status": {
+    "implemented": "Implementiert",
+    "not_yet_wired": "Nicht angebunden",
+    "testing": "Im Test",
+    "planned": "Geplant",
+    "implementedHelp": "Live auf einem öffentlichen Endpunkt. Du kannst ihn sofort aufrufen.",
+    "not_yet_wiredHelp": "Der Endpunkt ist live und liefert 200, aber seine Datenquelle ist nicht angebunden. Er liefert Nullen und sagt das auch.",
+    "testingHelp": "Der Code existiert und seine Tests laufen durch, aber nichts Öffentliches liefert ihn bisher aus.",
+    "plannedHelp": "Entworfen, nicht gebaut. Dahinter steckt nichts."
+  },
+  "callout": {
+    "note": "Hinweis",
+    "tip": "Tipp",
+    "info": "Info",
+    "warning": "Warnung",
+    "danger": "Vorsicht",
+    "check": "Verifiziert"
+  },
+  "translation": {
+    "missingTitle": "Noch nicht übersetzt",
+    "missingBody": "Diese Seite wurde noch nicht ins {language} übersetzt, deshalb liest du das englische Original. Sie fehlt nicht, weil sie unwichtig wäre — sie wurde nur noch nicht geschrieben. Beiträge sind willkommen.",
+    "helpTranslate": "Bei der Übersetzung helfen",
+    "viewOriginal": "Englisches Original ansehen"
+  },
+  "safety": {
+    "creditsTestUnit": "Credits sind eine Testeinheit. Kein Geld, nicht einlösbar und kein Anspruch auf künftigen Wert.",
+    "notYetCounting": "Es wird noch nichts gezählt: Dieser Endpunkt liefert 0 mit \"source\": \"not_yet_wired\". Das heißt, es wird nicht gemessen — nicht, dass du nichts verdient hast.",
+    "activeNotOnline": "status: \"active\" bedeutet nicht online. Ein Knoten, der nicht mehr meldet, behält diesen Wert für immer. Nur last_seen veraltet.",
+    "signatureNotIdentity": "Eine gültige Signatur ist keine gültige Identität. Prüfe zuerst das id-binding, dann die Signatur.",
+    "noValueMovement": "Kein Endpunkt dieser API bewegt Werte. Keine Wallet, kein Swap, kein Staking, keine Token-Transfers, kein Handel.",
+    "noApiKey": "Es gibt keinen API-Key. Discovery ist öffentlich — wenn irgendwo ein Key beantragt werden soll, um das Netzwerk zu lesen, ist das falsch."
+  },
+  "footer": {
+    "developers": "Entwickler",
+    "community": "Community",
+    "builtWith": "Jede Aussage auf dieser Seite wird beim Build geprüft. Widerspricht eine Seite der API, ist das ein Fehler — bitte melden.",
+    "reportIssue": "Problem melden"
+  },
+  "meta": {
+    "siteName": "LibertyNet für Entwickler",
+    "tagline": "Auf LibertyNet bauen. Erster erfolgreicher Aufruf in unter fünf Minuten."
+  }
+}

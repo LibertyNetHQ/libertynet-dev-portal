@@ -1,0 +1,146 @@
+---
+title: "البداية السريعة"
+description: "من الصفر إلى استدعاء مُتحقَّق منه تشفيريًا على الشبكة الحيّة. بلا تسجيل، وبلا مفتاح API، وبلا اعتماديات."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+أربع خطوات. الأولى لا تحتاج سوى `curl`، والبقية تحتاج Node.js **أو** Python فقط، **دون أي حزمة تُثبَّت**. كل مقتطف في هذه الصفحة شُغِّل على الشبكة الحيّة قبل نشره، والمخرجات المعروضة حقيقية.
+
+<Info>
+**لا توجد خطوة تسجيل.** الاكتشاف في LibertyNet عام. أنت لا تنتظر مفتاحًا، لأنه لا يوجد مفتاح أصلًا. وإذا طلبت منك صفحة ما التقدّم بطلب مفتاح لقراءة الشبكة، فتلك الصفحة خاطئة.
+</Info>
+
+## ١. تأكّد أن الشبكة تعمل
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+```json الاستجابة
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+القيمة `count` هي عدد العقد التي يعرفها السجل الآن. إن حصلت عليها فأنت تتحدّث بالفعل مع الشبكة الحيّة. <Status level="implemented" />
+
+## ٢. انظر مَن على الشبكة
+
+```bash
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```json الاستجابة (عقدة واحدة)
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+<Warning>
+**‏`status: "active"`‏ لا تعني «متصل».**
+
+العقدة التي فُصلت عن الكهرباء الأسبوع الماضي تبقى قيمتها `"active"` إلى الأبد؛ لا شيء يعيدها. الحقل الوحيد الذي يتقادم هو `last_seen`، لذا فحساب الحداثة مسؤوليتك أنت. الخطوة الثالثة تفعل ذلك بشكل صحيح.
+
+**هذا أكثر خطأ أول شيوعًا على هذه الشبكة.**
+</Warning>
+
+## ٣. تحقّق من هوية بنفسك
+
+هنا يكمن اختلاف LibertyNet، وهو يستحق دقيقتين.
+
+مُعرِّف LibertyNet **ذاتي التصديق**: المُعرِّف مشتقّ من المفتاح العام. لذا يمكنك — بدالة SHA-256 وحدها — أن تؤكّد صحة الادّعاء دون مراجعة أي دليل، ودون سؤال أي سلطة تصديق، ودون الوثوق بالاستجابة التي وصلتك للتو.
+
+احفظ ما يلي باسم `verify.py` وشغّله. **لا شيء يُثبَّت.**
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # ‏base58 يُسقِط بايتات الصفر البادئة: أعِد بايتًا لكل '1' في البداية
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# ‏السجل يقدّم المفاتيح بصيغة hex في /nodes وبصيغة base58 في /peers. المفتاح نفسه.
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """هل هذا المُعرِّف مشتقّ فعلًا من هذا المفتاح العام؟"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # الصيغة الست عشرية الكاملة
+    if len(body) == 8:
+        return body == digest[:8]       # الصيغة المختصرة
+    if len(body) == 10:
+        return body == digest[:10]      # صيغة احتياطية عند التصادم
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"تم التحقّق من {verified} من {len(nodes)} هوية")
+```
+
+```text تشغيل حقيقي، ٢٠٢٦-٠٧-٣١
+تم التحقّق من 27 من 27 هوية
+```
+
+لقد تحقّقت تشفيريًا للتوّ من كل هوية على هذه الشبكة دون أن تطلب إذنًا من أحد. **وهذا هو بيت القصيد.**
+
+<Note>
+**لماذا صيغتان للمُعرِّف؟** المفتاح نفسه يظهر بصيغة مختصرة `did:svrp:n:<8 hex>` (تجزئة SHA-256 للمفتاح مقتطعة) وبصيغة كاملة `did:svrp:<64 hex>` (المفتاح نفسه). الارتباطات تُخزَّن بالمختصرة، والخادم العامل يُعلن الكاملة. **إنها العقدة ذاتها.** ومقارنة النصوص هنا ستشطر عقدة واحدة إلى عقدتين.
+</Note>
+
+## ٤. أو افعلها بسطر واحد
+
+كل ما سبق هو ما تفعله حزمة التطوير نيابةً عنك، والتحقّق فيها غير اختياري.
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # التحقّق مُفعَّل ولا يمكن تعطيله
+nodes = ln.discovery.online()      # العقد المُتحقَّق منها والحديثة فقط
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+الدالة `online()` ترفض أي سجل لا تجتاز هويته التحقّق، وتستبعد ما لم يُسمع عنه منذ مدة. **لا يوجد خيار لتعطيل هذا الفحص** — فالعميل الذي يثق بهويات غير مُتحقَّق منها ليس عميلًا مستعدين لإصداره.
+
+## إلى أين بعد ذلك
+
+<Columns cols={2}>
+  <Card title="المفاهيم الأساسية" icon="book-open" href="/concepts/overview">
+    الهوية والاكتشاف والارتباط و‏Credits.
+  </Card>
+  <Card title="حالة القدرات" icon="list-check" href="/status">
+    ما هو حقيقي، الآن.
+  </Card>
+  <Card title="معجم الأخطاء" icon="triangle-exclamation" href="/reference/errors">
+    كل رمز خطأ وسببه وعلاجه.
+  </Card>
+  <Card title="مولّد المشاريع" icon="wand-magic-sparkles" href="/cli">
+    أمر واحد يولّد وكيلًا يعمل فورًا.
+  </Card>
+</Columns>

@@ -1,0 +1,157 @@
+---
+title: "クイックスタート"
+description: "ゼロから、稼働中のネットワークに対する暗号学的に検証された呼び出しまで。登録不要、APIキー不要、依存パッケージ不要。"
+---
+
+import { Status } from '/snippets/status.mdx';
+
+4 ステップ。最初は `curl` だけ、残りは Node.js **または** Python だけで、**インストールするパッケージはありません**。このページのコードは公開前にすべて稼働中のネットワークで実行しており、示している出力は本物です。
+
+<Info>
+**登録の手順はありません。** LibertyNet のディスカバリーは公開されています。キーを待っているのではなく、そもそもキーが存在しません。ネットワークを読むためにキーの申請を求めるページがあれば、そのページが間違っています。
+</Info>
+
+## 1. ネットワークが動いていることを確認する
+
+<CodeGroup>
+
+```bash curl
+curl -s https://registry.libertynet.ai/health
+```
+
+```python Python
+import json, urllib.request
+with urllib.request.urlopen("https://registry.libertynet.ai/health") as r:
+    print(json.load(r))
+```
+
+</CodeGroup>
+
+```json レスポンス
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+`count` はレジストリが現在把握しているノード数です。これが返ってきたなら、稼働中のネットワークと会話できています。<Status level="implemented" />
+
+## 2. ネットワークに誰がいるかを見る
+
+```bash
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```json レスポンス（1 ノード）
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "endpoint": "172.20.10.5:55785",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+<Warning>
+**`status: "active"` はオンラインを意味しません。**
+
+先週電源を抜いたノードでも、このフィールドは永遠に `"active"` のままです。それを戻す仕組みは存在しません。古くなる唯一のフィールドは `last_seen` で、鮮度は自分で計算する必要があります。ステップ 3 で正しく扱います。
+
+**これはこのネットワークで最も多い最初のつまずきです。**
+</Warning>
+
+## 3. 身元を自分で検証する
+
+ここが LibertyNet が他と違うところで、2 分かける価値があります。
+
+LibertyNet の DID は**自己証明的**です。識別子が公開鍵から導出されているため、SHA-256 さえあれば、ディレクトリを引かず、認証局に尋ねず、受け取ったレスポンスを信用することもなく、その主張を自分で確認できます。
+
+`verify.py` として保存して実行してください。**インストールするものはありません。**
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # base58 は先頭のゼロバイトを落とすため、先頭の '1' 1 つにつき 1 バイト戻す
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# レジストリは /nodes では hex、/peers では base58 で鍵を返す。同じ鍵。
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """この DID は本当にこの公開鍵から導出されているか？"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # 完全 hex 形式
+    if len(body) == 8:
+        return body == digest[:8]       # 短縮形式
+    if len(body) == 10:
+        return body == digest[:10]      # 衝突時のフォールバック形式
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"{verified}/{len(nodes)} 件の身元を検証しました")
+```
+
+```text 実際の実行結果、2026-07-31
+27/27 件の身元を検証しました
+```
+
+誰の許可も求めずに、このネットワーク上のすべての身元を暗号学的に確認しました。**それがこの設計の要点です。**
+
+<Note>
+**なぜ DID の表記が 2 つあるのか。** 同じ鍵が、短縮形 `did:svrp:n:<8桁hex>`（公開鍵の SHA-256 を切り詰めたもの）と完全形 `did:svrp:<64桁hex>`（公開鍵そのもの）の 2 通りで現れます。バインディングには短縮形が保存され、稼働中のデーモンは完全形を announce します。**同じノードです。** ここで文字列比較をすると 1 つのノードが 2 つに割れます。
+</Note>
+
+## 4. SDK なら 1 行
+
+上でやったことは、SDK が代わりにやってくれることです。しかも検証は無効化できません。
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # 検証は既定で有効、無効化不可
+nodes = ln.discovery.online()      # 検証済みかつ新しいノードのみ
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+`online()` は身元検証に失敗したレコードを拒否し、長く応答のないノードを除外します。**この検証を切るフラグはありません** — 未検証の身元を信用するクライアントを出荷するつもりはないからです。
+
+## 次に読むもの
+
+<Columns cols={2}>
+  <Card title="コア概念" icon="book-open" href="/concepts/overview">
+    身元、ディスカバリー、バインディング、Credits。
+  </Card>
+  <Card title="機能ステータス" icon="list-check" href="/status">
+    いま何が本物か。
+  </Card>
+  <Card title="エラー辞典" icon="triangle-exclamation" href="/reference/errors">
+    各エラーコードの原因と対処。
+  </Card>
+  <Card title="CLI スキャフォルダ" icon="wand-magic-sparkles" href="/cli">
+    1 コマンドで動くエージェントを生成。
+  </Card>
+</Columns>

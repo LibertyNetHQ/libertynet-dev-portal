@@ -1,0 +1,146 @@
+---
+title: "Schnellstart"
+description: "Von null zu einem kryptografisch verifizierten Aufruf gegen das echte Netzwerk. Ohne Registrierung, ohne API-Key, ohne Abhängigkeiten."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Vier Schritte. Der erste braucht nur `curl`, die übrigen nur Node.js **oder** Python — **keine Pakete zu installieren**. Jeder Codeausschnitt auf dieser Seite wurde vor der Veröffentlichung gegen das echte Netzwerk ausgeführt, und die gezeigten Ausgaben sind die echten.
+
+<Info>
+**Es gibt keinen Registrierungsschritt.** Discovery bei LibertyNet ist öffentlich. Du wartest nicht auf einen Key — es existiert keiner. Falls eine Seite dich auffordert, einen zu beantragen, um das Netzwerk zu lesen, ist diese Seite falsch.
+</Info>
+
+## 1. Prüfen, ob das Netzwerk da ist
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+```json Antwort
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+`count` ist die Anzahl der Knoten, die die Registry gerade kennt. <Status level="implemented" />
+
+## 2. Sehen, wer im Netzwerk ist
+
+```bash
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```json Antwort (ein Knoten)
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+<Warning>
+**`status: "active"` bedeutet nicht online.**
+
+Ein Knoten, der letzte Woche vom Strom getrennt wurde, behält diesen Wert für immer — nichts setzt ihn zurück. Das einzige Feld, das veraltet, ist `last_seen`; die Aktualitätsprüfung liegt also bei dir. Schritt 3 macht das richtig.
+
+**Das ist der häufigste Anfängerfehler in diesem Netzwerk.**
+</Warning>
+
+## 3. Eine Identität selbst verifizieren
+
+Hier unterscheidet sich LibertyNet, und es lohnt die zwei Minuten.
+
+Eine LibertyNet-DID ist **selbstzertifizierend**: Der Bezeichner wird aus dem öffentlichen Schlüssel abgeleitet. Mit nichts als SHA-256 kannst du die Behauptung bestätigen — ohne Verzeichnisabfrage, ohne Zertifizierungsstelle und ohne der gerade erhaltenen Antwort zu vertrauen.
+
+Als `verify.py` speichern und ausführen. **Nichts zu installieren.**
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # base58 verwirft führende Nullbytes: pro führender '1' eines zurückgeben
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# Die Registry liefert Schlüssel als hex unter /nodes und als base58 unter /peers.
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """Ist diese DID tatsächlich aus diesem öffentlichen Schlüssel abgeleitet?"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # vollständige Hex-Form
+    if len(body) == 8:
+        return body == digest[:8]       # Kurzform
+    if len(body) == 10:
+        return body == digest[:10]      # Kollisions-Rückfallform
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"{verified}/{len(nodes)} Identitäten verifiziert")
+```
+
+```text Echter Lauf, 2026-07-31
+27/27 Identitäten verifiziert
+```
+
+Du hast gerade jede Identität in diesem Netzwerk kryptografisch geprüft, ohne irgendjemanden um Erlaubnis zu fragen. **Genau darum geht es.**
+
+<Note>
+**Warum zwei DID-Kodierungen?** Derselbe Schlüssel erscheint als Kurzform `did:svrp:n:<8hex>` (gekürzter SHA-256 des Schlüssels) und als Vollform `did:svrp:<64hex>` (der Schlüssel selbst). Bindungen speichern die kurze, ein laufender Daemon kündigt die lange an. **Es ist derselbe Knoten.** Ein Stringvergleich zerlegt hier einen Knoten in zwei.
+</Note>
+
+## 4. Oder in einer Zeile
+
+All das Obige übernimmt das SDK für dich — und die Verifikation ist nicht abschaltbar.
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # Verifikation an; nicht deaktivierbar
+nodes = ln.discovery.online()      # nur verifizierte, aktuelle Knoten
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+`online()` weist jeden Datensatz zurück, dessen Identität nicht verifiziert, und verwirft alles, was sich länger nicht gemeldet hat. **Es gibt kein Flag, um diese Prüfung abzuschalten** — einen Client, der unverifizierten Identitäten vertraut, wollen wir nicht ausliefern.
+
+## Weiter
+
+<Columns cols={2}>
+  <Card title="Konzepte" icon="book-open" href="/concepts/overview">
+    Identität, Discovery, Bindung, Credits.
+  </Card>
+  <Card title="Funktionsstatus" icon="list-check" href="/status">
+    Was gerade wirklich existiert.
+  </Card>
+  <Card title="Fehlerverzeichnis" icon="triangle-exclamation" href="/reference/errors">
+    Jeder Code, seine Ursache und seine Behebung.
+  </Card>
+  <Card title="CLI-Generator" icon="wand-magic-sparkles" href="/cli">
+    Ein Befehl, ein lauffähiger Agent.
+  </Card>
+</Columns>

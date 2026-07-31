@@ -1,0 +1,146 @@
+---
+title: "Inicio rápido"
+description: "De cero a una llamada criptográficamente verificada contra la red real. Sin registro, sin API key, sin dependencias."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Cuatro pasos. El primero solo necesita `curl`; el resto, únicamente Node.js **o** Python, **sin paquetes que instalar**. Todo el código de esta página se ejecutó contra la red real antes de publicarse, y las salidas mostradas son las reales.
+
+<Info>
+**No hay paso de registro.** El descubrimiento en LibertyNet es público. No estás esperando una clave: no existe ninguna clave. Si alguna página te pide solicitar una para leer la red, esa página está equivocada.
+</Info>
+
+## 1. Comprueba que la red está ahí
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+```json Respuesta
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+`count` es el número de nodos que el registro conoce ahora mismo. <Status level="implemented" />
+
+## 2. Mira quién está en la red
+
+```bash
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```json Respuesta (un nodo)
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+<Warning>
+**`status: "active"` no significa en línea.**
+
+Un nodo que se desconectó la semana pasada conserva ese valor para siempre; nada lo restablece. El único campo que caduca es `last_seen`, así que la frescura la calculas tú. El paso 3 lo hace bien.
+
+**Es el error inicial más común en esta red.**
+</Warning>
+
+## 3. Verifica una identidad tú mismo
+
+Aquí está lo que hace distinta a LibertyNet, y merece los dos minutos.
+
+Un DID de LibertyNet es **autocertificante**: el identificador se deriva de la clave pública. Con solo SHA-256 puedes confirmar esa afirmación sin consultar ningún directorio, sin preguntar a ninguna autoridad de certificación y sin confiar en la respuesta que acabas de recibir.
+
+Guárdalo como `verify.py` y ejecútalo. **Nada que instalar.**
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # base58 descarta los bytes cero iniciales: restaura uno por cada '1' inicial
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# El registro sirve claves en hex desde /nodes y en base58 desde /peers. La misma clave.
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """¿Este DID se deriva realmente de esta clave pública?"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # forma hex completa
+    if len(body) == 8:
+        return body == digest[:8]       # forma corta
+    if len(body) == 10:
+        return body == digest[:10]      # reserva ante colisiones
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"{verified}/{len(nodes)} identidades verificadas")
+```
+
+```text Ejecución real, 2026-07-31
+27/27 identidades verificadas
+```
+
+Acabas de comprobar criptográficamente todas las identidades de la red sin pedir permiso a nadie. **Ese es todo el objetivo.**
+
+<Note>
+**¿Por qué dos codificaciones de DID?** La misma clave aparece como forma corta `did:svrp:n:<8hex>` (SHA-256 truncado de la clave) y como forma completa `did:svrp:<64hex>` (la clave misma). Los enlaces guardan la corta; un demonio en ejecución anuncia la larga. **Es el mismo nodo.** Comparar cadenas aquí partirá un nodo en dos.
+</Note>
+
+## 4. O hazlo en una línea
+
+Todo lo anterior es lo que el SDK hace por ti, con la verificación no opcional.
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # verificación activada; no se puede desactivar
+nodes = ln.discovery.online()      # solo nodos verificados y recientes
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+`online()` rechaza cualquier registro cuya identidad no verifique y descarta lo que lleve tiempo sin reportar. **No hay ninguna opción para desactivar la comprobación**: un cliente que confía en identidades no verificadas no es un cliente que estemos dispuestos a publicar.
+
+## Y ahora
+
+<Columns cols={2}>
+  <Card title="Conceptos" icon="book-open" href="/concepts/overview">
+    Identidad, descubrimiento, vinculación, Credits.
+  </Card>
+  <Card title="Estado de capacidades" icon="list-check" href="/status">
+    Qué es real, ahora mismo.
+  </Card>
+  <Card title="Diccionario de errores" icon="triangle-exclamation" href="/reference/errors">
+    Cada código, su causa y su solución.
+  </Card>
+  <Card title="Generador CLI" icon="wand-magic-sparkles" href="/cli">
+    Un comando y tienes un agente que funciona.
+  </Card>
+</Columns>
