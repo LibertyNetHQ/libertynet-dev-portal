@@ -1,0 +1,40 @@
+export const Status = ({ level }) => {
+  const map = {
+    implemented:   { cls: "implemented", label: "Implemented" },
+    not_yet_wired: { cls: "wired",       label: "Not yet wired" },
+    testing:       { cls: "testing",     label: "Testing" },
+    planned:       { cls: "planned",     label: "Planned" },
+  };
+  const s = map[level] || map.planned;
+  return (
+    <span className={`ln-status ln-status--${s.cls}`} title={s.label}>
+      {s.label}
+    </span>
+  );
+};
+
+export const StatusKey = () => (
+  <table>
+    <thead>
+      <tr><th>Badge</th><th>What it means for you</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><Status level="implemented" /></td>
+        <td>Live on a public endpoint. Call it today, no waiting.</td>
+      </tr>
+      <tr>
+        <td><Status level="not_yet_wired" /></td>
+        <td>The endpoint is live and returns <code>200</code>, but its data source is not connected. It returns zeros and <code>"source": "not_yet_wired"</code>. Safe to read; the numbers are not measurements.</td>
+      </tr>
+      <tr>
+        <td><Status level="testing" /></td>
+        <td>Code exists and its own tests pass, but nothing public serves it yet. You cannot call it.</td>
+      </tr>
+      <tr>
+        <td><Status level="planned" /></td>
+        <td>Designed, not built. There is no code behind it. Do not write against it.</td>
+      </tr>
+    </tbody>
+  </table>
+);

@@ -1,0 +1,38 @@
+{
+  "name": "@libertynet/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for LibertyNet — discovery, self-certifying identity, operator login and node binding.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --experimental-strip-types test/*.test.ts",
+    "test:live": "LN_LIVE=1 node --test --experimental-strip-types test/*.test.ts"
+  },
+  "dependencies": {
+    "@noble/ed25519": "2.1.0",
+    "@noble/hashes": "1.6.1",
+    "@scure/base": "1.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "typescript": "5.7.3"
+  },
+  "keywords": ["libertynet", "did", "ed25519", "decentralized", "sdk"],
+  "license": "SEE LICENSE IN REPOSITORY",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LibertyNetHQ/LibertyNet-hq",
+    "directory": "dev-portal/sdk/typescript"
+  }
+}

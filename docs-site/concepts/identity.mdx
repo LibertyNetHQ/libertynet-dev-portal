@@ -1,0 +1,188 @@
+---
+title: "Identity"
+description: "Self-certifying DIDs: how they are derived, why there are two encodings, and the verification order you must not reorder."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+A LibertyNet identity is a **DID** — a decentralized identifier — that is derived from a
+public key rather than assigned by anyone.
+
+```text
+did:svrp:n:268d4fe0
+│   │    │ └── the identifier: SHA-256(public_key) truncated to 4 bytes, hex
+│   │    └──── role tag: n = node, o = operator, h = host
+│   └───────── method: svrp
+└───────────── scheme
+```
+
+Nobody issued that. It was computed. Which is why you can check it without asking anyone.
+
+## Deriving and verifying
+
+<CodeGroup>
+
+```typescript TypeScript
+import { verifyIdBinding, didFromPublicKey, fingerprint } from "@libertynet/sdk";
+
+// Derive an identity from a key
+didFromPublicKey("7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg", "n");
+// → "did:svrp:n:268d4fe0"
+
+// Check a claimed pairing
+verifyIdBinding("did:svrp:n:268d4fe0", "7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg");
+// → true
+
+// Human-comparable form, for reading aloud or comparing on screen
+fingerprint("7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg");
+// → "268d:4fe0:b6ef:c390"
+```
+
+```python Python
+from libertynet import verify_id_binding, did_from_public_key, fingerprint
+
+did_from_public_key("7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg", "n")
+# → "did:svrp:n:268d4fe0"
+
+verify_id_binding("did:svrp:n:268d4fe0", "7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg")
+# → True
+
+fingerprint("7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg")
+# → "268d:4fe0:b6ef:c390"
+```
+
+</CodeGroup>
+
+## Two encodings, one identity
+
+This is the detail that most often costs people an afternoon.
+
+The **same key** appears in two different DID spellings depending on where you are looking:
+
+| Form | Looks like | Derivation | Where you see it |
+|---|---|---|---|
+| Short | `did:svrp:n:268d4fe0` | `SHA-256(key)[0:4]`, hex | Bindings, operator records, `/peers` |
+| Full-hex | `did:svrp:df9d4b9f…02d` | the 32-byte key itself, hex | `/nodes`, running daemons |
+
+There is also a **10-hex fallback** (`SHA-256(key)[0:5]`) reserved for collision handling.
+Any implementation that hard-codes only the 4-byte formula will reject a legitimate
+identity the day one is issued, so handle all three lengths.
+
+<Warning>
+**String comparison will lie to you here.**
+
+```javascript
+"did:svrp:n:8545027b" === "did:svrp:df9d4b9f...02d"   // false
+```
+
+Those are the same node. Comparing DID strings will silently split one node into two —
+in your database, your dashboard, and your billing.
+
+Compare the underlying identity instead:
+
+```javascript
+sameIdentity(shortDid, fullDid, publicKey)   // → true
+```
+
+The registry itself has to reconcile this: `GET /v1/operator/me/nodes` matches a
+short-DID binding against the full-hex announcement of a live daemon so you do not have
+to. In your own code, do it deliberately.
+</Warning>
+
+## Public keys also arrive two ways
+
+`GET /nodes` returns keys as lowercase hex. `GET /peers` returns them as base58. Same 32
+bytes.
+
+Parsing a base58 key as hex does not error — it produces garbage, which fails every
+id-binding check, which makes it look like the entire network is forged. If your
+verification suddenly rejects everything, this is almost always why.
+
+The SDKs accept either encoding and normalise before hashing.
+
+## The verification order
+
+<Warning>
+This order is fixed. It is not a style preference and it must not be reordered or
+short-circuited.
+
+<Steps>
+  <Step title="Verify the id-binding">
+    Does the claimed identity derive from this public key? **If not, reject now.** Do not
+    continue to the signature check.
+  </Step>
+  <Step title="Verify the signature">
+    Ed25519, over the canonical bytes.
+  </Step>
+  <Step title="Verify every remaining rule">
+    Validity windows, DID status, replay and duplicate checks, permission scope. Any
+    failure rejects.
+  </Step>
+  <Step title="Accept">
+    Only after all of the above passed.
+  </Step>
+</Steps>
+</Warning>
+
+### Why step 1 cannot be skipped
+
+Suppose an attacker wants to impersonate `did:svrp:n:268d4fe0`.
+
+They cannot produce a signature from that node's private key — they do not have it. But
+they *can* generate their own keypair, sign anything they like with it, and send you:
+
+```json
+{
+  "claimed_identity": "did:svrp:n:268d4fe0",
+  "public_key": "<attacker's own public key>",
+  "signature": "<a perfectly valid signature by the attacker's key>"
+}
+```
+
+If you verify the signature against the key they supplied, **it passes**. The signature is
+genuine. It is just genuinely theirs.
+
+Step 1 is what catches this: `SHA-256(attacker_key)[0:4]` is not `268d4fe0`, so the
+identity claim fails before the signature is ever considered. Omitting it is a
+verification bypass, not an optimisation.
+
+## Identity is not authentication
+
+Worth stating plainly, because the generated service template surfaces exactly this
+distinction:
+
+- **id-binding** proves the identifier is well-formed for that key. It is a statement about
+  arithmetic.
+- **Authentication** proves the caller *holds the private key*. It requires them to sign
+  something **you** chose — a fresh challenge — so a replayed signature is useless.
+
+A caller who presents a DID and a matching key has proven nothing about possession; they
+copied both out of a public directory. See
+[operator login](/guides/operator-login) for the full challenge–response.
+
+## Root keys and device keys
+
+An operator has a **root key** and one or more **device keys**.
+
+The root key signs exactly one thing: a **DeviceCredential** naming a device key and its
+permissions. Then it goes back in the safe, offline. Every subsequent operation — logging
+in, authorizing a binding — is done by the device key.
+
+```text
+root key  ──signs──▶  DeviceCredential  ──its key signs──▶  AuthorizationCredential
+(offline, cold)       (device may act)                      (this node, these limits)
+```
+
+The point: a stolen laptop costs you a device, which you revoke. It does not cost you your
+identity, which would be unrecoverable.
+
+## Reference
+
+<Columns cols={2}>
+  <Card title="DID reference" icon="book" href="/reference/dids">
+    Every form, every field, every edge case in one table.
+  </Card>
+  <Card title="Verify it yourself" icon="terminal" href="/quickstart#3-verify-an-identity-yourself">
+    Ten lines, no dependencies, against the live network.
+  </Card>
+</Columns>

@@ -1,0 +1,112 @@
+---
+title: "AI-readable context"
+sidebarTitle: "Raw context"
+description: "llms.txt, per-page markdown, and the machine-readable sources an assistant should read instead of guessing."
+---
+
+Everything here is designed to be read by a machine as easily as by a person.
+
+## `llms.txt`
+
+```text
+https://docs.libertynet.ai/llms.txt        # index of every page, with descriptions
+https://docs.libertynet.ai/llms-full.txt   # the entire documentation set as one file
+```
+
+Generated automatically and kept in sync with the site. `llms-full.txt` is the one to feed
+an assistant that has no tool access — it is the whole corpus, in order, in markdown.
+
+## Any page as markdown
+
+Append `.md` to any documentation URL:
+
+```bash
+curl -s https://docs.libertynet.ai/concepts/identity.md
+curl -s https://docs.libertynet.ai/reference/errors.md
+```
+
+Clean markdown, no navigation chrome, no JavaScript required.
+
+Every page also carries a **Copy page** / **Open in Claude** / **Open in ChatGPT** control
+in its header.
+
+## Machine-readable sources
+
+These are the files everything else is derived from. An assistant reading these cannot be
+out of step with the docs, because the docs are generated from them.
+
+| File | What it is |
+|---|---|
+| [`api-spec/status.json`](https://github.com/LibertyNetHQ/LibertyNet-hq/blob/main/dev-portal/api-spec/status.json) | **The capability matrix.** Every endpoint and its real status. The single source for every badge in these docs and both SDKs. |
+| [`api-spec/libertynet-v1.yaml`](https://github.com/LibertyNetHQ/LibertyNet-hq/blob/main/dev-portal/api-spec/libertynet-v1.yaml) | OpenAPI 3.1, 19 operations, each carrying `x-ln-status`. |
+
+<Warning>
+**If you read one file, read `status.json`.**
+
+Most of LibertyNet's intended surface is not built. A wallet endpoint sounds like it should
+work; it does not exist. Checking the matrix is the difference between generating code that
+runs and code that is merely plausible.
+</Warning>
+
+## The four statuses
+
+```json
+{
+  "implemented":   "Live on a public endpoint. Callable now.",
+  "not_yet_wired": "Endpoint returns 200 but has no data source. Returns placeholder zeros plus \"source\": \"not_yet_wired\".",
+  "testing":       "Code exists and passes tests, but is not deployed anywhere.",
+  "planned":       "Designed, not built. Nothing behind it."
+}
+```
+
+<Warning>
+`not_yet_wired` is the one that catches people. The endpoint returns `200`. The JSON looks
+like a balance. Every number in it is `0` — and that `0` means "nothing is counting", not
+"the value is zero". Presenting it as an earning would be a lie told through a number.
+</Warning>
+
+## Facts an assistant should not get wrong
+
+If you are prompting a model about LibertyNet, these are the load-bearing ones:
+
+```text
+· LibertyNet has NO wallet, transfer, swap, staking, DEX or trading.
+  No endpoint in the API moves value. This is scope, not a gap.
+
+· Credits are a TEST UNIT: not cash, not redeemable, not a claim on future
+  value. They are also not currently being counted (source: not_yet_wired).
+
+· Discovery is public — no API key, no signup. Code that asks the user for a
+  LibertyNet API key is wrong; there is no such thing.
+
+· A node's "status": "active" does NOT mean online. Only last_seen decays.
+
+· A valid signature is NOT a valid identity. Verify id-binding FIRST, then the
+  signature, then everything else.
+
+· The same key appears as short did:svrp:n:<8hex> and full did:svrp:<64hex>.
+  Comparing DID strings will split one node into two.
+
+· Public keys arrive as hex (/nodes) and base58 (/peers). Decoding one as the
+  other silently produces garbage that fails every check.
+```
+
+## Best: give it tools
+
+Static context goes stale; tools do not.
+
+<Card title="MCP server" icon="plug" href="/ai/mcp" horizontal>
+  Six tools — capability status, docs search, full pages, arithmetic identity verification,
+  the live node list, and endpoint probing. Zero dependencies.
+</Card>
+
+An assistant with `libertynet_capability_status` does not need to be told what is built. It
+can look.
+
+## Indexing this site
+
+Crawlers are welcome. `robots.txt` permits indexing, and `llms-full.txt` is a far better
+source than scraped HTML — it is the same content without the markup.
+
+If you are building a tool on top of these docs, the [community](/community) would like to
+hear about it, and can tell you before a breaking change rather than after.

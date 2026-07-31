@@ -1,0 +1,155 @@
+---
+title: "Build an intent solver"
+sidebarTitle: "Intent solver"
+description: "What you can genuinely build today for a system that does not exist yet — and what you should not."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Warning>
+**The intent system is not built.** <Status level="planned" />
+
+No intent endpoint, no quoting engine, no solver interface, no settlement. Nothing in the
+"solving" half of this guide can run today, and no amount of clever code on your side will
+change that.
+
+This guide exists because there *is* real work you can do now, and because you deserve a
+straight answer about which half is which.
+</Warning>
+
+## What you can build today
+
+<Columns cols={2}>
+  <Card title="Your pricing model" icon="calculator">
+    Pure logic. Needs no network. Fully testable right now.
+  </Card>
+  <Card title="Network awareness" icon="tower-broadcast">
+    Discovering and verifying the nodes you would compete and settle with — live today.
+  </Card>
+</Columns>
+
+## Scaffold it
+
+```bash
+npx create-libertynet-agent my-solver --type solver -y
+cd my-solver && npm start
+```
+
+```text
+Registry: 27 registered, 2 online now
+  did:svrp:h:2216a202  node
+  did:svrp:df9d4b9f390bc49  inference,health:ready
+
+Solver loop not started: the intent system is not built yet.
+Write and test priceIntent() now; wire fetchIntents() when it ships.
+```
+
+## The line, in code
+
+The generated project draws it explicitly:
+
+```javascript
+function notBuilt(what) {
+  throw new Error(
+    what + " is planned, not built. There is no endpoint behind it. " +
+    "Track it at https://docs.libertynet.ai/status",
+  );
+}
+
+export async function fetchIntents() { notBuilt("GET /v1/dex/intent"); }
+export async function submitSolution(id, solution) { notBuilt("POST /v1/dex/solve"); }
+```
+
+<Note>
+**Why throw rather than return mock data?**
+
+A stub that returns plausible quotes is how you end up shipping plausible quotes. Mock data
+has a way of surviving into production — it looks right, tests pass against it, and the day
+the real endpoint arrives your code has been quietly wrong for months.
+
+An exception cannot be mistaken for a result.
+</Note>
+
+## Write the part that is real
+
+```javascript
+export function priceIntent(intent) {
+  if (!intent || typeof intent.amount !== "number") {
+    throw new TypeError("intent.amount must be a number");
+  }
+  return { intentId: intent.id, quote: intent.amount, confidence: 0 };
+}
+```
+
+Trivial on purpose — obviously a placeholder rather than something you might mistake for a
+strategy. Replace it with your actual model, and test it hard:
+
+```javascript
+describe("pricing", () => {
+  test("prices a well-formed intent", () => {
+    assert.equal(priceIntent({ id: "i1", amount: 100 }).quote, 100);
+  });
+
+  test("rejects a malformed intent instead of guessing", () => {
+    assert.throws(() => priceIntent({}), TypeError);
+  });
+});
+```
+
+This is not busywork. When the intent system ships, the difference between solvers will be
+pricing quality — and you will have had the head start of building it against a test suite
+instead of against a live market.
+
+## Understand the competition
+
+Working today:
+
+```javascript
+const nodes = await ln.discovery.online();
+const solvers = nodes.filter((n) => n.capabilities.includes("solver"));
+
+console.log(`${solvers.length} nodes advertising solver capability`);
+// → 0, currently. Nobody advertises it yet.
+```
+
+<Note>
+Zero is a real answer about the network, not a bug. `solver` is declared in the spec but
+has not been observed in the wild — the capability exists as a string, not as a practice.
+</Note>
+
+## What to do when it ships
+
+The badge on [capability status](/status) flips in the **same release** that makes the
+endpoints real — never before. When it does:
+
+<Steps>
+  <Step title="Replace the throwing functions">
+    `fetchIntents()` and `submitSolution()` are the only two places that need to change.
+    That is why they are isolated behind `notBuilt()`.
+  </Step>
+  <Step title="Keep your pricing untouched">
+    It was always pure. It does not know or care where intents come from.
+  </Step>
+  <Step title="Re-read the settlement documentation">
+    Anything that moves value will have arrived with its own review, its own docs, and its
+    own security model. Do not assume it works like the read-only endpoints you know.
+  </Step>
+</Steps>
+
+## Do not build these yet
+
+<Warning>
+Do not design around, or write code that assumes:
+
+- **Any economics.** Fee splits, rewards, staking — none of it is decided, and Credits are
+  a [test unit](/concepts/credits) that nothing is currently counting.
+- **Any settlement.** There is no endpoint in this API that moves value.
+- **A specific intent schema.** Nothing is frozen. What you guess today will be wrong.
+
+Building on a guess is not an early start, it is an expensive rewrite with extra confidence
+attached.
+</Warning>
+
+<Card title="Watch for changes" icon="discord" href="/community" horizontal>
+  New capabilities are announced in Discord as they ship. Ask what is actually next.
+</Card>

@@ -1,0 +1,125 @@
+---
+title: "Credits"
+description: "What Credits are, what they are not, and why the endpoint currently returns zeros on purpose."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Warning>
+**Credits are a test unit.**
+
+Not cash. Not redeemable. Not convertible. Not a claim on future value, and not a promise
+that any such claim will ever exist.
+
+This sentence appears next to every Credits number in this documentation, in the SDKs, and
+in the Dashboard. It is not boilerplate — it is the most important thing on this page.
+</Warning>
+
+## Current state: nothing is counting <Status level="not_yet_wired" />
+
+`GET /v1/operator/me/credits` is live and returns `200`. It also returns this:
+
+```json
+{
+  "operator_did": "did:svrp:o:<your-operator-id>",
+  "unit": "test-credit",
+  "settled":   { "amount": 0, "meaning": "已入账：由 Evidence 验证与结算系统确认" },
+  "pending":   { "amount": 0, "meaning": "待验证：Evidence 已提交，尚未完成验证或结算" },
+  "estimated": { "amount": 0, "meaning": "模拟估算：内测模型估算，不代表承诺或未来价值" },
+  "source": "not_yet_wired"
+}
+```
+
+`"source": "not_yet_wired"` is the field that matters. It means **no credits ledger is
+connected to this endpoint**. Every amount is a placeholder, not a measurement.
+
+<Warning>
+**Zero here does not mean "you earned nothing".** It means "nothing is counting yet".
+
+Those are completely different statements, and displaying the first when the second is true
+is the exact kind of quiet dishonesty this network is trying not to build. A `0` next to
+the word "earnings", with no caveat, is a lie told through a number.
+</Warning>
+
+### How the SDKs enforce that
+
+Rather than trusting every caller to remember, the SDKs make the honest path the easy one
+and the dishonest path impossible:
+
+<CodeGroup>
+
+```typescript TypeScript
+// Raises rather than hand you a misleading zero.
+await ln.operator.settledCredits();
+// → NotYetWiredError [NOT_YET_WIRED]: GET /v1/operator/me/credits is not_yet_wired:
+//   the endpoint is live but no credits ledger is connected, so the returned 0 is a
+//   placeholder rather than a balance.
+//   → https://docs.libertynet.ai/status
+
+// The honest read — envelope and `source` intact, for you to display with its caveat.
+const balance = await ln.operator.creditsRaw();
+if (balance.source === "not_yet_wired") {
+  render("Not connected yet");
+} else {
+  render(balance.settled.amount);
+}
+```
+
+```python Python
+# Raises rather than hand you a misleading zero.
+ln.operator.settled_credits()
+# → NotYetWiredError: [NOT_YET_WIRED] GET /v1/operator/me/credits is not_yet_wired: ...
+
+# The honest read — envelope and `source` intact.
+balance = ln.operator.credits_raw()
+render("Not connected yet" if not balance.is_wired else balance.settled["amount"])
+```
+
+</CodeGroup>
+
+`settledCredits()` starts working, with no code change on your side, the moment `source`
+becomes `"ledger"`.
+
+## The three buckets
+
+When a ledger *is* connected, Credits will be reported in three separate states — and they
+are deliberately not summed into one number, because summing them would blur exactly the
+distinctions that matter.
+
+| Bucket | Meaning | How much you should trust it |
+|---|---|---|
+| `settled` | Confirmed by evidence verification and settlement. | This is the real one. |
+| `pending` | Evidence submitted, not yet verified or settled. | May never settle. Do not spend it. |
+| `estimated` | A beta model's guess. | Not a commitment and not a forecast. Informational only. |
+
+A UI that adds these together and shows one figure is misrepresenting all three.
+
+## Evidence
+
+Credits, when they are counted, will be derived from **Evidence** — signed, verifiable
+records of contribution — rather than from self-reported activity. That is what makes the
+number checkable rather than claimed.
+
+`GET /v1/operator/me/evidence` is also live and also unwired: `count: 0`,
+`"source": "not_yet_wired"`. <Status level="not_yet_wired" />
+
+<Note>
+Treat an empty evidence list as **unknown**, never as "you contributed nothing". The source
+is not connected; it is not reporting an absence, it is failing to report at all.
+</Note>
+
+The on-chain side of evidence anchoring exists as tested contracts
+([`libertynet-oracle/`](https://github.com/LibertyNetHQ/LibertyNet-hq/tree/main/libertynet-oracle),
+23/23 passing) but is **not deployed** to any public network. <Status level="testing" />
+
+## What Credits will never be, here
+
+There is no endpoint in this API that moves value. No wallet, no transfer, no swap, no
+staking, no trading — see [capability status](/status) for the current list.
+
+If a future version adds any of that, it will arrive with its own documentation, its own
+badge, and its own review. It will not arrive quietly inside a page about test units.
+
+<Card title="What is actually built" icon="list-check" href="/status" horizontal>
+  The full capability matrix, with how each claim was verified.
+</Card>

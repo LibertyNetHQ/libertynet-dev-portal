@@ -1,0 +1,156 @@
+---
+title: "Capability status"
+description: "Exactly what is built, what is live, and what is not. Every endpoint, with how each claim was checked."
+---
+
+import { Status, StatusKey } from '/snippets/status.mdx';
+
+This page is the reason you can trust the rest of the documentation. Everything a
+LibertyNet API can do carries one of four labels, and no page anywhere is allowed to
+describe a capability as more finished than this table says it is.
+
+<StatusKey />
+
+<Info>
+**Where these come from.** The table below is derived from
+[`dev-portal/api-spec/status.json`](https://github.com/LibertyNetHQ/LibertyNet-hq/blob/main/dev-portal/api-spec/status.json),
+the single machine-readable source that also drives the SDKs and the OpenAPI spec. A
+drift checker fails the build if a badge in the docs disagrees with it, so these
+cannot rot independently.
+
+Last verified by direct endpoint probe: **2026-07-31**.
+</Info>
+
+## Node discovery <Status level="implemented" />
+
+Public. No key, no signup, no rate limit to apply for.
+
+| Endpoint | Status | Notes |
+|---|---|---|
+| `GET /health` | <Status level="implemented" /> | Liveness + registered node count. |
+| `GET /nodes` | <Status level="implemented" /> | The full node table. |
+| `GET /peers` | <Status level="implemented" /> | Plain text, one peer per line, for shell tooling. |
+| `GET /api/v1/peers` | <Status level="implemented" /> | JSON envelope form. |
+| `POST /api/v1/register` | <Status level="implemented" /> | A node announces itself. Signature checking is in grace mode. |
+| `POST /api/v1/heartbeat` | <Status level="implemented" /> | Refreshes `last_seen`. |
+
+## Operator identity <Status level="implemented" />
+
+Signature-based login. There is no password in this system.
+
+| Endpoint | Status | Notes |
+|---|---|---|
+| `POST /v1/auth/challenge` | <Status level="implemented" /> | Single-use, 300s TTL. |
+| `POST /v1/auth/device-login` | <Status level="implemented" /> | Returns a 1-hour bearer session. |
+| `GET /v1/operator/me/nodes` | <Status level="implemented" /> | Your bound nodes, with a computed `online` flag. |
+
+## Node ↔ operator binding <Status level="implemented" />
+
+The full double-signature handshake, with all four signatures re-verified atomically
+before a binding becomes `ACTIVE`.
+
+| Endpoint | Status |
+|---|---|
+| `POST /v1/bindings/initiate` | <Status level="implemented" /> |
+| `POST /v1/bindings/resolve` | <Status level="implemented" /> |
+| `POST /v1/bindings/authorize` | <Status level="implemented" /> |
+| `GET /v1/bindings/{id}/status` | <Status level="implemented" /> |
+| `POST /v1/bindings/{id}/cancel` | <Status level="implemented" /> |
+| `POST /v1/node/bindings/pending` | <Status level="implemented" /> |
+| `POST /v1/node/bindings/{id}/accept` | <Status level="implemented" /> |
+| `POST /v1/node/bindings/{id}/reject` | <Status level="implemented" /> |
+
+## Credits and evidence <Status level="not_yet_wired" />
+
+<Warning>
+**These endpoints are live and return `200`, but nothing is behind them.**
+
+`GET /v1/operator/me/credits` returns `settled`, `pending` and `estimated` all equal to
+`0`, together with `"source": "not_yet_wired"`. That zero is a placeholder, not a
+measurement — it does not mean you earned nothing, it means nothing is counting yet.
+
+If you render these numbers, render the caveat. The SDKs enforce this: `settledCredits()`
+raises rather than hand you a zero that could be displayed as a balance. Use
+`creditsRaw()` when you want the envelope and its `source` field.
+</Warning>
+
+| Endpoint | Status | Behaviour today |
+|---|---|---|
+| `GET /v1/operator/me/credits` | <Status level="not_yet_wired" /> | `200`, all amounts `0`, `source: "not_yet_wired"`. |
+| `GET /v1/operator/me/evidence` | <Status level="not_yet_wired" /> | `200`, `count: 0`, `source: "not_yet_wired"`. |
+
+**Credits are a test unit.** Not cash. Not redeemable. Not a claim on future value. This
+sentence appears next to every Credits number in this documentation and in the Dashboard,
+and it is not decoration.
+
+## Oracle <Status level="testing" />
+
+Genuinely different from "planned": the contracts exist and their suite passes. What is
+missing is a deployment.
+
+| Component | Status | Notes |
+|---|---|---|
+| `EvidenceOracle` | <Status level="testing" /> | Solidity, 23/23 tests pass ([`libertynet-oracle/`](https://github.com/LibertyNetHQ/LibertyNet-hq/tree/main/libertynet-oracle)). Not deployed to any public network. |
+| `PythPriceAdapter` | <Status level="testing" /> | Pull-mode adapter with freshness guard. Not deployed. |
+| `GET /v1/oracle/price` | <Status level="planned" /> | No HTTP read surface exists. |
+| `POST /v1/oracle/report` | <Status level="planned" /> | No HTTP submission surface exists. |
+
+<Note>
+"Tests pass" and "deployed" are different claims, and merging them is one of the easiest
+ways for documentation to become false. There is no contract address to call, so
+`oracle.price()` in the SDKs raises with `level: "testing"` rather than `"planned"` — the
+distinction is real and worth preserving.
+</Note>
+
+## Not built <Status level="planned" />
+
+No code, no endpoint, nothing to call. Listed so you can see the intended shape of the
+network, not so you can build against it.
+
+| Area | Status | Why it is listed |
+|---|---|---|
+| Agent wallet (`create` / `session-key` / `transfer`) | <Status level="planned" /> | Value transfer is outside the current scope. |
+| Intent trading (`intent` / `quote` / `solve` / `pools`) | <Status level="planned" /> | No endpoint, no matching engine. |
+| `$LNT` balance | <Status level="planned" /> | No token surface exists. |
+
+<Warning>
+**There is no endpoint in this API that moves value.** No wallet, no swap, no staking, no
+token transfer, no trading. That is a deliberate scope decision. If you find a page that
+suggests otherwise, it is a bug — please [report it](/community).
+</Warning>
+
+## How to check this yourself
+
+You do not have to take this page's word for it.
+
+```bash
+# Live, right now, no auth:
+curl -s https://registry.libertynet.ai/health
+curl -s https://registry.libertynet.ai/nodes | head -c 300
+
+# The honesty marker on an unwired endpoint:
+curl -s https://registry.libertynet.ai/v1/operator/me/credits
+# → {"code": "NO_SESSION", "error": "missing bearer token"}
+#   (authenticate and you will get 200 with "source": "not_yet_wired")
+```
+
+The SDK ships a live test that asserts this page is still true:
+
+```bash
+cd dev-portal/sdk/typescript && npm run test:live
+```
+
+It fails if any identity on the live registry stops verifying — which would mean either
+the network or this documentation is wrong, and either is worth knowing immediately.
+
+## When a status changes
+
+A capability's badge changes in the same commit that changes its behaviour, never before.
+Concretely, shipping something means: implement it, flip it in `status.json`, and let the
+drift checker confirm every page agrees. Announcing first and shipping later is how
+"Planned" quietly becomes "Active" in a reader's memory, and this project does not do it.
+
+<Card title="Something here is wrong?" icon="flag" href="/community" horizontal>
+  If an endpoint behaves differently from what this page claims, that is a bug worth
+  reporting — the fix is the code or the badge, never the wording.
+</Card>

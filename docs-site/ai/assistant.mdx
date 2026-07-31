@@ -1,0 +1,132 @@
+---
+title: "AI assistant"
+description: "Ask questions in the docs, and get code that actually runs. Plus what the assistant will refuse to write, and why."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Press <kbd>⌘K</kbd> (or click **Ask AI**) anywhere in these docs. The assistant reads this
+entire documentation set and answers with sources.
+
+Free to use, with a per-visitor rate limit. No account needed.
+
+## What it is good at
+
+<Columns cols={2}>
+  <Card title="Finding the right page" icon="magnifying-glass">
+    "How do I check if a node is really online?" beats guessing which section that lives in.
+  </Card>
+  <Card title="Explaining an error" icon="triangle-exclamation">
+    Paste an error code or a stack trace. Every error in this system has a documented cause
+    and fix.
+  </Card>
+  <Card title="Writing starter code" icon="code">
+    "Give me a script that lists inference nodes in Asia and verifies them."
+  </Card>
+  <Card title="Answering what exists" icon="list-check">
+    "Can I transfer credits?" — a straight no, with the reason.
+  </Card>
+</Columns>
+
+## What it will not do
+
+This is the part worth reading.
+
+<Warning>
+**It will not write code against capabilities that do not exist.**
+
+Ask for a wallet transfer and you should get: *there is no wallet system, no endpoint in
+this API moves value, here is [capability status](/status)*. Not a plausible-looking
+function that fails at runtime.
+
+**It will not present unwired values as measurements.**
+
+Ask for a credits balance and it should tell you the endpoint returns `0` with
+`"source": "not_yet_wired"` — meaning nothing is counting, not that you earned nothing —
+and show you the reader that surfaces the caveat.
+
+**It will not hard-code secrets.**
+
+Generated code reads keys from the environment or an OS keychain. A snippet that ships a
+literal key teaches every reader that literal keys are normal.
+
+**It will not disable identity verification.**
+
+There is no `skipVerify` option to suggest, in any SDK, by design.
+</Warning>
+
+## How the guardrails work
+
+Not by asking the model nicely. Three structural things:
+
+<Steps>
+  <Step title="The docs it reads are honest">
+    Every capability carries a status badge derived from one machine-readable matrix, and a
+    drift checker fails the build if a page disagrees with it. The assistant cannot learn
+    from this corpus that credits work, because no page says they do.
+  </Step>
+  <Step title="The SDKs refuse at runtime">
+    Even if the assistant generated `ln.wallet.transfer()`, it raises a `NotYetWiredError`
+    naming the real status. The failure is loud, immediate and explanatory rather than
+    silent.
+  </Step>
+  <Step title="Assistants can check before asserting">
+    Via the [MCP server](/ai/mcp), an assistant can call `capability_status` before writing
+    code and `verify_identity` instead of eyeballing a DID.
+  </Step>
+</Steps>
+
+<Note>
+Point 1 is the one doing most of the work. An AI assistant is a mirror of its corpus — the
+real defence against a confidently wrong answer is a documentation set with nothing
+confidently wrong in it.
+</Note>
+
+## Getting better answers
+
+<AccordionGroup>
+  <Accordion title="Say which language and runtime">
+    "In Python 3.11, list online nodes with the `inference` capability" beats "how do I list
+    nodes". The SDKs differ in naming (`freshness_s` vs `freshnessMs`) and the assistant
+    should not have to guess.
+  </Accordion>
+
+  <Accordion title="Paste the actual error, whole">
+    Including the `code` and the `docs` link. Every SDK error carries both:
+
+    ```text
+    NotYetWiredError [NOT_YET_WIRED]: ... → https://docs.libertynet.ai/status
+    ```
+  </Accordion>
+
+  <Accordion title="Ask what is real before asking how">
+    "Is X built?" is a cheap question with a definitive answer, and it saves you from a
+    beautifully-written implementation of something that does not exist.
+  </Accordion>
+
+  <Accordion title="Ask it to verify">
+    "Verify this DID against this key" is arithmetic — it has a right answer, and with the
+    MCP server the assistant computes it rather than judging by appearance.
+  </Accordion>
+</AccordionGroup>
+
+## Use your own assistant instead
+
+Everything here works better in a tool you already have open:
+
+<Columns cols={2}>
+  <Card title="MCP server" icon="plug" href="/ai/mcp">
+    Claude Desktop, Claude Code and Cursor get six tools — docs, status, live network,
+    identity verification.
+  </Card>
+  <Card title="Raw context" icon="file-lines" href="/ai/context">
+    `llms.txt`, per-page markdown, and what to paste into an assistant with no MCP.
+  </Card>
+</Columns>
+
+## If it gets something wrong
+
+<Card title="Tell us" icon="flag" href="/community" horizontal>
+  A wrong AI answer usually means a documentation page is ambiguous. Report both — the fix
+  is almost always the page, which fixes every future answer at once.
+</Card>

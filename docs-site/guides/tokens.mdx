@@ -1,0 +1,97 @@
+---
+title: "Tokens and value"
+sidebarTitle: "Tokens and value"
+description: "A short page, because there is little to say: LibertyNet has no token surface and no endpoint that moves value."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+This page exists so that a search for "issue a token", "wallet" or "transfer" lands
+somewhere that gives you a straight answer instead of nothing.
+
+## The answer
+
+<Warning>
+**There is no endpoint in this API that moves value.**
+
+No wallet. No token issuance. No transfer. No swap or DEX. No staking. No trading. No
+governance token.
+
+This is a deliberate scope decision, not a gap waiting to be filled next sprint.
+</Warning>
+
+| You might be looking for | Status | Reality |
+|---|---|---|
+| Create an agent wallet | <Status level="planned" /> | Not built. |
+| Session keys for autonomous spending | <Status level="planned" /> | Not built. |
+| Transfer value | <Status level="planned" /> | Not built. |
+| Issue a token | <Status level="planned" /> | No issuance surface exists. |
+| `$LNT` balance | <Status level="planned" /> | No token surface exists. |
+| Swap / DEX / pools | <Status level="planned" /> | [Intents](/concepts/intents) — not built. |
+
+## What exists instead
+
+**Credits** — and it is important not to mistake them for money.
+
+<Warning>
+Credits are a **test unit**. Not cash. Not redeemable. Not convertible. Not a claim on
+future value, and not a promise that such a claim will ever exist.
+
+They are also **not currently being counted**: the endpoint is live and returns `200`, but
+no ledger is connected. It returns zeros with `"source": "not_yet_wired"`.
+<Status level="not_yet_wired" />
+</Warning>
+
+[What Credits are and are not →](/concepts/credits)
+
+## What the SDKs do
+
+They refuse, clearly, rather than leaving you to discover the absence:
+
+<CodeGroup>
+
+```typescript TypeScript
+await ln.wallet.create();
+// → NotYetWiredError [NOT_YET_WIRED]: wallet.create() is planned:
+//   no wallet system exists. Value transfer is out of scope.
+//   → https://docs.libertynet.ai/status
+
+await ln.wallet.transfer();
+// → NotYetWiredError: ... no wallet system exists, and no endpoint in this API moves value.
+```
+
+```python Python
+ln.wallet.create()
+# → NotYetWiredError: [NOT_YET_WIRED] wallet.create() is planned:
+#   no wallet system exists. Value transfer is out of scope.
+```
+
+</CodeGroup>
+
+## The one thing that touches value, honestly described
+
+The **oracle contracts** exist and their test suite passes — 23/23 in
+[`libertynet-oracle/`](https://github.com/LibertyNetHQ/LibertyNet-hq/tree/main/libertynet-oracle).
+They are designed to carry verified contribution evidence to a settlement chain.
+
+<Warning>
+They are **not deployed to any public network**. There is no address to call.
+<Status level="testing" />
+
+"Tests pass" and "is deployed" are different claims, and merging them is one of the easiest
+ways for documentation to become false. This is why `oracle.price()` raises with
+`level: "testing"` rather than `"planned"` — the code is real, the deployment is not.
+</Warning>
+
+## If you are evaluating LibertyNet for a financial application
+
+Take the table above at face value. There is no undocumented endpoint, no private beta with
+transfers enabled, and no near-term commitment implied by anything on this page.
+
+If value movement ever ships, it will arrive with its own documentation, its own security
+review, and its own badge on [capability status](/status). It will not arrive quietly
+inside a release note.
+
+<Card title="What is actually built" icon="list-check" href="/status" horizontal>
+  The full capability matrix, with how each claim was verified.
+</Card>

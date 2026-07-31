@@ -1,0 +1,161 @@
+---
+title: "Contributing"
+description: "How to add an example, fix a page, or improve an SDK — and the one rule that is not negotiable."
+---
+
+Everything in this portal lives in
+[`LibertyNetHQ/LibertyNet-hq`](https://github.com/LibertyNetHQ/LibertyNet-hq) under
+`dev-portal/`.
+
+## The one rule
+
+<Warning>
+**Never describe something as more finished than it is.**
+
+Not in a page, not in a code comment, not in an example, not in a commit message. If a
+capability is not built, say so. If an endpoint returns placeholder zeros, say so next to
+the zeros.
+
+Every other rule here is a preference. This one is the point of the project.
+</Warning>
+
+## Layout
+
+```text
+dev-portal/
+├── api-spec/
+│   ├── status.json            # THE capability matrix — every badge derives from this
+│   └── libertynet-v1.yaml     # OpenAPI 3.1
+├── docs-site/                 # Mintlify: MDX, docs.json, Living Language skin
+├── sdk/typescript/            # @libertynet/sdk
+├── sdk/python/                # libertynet
+├── create-libertynet-agent/   # CLI scaffolder
+├── mcp-server/                # MCP server for AI assistants
+├── dashboard/                 # Developer dashboard (Next.js)
+├── examples/                  # Runnable examples
+└── tools/                     # Drift and honesty checkers
+```
+
+## Run everything
+
+```bash
+cd dev-portal && node tools/check-all.mjs
+```
+
+This runs every suite plus the honesty checks. It must pass before a PR merges.
+
+<AccordionGroup>
+  <Accordion title="Individually">
+    ```bash
+    cd sdk/typescript && npm test && npm run typecheck
+    cd sdk/python && python3 -m pytest -q
+    cd create-libertynet-agent && npm test
+    cd mcp-server && npm test
+    cd dashboard && npm run build
+    ```
+  </Accordion>
+
+  <Accordion title="Against the live network">
+    ```bash
+    cd sdk/typescript && npm run test:live
+    cd sdk/python && LN_LIVE=1 python3 -m pytest -q
+    ```
+
+    These assert that every identity on the production registry still verifies. If one
+    fails, either the network or this documentation is wrong.
+  </Accordion>
+</AccordionGroup>
+
+## Changing a capability's status
+
+<Steps>
+  <Step title="Ship the behaviour first">
+    A badge changes in the same commit as the behaviour, never before it.
+  </Step>
+  <Step title="Edit api-spec/status.json">
+    The single source. Do not hand-edit a badge in an `.mdx` file — it will be caught.
+  </Step>
+  <Step title="Run the drift checker">
+    ```bash
+    node tools/check-docs-drift.mjs
+    ```
+    It fails if any page, SDK or spec disagrees with the matrix.
+  </Step>
+</Steps>
+
+## Adding an example
+
+The bar: **it must run, it must be honest, and it must teach one thing well.**
+
+```bash
+mkdir examples/my-example
+# write it
+node examples/my-example/example.mjs        # must actually work
+node tools/check-examples.mjs               # must pass
+```
+
+Checked automatically:
+
+- No hard-coded secrets.
+- Nothing that moves value — LibertyNet has none, so no example can demonstrate one.
+- Identity verification present, with no escape hatch.
+- Unbuilt capabilities throw rather than returning mock data.
+
+And by review: every `→` output comment must have been produced by running the code.
+
+## Writing documentation
+
+<AccordionGroup>
+  <Accordion title="Concepts and reference are separate, deliberately">
+    `/concepts/` teaches a model. `/reference/` is a dictionary you look things up in.
+    Mixing them produces pages that are too long to skim and too shallow to learn from.
+  </Accordion>
+
+  <Accordion title="Show the real output">
+    Run the code, paste what it printed. Invented output is the most common way
+    documentation becomes false, because nothing ever re-checks it.
+  </Accordion>
+
+  <Accordion title="Warn where people actually get hurt">
+    The two that cost the most time on this network:
+    `status: "active"` not meaning online, and DID string comparison splitting one node into
+    two. Both get a `<Warning>` wherever they are relevant.
+  </Accordion>
+
+  <Accordion title="Both languages, or neither">
+    TypeScript and Python examples in a `<CodeGroup>`. A page that shows only one silently
+    tells half the readers this is not for them.
+  </Accordion>
+
+  <Accordion title="Preview it">
+    ```bash
+    cd docs-site && npx mint dev
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Lanes
+
+This repository classifies changes by risk. For `dev-portal/`:
+
+| Change | Lane |
+|---|---|
+| Docs, examples, SDKs, CLI, dashboard, MCP server | **Green** — normal review |
+| `api-spec/status.json` | **Green**, but reviewed carefully — it drives every claim |
+| Anything under `frozen/`, `.github/`, or runtime trust-root paths | **Red** — needs David's approval |
+
+Nothing in `dev-portal/` touches money, security-critical protocol code, or frozen
+specifications. If a change to this directory ever needs to, that is a signal the change is
+in the wrong place.
+
+## Pull requests
+
+- One concern per PR.
+- All tests green, including the honesty checks.
+- If you changed a capability's real behaviour, `status.json` changes in the same PR.
+- Say plainly what you did **not** do — an incomplete change with an honest note is far more
+  useful than one that appears finished.
+
+<Card title="Ask first if unsure" icon="discord" href="/community" horizontal>
+  **#developers** on Discord. Cheaper than writing the wrong thing well.
+</Card>

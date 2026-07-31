@@ -1,0 +1,104 @@
+---
+title: "Intents"
+description: "The intended model for expressing what you want rather than how to get it — and an honest account of how little of it exists."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Warning>
+**None of this is built.** <Status level="planned" />
+
+There is no intent endpoint, no quoting engine, no solver interface and no settlement path.
+Nothing on this page can be called today.
+
+It is documented because the shape informs how the built parts are designed, and because
+you deserve to know where the network is heading. It is **not** documented so you can
+build against it. If you write code today that assumes any of this, that code will not
+work — not "will need adjusting", will not work, because there is nothing behind it.
+</Warning>
+
+## The idea
+
+An **intent** is a statement of *what you want*, not *how to get it*.
+
+The distinction: a transaction says "call this function with these arguments". An intent
+says "I want this outcome, within these constraints" and leaves the route to whoever can
+find the best one.
+
+```text
+Transaction:  "route through A, then B, accept this slippage"
+Intent:       "I want at least X of this outcome, before this deadline"
+```
+
+Whoever works out the route is a **solver**. Solvers compete; the user gets the outcome
+they specified or nothing at all.
+
+## Why the model is attractive
+
+- **The user does not need to be an expert in routing.** They state a goal and a bound.
+- **Competition is on execution quality.** Solvers win by being better, not by being first
+  in a queue.
+- **Failure is bounded by the constraint.** If nobody can meet it, nothing happens — which
+  is a much better failure mode than partially happening at a bad price.
+
+## The planned surface
+
+| Endpoint | Status | Would do |
+|---|---|---|
+| `POST /v1/dex/intent` | <Status level="planned" /> | Submit an intent. |
+| `GET /v1/dex/quote` | <Status level="planned" /> | Ask what a solver would offer. |
+| `POST /v1/dex/solve` | <Status level="planned" /> | Submit a solution as a solver. |
+| `GET /v1/dex/pools` | <Status level="planned" /> | Read available liquidity. |
+
+## What the SDKs do about it
+
+They raise, with the reason:
+
+<CodeGroup>
+
+```typescript TypeScript
+await ln.dex.quote();
+// → NotYetWiredError [NOT_YET_WIRED]: dex.quote() is planned: no quoting system exists.
+//   → https://docs.libertynet.ai/status
+```
+
+```python Python
+ln.dex.quote()
+# → NotYetWiredError: [NOT_YET_WIRED] dex.quote() is planned: no quoting system exists.
+```
+
+</CodeGroup>
+
+Shipping these stubs is better than omitting them. Without them you would get
+`TypeError: undefined is not a function` — a message that tells you nothing and sends you
+hunting for a typo in your own code. With them you get the actual answer: this does not
+exist yet, here is where to watch for it.
+
+They will never silently start working. When intents ship, these methods gain real
+implementations in the same release that flips the badge on [capability status](/status).
+
+## What you can build today
+
+The [CLI scaffolder](/cli) generates a solver skeleton, and it is careful about the line:
+
+```bash
+npx create-libertynet-agent my-solver --type solver -y
+```
+
+- `fetchIntents()` and `submitSolution()` **throw**. A stub that returns fake quotes is how
+  you end up shipping fake quotes.
+- `priceIntent()` is **pure and testable right now**. Your pricing model does not need a
+  network that does not exist — write it, test it, and have it ready.
+- Discovering and verifying the nodes you would be competing with **works today**.
+
+That is a real amount of useful work, done honestly, without pretending the rest is there.
+
+## No value movement
+
+Worth repeating in the page most likely to suggest otherwise: **there is no endpoint in this
+API that moves value.** No wallet, no swap, no staking, no transfer. Intents as described
+here would require settlement infrastructure that does not exist and has not been reviewed.
+
+<Card title="What does exist" icon="list-check" href="/status" horizontal>
+  The capability matrix, with how every claim was verified.
+</Card>

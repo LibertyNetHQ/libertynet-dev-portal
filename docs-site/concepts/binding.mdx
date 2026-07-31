@@ -1,0 +1,189 @@
+---
+title: "Binding"
+description: "The four-signature handshake that ties a node to an operator, and why both sides must consent."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Binding answers one question: **who is responsible for this node, and under what limits?**
+
+Both sides must agree. An operator cannot claim a node, and a node cannot attach itself to
+an operator who did not consent. That symmetry is the whole design.
+
+<Status level="implemented" /> — the full flow is live.
+
+## The four signatures
+
+```text
+1. node        signs  "here is what I am and what I want"      → BindingSession
+2. operator    signs  "this device key may act for me"         → DeviceCredential  (root key, offline, once)
+3. device key  signs  "this node, these limits"                → AuthorizationCredential
+4. node        signs  "I accept this specific authorization"   → Acceptance
+```
+
+Before a binding becomes `ACTIVE`, the registry re-verifies **all four, atomically**. Not
+incrementally as they arrive — all of them, together, at the end. A partial chain never
+activates anything.
+
+## The flow
+
+<Steps>
+  <Step title="The node opens a session">
+    `POST /v1/bindings/initiate`
+
+    The node signs a canonical description of itself — identity, device summary, OS,
+    region, the task types and limits it wants — and receives two things back:
+
+    ```json
+    {
+      "binding_session_id": "...",
+      "short_code": "K7M2NQ4X",
+      "binding_token": "3Yk9...",
+      "expires_at": "2026-07-31T16:43:08Z",
+      "state": "INITIATED"
+    }
+    ```
+
+    <Warning>
+    **Both are returned exactly once and never again.** The registry stores only their
+    SHA-256 hashes. If you lose them, cancel the session and start over — there is no
+    recovery path, by design.
+    </Warning>
+
+    The short code uses the alphabet `23456789ABCDEFGHJKMNPQRSTUVWXYZ` — no `I`, `O`, `0`
+    or `1` — so it survives being read aloud over a phone.
+
+    The registry enforces `0 < expires_at − created_at ≤ 600s`. A node cannot grant itself
+    a longer window than the protocol allows.
+  </Step>
+
+  <Step title="The operator redeems the code">
+    `POST /v1/bindings/resolve`
+
+    The console shows what the node is asking for, plus a fingerprint of its key:
+
+    ```json
+    {
+      "node_did": "did:svrp:n:8545027b",
+      "node_public_key_fingerprint": "8545:027b:6100:1591",
+      "device_summary": "MacBook Pro",
+      "os": "darwin",
+      "requested": { "task_types": ["inference"], "single_limit": null, "daily_limit": null }
+    }
+    ```
+
+    <Warning>
+    **Compare that fingerprint against the node's own screen before continuing.**
+
+    This is the human step, and it is the one that actually prevents you from adopting a
+    node someone else controls. Everything downstream is cryptography; this is the part
+    where a person confirms the two machines are the two machines they think they are.
+    </Warning>
+  </Step>
+
+  <Step title="The operator authorizes">
+    `POST /v1/bindings/authorize`
+
+    The **device key** signs an AuthorizationCredential naming the node and its limits. The
+    registry verifies the chain root → device → authorization, and rejects any
+    authorization whose scope exceeds what the node asked for.
+
+    The root key is not involved. It signed the DeviceCredential once, offline, and stays
+    in the safe.
+  </Step>
+
+  <Step title="The node accepts">
+    `POST /v1/node/bindings/{id}/accept`
+
+    The node polls for pending authorizations, checks that the terms are the ones it asked
+    for, and signs its acceptance. The registry re-verifies all four signatures and the
+    binding becomes `ACTIVE`.
+
+    A failure here reverts the session to `PENDING_NODE_ACCEPTANCE` rather than destroying
+    it — a transient client bug should not burn the binding.
+  </Step>
+</Steps>
+
+## The state machine
+
+```text
+INITIATED ──resolve──▶ PENDING_OPERATOR ──authorize──▶ PENDING_NODE_ACCEPTANCE
+                                                              │
+                                                     accept   │   reject
+                                                              ▼
+                                                        VERIFYING
+                                                              │
+                                                              ▼
+                                                           ACTIVE
+```
+
+Terminal states — `ACTIVE`, `EXPIRED`, `REJECTED_BY_OPERATOR`, `REJECTED_BY_NODE`,
+`CANCELLED` — are final. A session never moves again once it reaches one.
+
+<CodeGroup>
+
+```typescript TypeScript
+const request = await ln.binding.resolve({ shortCode: "K7M2NQ4X" });
+console.log("Compare on the node's screen:", request.node_public_key_fingerprint);
+
+// ...operator authorizes via the Console...
+
+const final = await ln.binding.waitForTerminal(request.binding_session_id);
+console.log(final.state); // ACTIVE | REJECTED_BY_NODE | EXPIRED | ...
+```
+
+```python Python
+request = ln.binding.resolve(short_code="K7M2NQ4X")
+print("Compare on the node's screen:", request.node_public_key_fingerprint)
+
+final = ln.binding.wait_for_terminal(request.binding_session_id)
+print(final.state)
+```
+
+</CodeGroup>
+
+## Anti-enumeration, deliberately
+
+A short code is eight characters from a 31-symbol alphabet. That is guessable if you are
+allowed to guess a lot, so you are not:
+
+- **Five failed attempts** on a code within 600 seconds returns `429 RATE_LIMITED`.
+- **Every failure returns the same generic `404`.** Invalid, expired and already-used are
+  indistinguishable from the outside.
+
+That second point is the important one, and it is worth the worse error message: if
+"expired" and "not found" were distinguishable, the endpoint would be an oracle for testing
+whether a code was ever real. So a wrong code and a stale code look identical, on purpose.
+
+## Signing is not in the SDKs, on purpose
+
+<Warning>
+`initiate`, `authorize` and `accept` are **not** reimplemented in the TypeScript or Python
+SDKs. Calling `binding.authorize()` raises with an explanation rather than attempting it.
+
+The canonical bytes these steps sign must match the registry's reconstruction exactly —
+down to Python's `str()` rendering of booleans as `True`/`False`, and to field ordering that
+is not your JSON library's. A near-miss does not fail loudly; it produces a signature that
+verifies nowhere, and the error surfaces three hops from its cause.
+
+Two audited implementations already exist. Use one:
+
+- `operator-console/lib/crypto/canonical.ts` — the browser Console
+- `ln-node bind` — the node daemon
+
+Re-deriving canonicalisation from a prose description is how you spend a week debugging
+arithmetic that was never wrong.
+</Warning>
+
+The SDKs do implement everything that needs no signing: `resolve`, `status`, `cancel`,
+`waitForTerminal`, and the fingerprint helper.
+
+## After binding
+
+`GET /v1/operator/me/nodes` lists your bound nodes with a computed `online` flag and the
+limits agreed at binding time. It also reconciles the short/full DID encodings for you — see
+[identity](/concepts/identity#two-encodings-one-identity) for why that matters.
+
+<Card title="Log in first" icon="key" href="/guides/operator-login" horizontal>
+  Binding needs an operator identity. Here is how login works, end to end.
+</Card>

@@ -1,0 +1,21 @@
+{
+  "name": "@libertynet/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server giving AI assistants access to the LibertyNet docs, capability matrix and live network.",
+  "type": "module",
+  "bin": { "libertynet-mcp": "./src/server.mjs" },
+  "files": ["src", "README.md"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {},
+  "keywords": ["libertynet", "mcp", "model-context-protocol", "claude", "ai"],
+  "license": "SEE LICENSE IN REPOSITORY",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LibertyNetHQ/LibertyNet-hq",
+    "directory": "dev-portal/mcp-server"
+  }
+}

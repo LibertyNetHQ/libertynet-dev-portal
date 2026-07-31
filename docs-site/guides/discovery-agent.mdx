@@ -1,0 +1,181 @@
+---
+title: "Build a network monitor"
+sidebarTitle: "Network monitor"
+description: "A complete, working agent that watches the live network and verifies everything it is told. Fifteen minutes."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+The best first project on LibertyNet: small, genuinely useful, and it exercises the one
+habit that matters most — verifying before trusting.
+
+Everything here runs against the live network today. <Status level="implemented" />
+
+## Scaffold it
+
+```bash
+npx create-libertynet-agent watcher --type monitor -y
+cd watcher
+npm start
+```
+
+```text
+Watching https://registry.libertynet.ai every 30s. Ctrl-C to stop.
+
+JOINED    did:svrp:h:2216a202            region:?  node  fp=2216:a202:8332:7693
+JOINED    did:svrp:df9d4b9f390bc49...    asia-southeast  inference,health:ready
+[2026-07-31T16:41:02.884Z] 27 registered · 27 verified · 2 online
+```
+
+No `npm install`. The project has zero dependencies.
+
+## What that line is telling you
+
+```text
+27 registered · 27 verified · 2 online
+```
+
+Three genuinely different numbers, and conflating them is the classic beginner error:
+
+| Number | Means |
+|---|---|
+| **registered** | Records in the table. Includes nodes that vanished weeks ago. |
+| **verified** | Records whose DID actually derives from their public key. |
+| **online** | Verified **and** heard from in the last 10 minutes. |
+
+Only the third one tells you anything about who can do work right now.
+
+## The verification loop
+
+```javascript
+const { total, verified, rejected } = await ln.discovery.audit();
+
+// A record that fails id-binding is a finding, not a nuisance to skip quietly.
+for (const bad of rejected) {
+  console.error("REJECTED  " + bad.did + "  identity does not derive from its key");
+}
+```
+
+`audit()` rather than `all()`, deliberately: a monitor's job is to *see* anomalies, not to
+filter them away. `all()` would silently drop a forged record — correct for an application,
+wrong for a watchman.
+
+<Note>
+27/27 currently verify on production. If that changes, you want to be the one who noticed.
+</Note>
+
+## Freshness, done properly
+
+```javascript
+const fresh = verified.filter(
+  (n) => n.last_seen && Date.now() - Date.parse(n.last_seen) < 600_000,
+);
+```
+
+Not `n.status === "active"` — that string is set at registration and never cleared. A node
+that was unplugged last month still claims to be active. `last_seen` is the only field that
+decays.
+
+## Tracking change
+
+```javascript
+let previous = new Set();
+
+// ...each pass:
+const current = new Set(fresh.map((n) => n.did));
+
+for (const did of current) if (!previous.has(did)) console.log("JOINED", did);
+for (const did of previous) if (!current.has(did)) console.log("LEFT", did);
+
+previous = current;
+```
+
+<Warning>
+This set is keyed on the DID **string**, which is fine here because every record comes from
+the same endpoint in the same encoding.
+
+The moment you correlate across endpoints — `/nodes` gives full-hex, bindings give short —
+string keys will split one node into two. Use `sameIdentity(a, b, key)` there.
+[Why](/concepts/identity#two-encodings-one-identity).
+</Warning>
+
+## Extend it
+
+<AccordionGroup>
+  <Accordion title="Alert on a capability disappearing">
+    ```javascript
+    const inference = fresh.filter((n) => n.capabilities.includes("inference"));
+    if (inference.length === 0) {
+      console.error("ALERT  no inference nodes online");
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Track regional distribution">
+    ```javascript
+    const byRegion = {};
+    for (const n of fresh) byRegion[n.region ?? "unknown"] = (byRegion[n.region ?? "unknown"] ?? 0) + 1;
+    console.log(byRegion);   // { "asia-southeast": 1, "unknown": 1 }
+    ```
+
+    Expect `unknown` to be common — `region` is self-reported and often null.
+  </Accordion>
+
+  <Accordion title="Export Prometheus metrics">
+    ```javascript
+    import { createServer } from "node:http";
+
+    let last = { total: 0, verified: 0, online: 0, rejected: 0 };
+
+    createServer((req, res) => {
+      if (req.url !== "/metrics") return res.writeHead(404).end();
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end(
+        `libertynet_nodes_registered ${last.total}\n` +
+        `libertynet_nodes_verified ${last.verified}\n` +
+        `libertynet_nodes_online ${last.online}\n` +
+        `libertynet_nodes_rejected ${last.rejected}\n`,
+      );
+    }).listen(9101);
+    ```
+
+    Alert on `libertynet_nodes_rejected > 0`. That should always be zero, so any other
+    value is worth waking someone for.
+  </Accordion>
+
+  <Accordion title="Persist history">
+    ```javascript
+    import { appendFile } from "node:fs/promises";
+
+    await appendFile(
+      "history.jsonl",
+      JSON.stringify({ t: new Date().toISOString(), total, verified: verified.length, online: fresh.length }) + "\n",
+    );
+    ```
+
+    JSONL rather than a database: append-only, greppable, and trivially replayable.
+  </Accordion>
+</AccordionGroup>
+
+## Be polite
+
+The registry is a shared public resource with no rate limit you had to apply for. Treat
+that as a responsibility rather than an invitation.
+
+- 30 seconds is a reasonable poll interval. One second is not.
+- Back off on failure — the SDK already does, with jitter.
+- Cache. If you are rendering a dashboard for 100 viewers, poll once and fan out.
+
+## Tests
+
+```bash
+npm test
+```
+
+The generated suite uses **real records from the live registry** as fixtures, so it tests
+against data the network actually produced rather than data invented to make it pass. It
+runs offline in milliseconds.
+
+<Card title="Next: service agent" icon="server" href="/guides/service-agent" horizontal>
+  Offer a capability instead of just watching for them.
+</Card>

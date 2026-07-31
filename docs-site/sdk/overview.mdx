@@ -1,0 +1,120 @@
+---
+title: "SDK overview"
+description: "TypeScript and Python clients with identical surfaces and two guarantees you cannot switch off."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Both SDKs expose the same surface and hold the same two promises.
+
+<Columns cols={2}>
+  <Card title="TypeScript" icon="js" href="/sdk/typescript">
+    `@libertynet/sdk` · Node 20+ and browsers · fully typed
+  </Card>
+  <Card title="Python" icon="python" href="/sdk/python">
+    `libertynet` · 3.10+ · dependency-free core
+  </Card>
+</Columns>
+
+## The two guarantees
+
+### 1. Identity verification is not optional
+
+Every node record you receive has had its DID checked against its public key. There is no
+flag to disable it, and the test suites assert that no `skipVerify` / `insecure` /
+`trustAll` escape hatch can appear.
+
+```typescript
+const nodes = await ln.discovery.all();   // already verified; failures dropped
+```
+
+If you want to *see* the failures — for monitoring or security work — ask explicitly:
+
+```typescript
+const { total, verified, rejected } = await ln.discovery.audit();
+```
+
+A caller who has to remember to check a flag is a caller who will forget. So the default
+path is the safe one and the unsafe path does not exist.
+
+### 2. Unbuilt things raise
+
+Anything not actually wired raises a typed error naming its real status — never a plausible
+zero, never an empty list you might mistake for a measurement.
+
+```typescript
+await ln.operator.settledCredits();
+// → NotYetWiredError [NOT_YET_WIRED]: ... is not_yet_wired: the endpoint is live but no
+//   credits ledger is connected, so the returned 0 is a placeholder rather than a balance.
+//   → https://docs.libertynet.ai/status
+```
+
+| `level` | Meaning |
+|---|---|
+| `not_yet_wired` | Endpoint live, no data source. Use the `*Raw()` reader and show the caveat. |
+| `testing` | Code exists and passes tests, not deployed. |
+| `planned` | Not built. |
+
+## Surface
+
+| Namespace | Status | What it does |
+|---|---|---|
+| `discovery` | <Status level="implemented" /> | `health` · `all` · `online` · `byCapability` · `get` · `audit` |
+| `auth` | <Status level="implemented" /> | `challenge` · `login` · `useSession` · `logout` |
+| `operator` | <Status level="implemented" /> | `nodes` |
+| `operator` (credits) | <Status level="not_yet_wired" /> | `creditsRaw` · `settledCredits` · `isWired` · `evidence` |
+| `binding` | <Status level="implemented" /> | `resolve` · `status` · `cancel` · `waitForTerminal` · `fingerprint` |
+| `oracle` | <Status level="testing" /> | raises — contracts pass tests but are not deployed |
+| `wallet` · `dex` | <Status level="planned" /> | raises — not built |
+
+<Note>
+**Why ship stubs for unbuilt features?** Because without them you get
+`TypeError: undefined is not a function` — a message that tells you nothing and sends you
+hunting for a typo in your own code. With them you get the actual answer, plus a link to
+where the capability is tracked.
+</Note>
+
+## What the SDKs deliberately do not do
+
+<Warning>
+`binding.initiate()`, `binding.authorize()` and `binding.accept()` are **not** implemented.
+Calling them raises with an explanation.
+
+Those steps sign canonical bytes that must match the registry's reconstruction exactly —
+down to Python's `str()` rendering of booleans as `True`/`False`. A near-miss does not fail
+loudly; it produces a signature that verifies nowhere, and the error surfaces three hops
+from its cause.
+
+Use an audited implementation instead: `operator-console/lib/crypto/canonical.ts`, or
+`ln-node bind`. Re-deriving canonicalisation from prose is how you lose a week to arithmetic
+that was never wrong.
+</Warning>
+
+## Installation
+
+<Warning>
+**Neither package is published yet.** Until they are, use them from the repository — see
+[TypeScript](/sdk/typescript#install) and [Python](/sdk/python#install) for the exact
+commands. The `npm install` / `pip install` forms shown throughout these docs are what they
+will be, and this warning disappears when that becomes true, not before.
+</Warning>
+
+## Choosing between them
+
+Both cover the same ground. Pick by where your code lives.
+
+|  | TypeScript | Python |
+|---|---|---|
+| Runtime | Node 20+, browsers | 3.10+ |
+| Core dependencies | 3 (`@noble/*`, `@scure/base`) | **none** |
+| Signing dependencies | included | `cryptography`, optional |
+| Types | full, `strict` | dataclasses + annotations |
+| Tests | 48 | 52 |
+
+The Python core being dependency-free is deliberate: checking who is on a public network
+should not require installing anything. Only Ed25519 signing pulls in `cryptography`, and
+only when you actually call it.
+
+<Card title="Start with the quickstart" icon="rocket" href="/quickstart" horizontal>
+  It shows the raw calls first, so the SDK's behaviour is obvious rather than magic.
+</Card>

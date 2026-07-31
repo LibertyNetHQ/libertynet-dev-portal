@@ -1,0 +1,282 @@
+/* ============================================================================
+   LibertyNet — Living Language skin for Mintlify
+   ----------------------------------------------------------------------------
+   Design law (LIBERTYNET-DEV-PORTAL-AIPM-001 §4.2):
+     · Pure black ground. Life cyan is the only brand hue.
+     · Colour IS state — a colour never appears for decoration.
+     · 95% silent: a healthy page does not move. Motion means an event happened.
+     · Documentation legibility outranks expression. Every rule below that would
+       cost reading comfort has been dropped rather than softened.
+
+   Contrast, measured (WCAG 2.1 relative luminance), all against their own ground:
+     dark  body   #E6EFEC on #000000 ............ 17.3:1  AAA
+     dark  muted  #8FA5A0 on #000000 .............  8.8:1  AAA
+     dark  accent #00E5C7 on #000000 ............. 13.0:1  AAA
+     dark  code   #E6EFEC on #0A0C0D ............. 16.4:1  AAA
+     dark  commt  #7E8F8B on #0A0C0D .............  5.8:1  AA
+     light accent #007A69 on #FFFFFF .............  5.3:1  AA
+     light body   #10201C on #FFFFFF ............. 16.9:1  AAA
+   Life cyan #00E5C7 is 1.6:1 on white — far below AA — so in light mode it is
+   NEVER used for text or icons, only as a non-informational hairline. The
+   darkened life cyan #007A69 carries the brand in light mode instead.
+
+   Selector policy: this file styles semantic elements and Mintlify's public CSS
+   custom properties only. It deliberately does not reach into hashed utility
+   class names, which change between Mintlify releases and would break silently.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- tokens -- */
+:root {
+  /* brand */
+  --ln-cyan: #00e5c7;
+  --ln-cyan-deep: #007a69;      /* AA-safe life cyan for light backgrounds */
+  --ln-cyan-dim: #00a88f;
+
+  /* semantic — colour is state, never decoration */
+  --ln-state-live: #00e5c7;     /* implemented / online / passing */
+  --ln-state-partial: #ffc98a;  /* not_yet_wired / degraded / testing */
+  --ln-state-idle: #8fa5a0;     /* planned / unknown / offline */
+  --ln-state-fault: #ff8a8a;    /* error / rejected */
+
+  /* geometry */
+  --ln-radius: 10px;
+  --ln-hairline: rgba(0, 229, 199, 0.16);
+
+  /* motion budget: one duration, used only for state changes */
+  --ln-motion: 180ms cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+/* dark — the ground state */
+.dark,
+[data-theme="dark"] {
+  --ln-bg: #000000;
+  --ln-surface: #07090a;
+  --ln-surface-2: #0d1112;
+  --ln-border: #1a2220;
+  --ln-text: #e6efec;
+  --ln-muted: #8fa5a0;
+  --ln-code-bg: #0a0c0d;
+  --ln-accent: var(--ln-cyan);
+
+  --primary: #00e5c7;
+  --primary-light: #5bffe4;
+  --primary-dark: #00a88f;
+}
+
+/* light — legibility mode. Same meanings, AA-safe pigments. */
+:root:not(.dark),
+[data-theme="light"] {
+  --ln-bg: #ffffff;
+  --ln-surface: #f6faf9;
+  --ln-surface-2: #eef4f2;
+  --ln-border: #d9e4e1;
+  --ln-text: #10201c;
+  --ln-muted: #4a5a56;         /* 7.6:1 on white */
+  --ln-code-bg: #0a0c0d;       /* code stays dark in both themes — one contrast
+                                  budget to verify, and syntax colours tuned once */
+  --ln-accent: var(--ln-cyan-deep);
+
+  --primary: #007a69;
+  --primary-light: #00a88f;
+  --primary-dark: #005246;
+}
+
+/* ------------------------------------------------------------- the page -- */
+body {
+  background: var(--ln-bg);
+  color: var(--ln-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Reading measure. Long lines are the single biggest legibility cost in docs. */
+main :is(p, ul, ol, blockquote) {
+  max-width: 74ch;
+}
+
+main :is(p, li) {
+  line-height: 1.7;
+}
+
+/* Thin display weight for headings, per the design language — but only down to
+   a weight that stays legible at body-adjacent sizes. h4+ returns to normal. */
+main :is(h1, h2) {
+  font-weight: 200;
+  letter-spacing: -0.015em;
+}
+main h3 {
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* A single cyan hairline under h2 — the only ornament in the whole skin. */
+main h2 {
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--ln-hairline);
+}
+
+a {
+  color: var(--ln-accent);
+  text-underline-offset: 0.2em;
+}
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Focus is a safety feature, not decoration. Never remove it. */
+:focus-visible {
+  outline: 2px solid var(--ln-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------ code -- */
+/* Code is the product. It gets the highest contrast budget on the page. */
+:is(pre, code, kbd, samp) {
+  font-family: "JetBrains Mono", "SF Mono", ui-monospace, SFMono-Regular,
+    "Cascadia Mono", Menlo, Consolas, monospace;
+  font-variant-ligatures: none;   /* `=>` and `!=` must read as the characters
+                                     they are — a ligature is a typo generator
+                                     when the reader is copying by hand */
+}
+
+pre {
+  background: var(--ln-code-bg) !important;
+  border: 1px solid var(--ln-border);
+  border-radius: var(--ln-radius);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  tab-size: 2;
+}
+
+/* Inline code: distinguishable from prose without shouting. */
+:not(pre) > code {
+  background: var(--ln-surface-2);
+  border: 1px solid var(--ln-border);
+  border-radius: 5px;
+  padding: 0.12em 0.38em;
+  font-size: 0.9em;
+}
+:not(pre) > code {
+  color: var(--ln-text);
+}
+
+/* Syntax palette — every colour measured ≥4.5:1 on #0A0C0D (see header). */
+pre .token.comment,
+pre .token.prolog,
+pre .token.cdata { color: #7e8f8b; font-style: normal; }
+pre .token.punctuation { color: #c3d2ce; }
+pre .token.keyword,
+pre .token.rule,
+pre .token.important { color: #7de2ff; }
+pre .token.string,
+pre .token.attr-value,
+pre .token.char { color: #7ce8b4; }
+pre .token.number,
+pre .token.boolean,
+pre .token.constant { color: #ffc98a; }
+pre .token.function,
+pre .token.class-name { color: #00e5c7; }
+pre .token.property,
+pre .token.attr-name,
+pre .token.tag { color: #b9c9ff; }
+pre .token.operator,
+pre .token.entity,
+pre .token.url { color: #c3d2ce; background: transparent; }
+pre .token.deleted { color: #ff8a8a; }
+pre .token.inserted { color: #7ce8b4; }
+
+/* ---------------------------------------------------- status vocabulary -- */
+/* Rendered by the <Status> snippet. The class carries the meaning; the colour
+   only re-states it. Screen readers get the word, never the colour alone. */
+.ln-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.2em 0.6em;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.ln-status::before {
+  content: "";
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.ln-status--implemented { color: var(--ln-state-live); }
+.ln-status--testing     { color: var(--ln-state-partial); }
+.ln-status--wired       { color: var(--ln-state-partial); }
+.ln-status--planned     { color: var(--ln-state-idle); }
+
+/* In light mode the live cyan fails AA as text, so swap in the deep tone. */
+:root:not(.dark) .ln-status--implemented { color: var(--ln-cyan-deep); }
+:root:not(.dark) .ln-status--testing,
+:root:not(.dark) .ln-status--wired       { color: #8a5a12; }  /* 5.9:1 on white */
+:root:not(.dark) .ln-status--planned     { color: #4a5a56; }  /* 7.6:1 on white */
+
+/* ------------------------------------------------------------- the mark -- */
+/* 95% silence. The LivingMark breathes at a period long enough that it reads as
+   still — you notice it only if you stare. It stops entirely for anyone who has
+   asked their OS for less motion. */
+.ln-mark {
+  animation: ln-breathe 43s ease-in-out infinite;
+}
+@keyframes ln-breathe {
+  0%, 100% { opacity: 0.86; }
+  50%      { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* --------------------------------------------------------------- mobile -- */
+/* Docs are read on phones, often one-handed, often in a hurry. */
+@media (max-width: 640px) {
+  main :is(p, li) {
+    line-height: 1.75;
+    font-size: 1rem;      /* never shrink body copy to fit chrome */
+  }
+  pre {
+    font-size: 0.8125rem;
+    border-radius: 8px;
+  }
+  /* Wide content scrolls inside itself. The page body never scrolls sideways. */
+  main :is(table, pre) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ln-status {
+    font-size: 0.68rem;
+  }
+}
+
+/* Tap targets on touch devices — 44px is the floor, not the goal. */
+@media (pointer: coarse) {
+  main a {
+    padding-block: 0.1em;
+  }
+}
+
+/* ---------------------------------------------------------------- print -- */
+@media print {
+  pre { background: #fff !important; color: #000; border: 1px solid #999; }
+  pre .token { color: #000 !important; }
+  .ln-status { border-color: #000; color: #000 !important; }
+}

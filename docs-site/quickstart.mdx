@@ -1,0 +1,273 @@
+---
+title: "Quickstart"
+description: "From nothing to a cryptographically verified call against the live network. No signup, no API key, no dependencies."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Four steps. The first needs nothing but `curl`; the rest need only Node.js **or** Python, with no
+packages to install. Every snippet on this page was run against the live network before it was
+published, and the outputs shown are the real ones.
+
+<Info>
+**There is no signup step.** Discovery on LibertyNet is public. You are not waiting for a key,
+because there is no key. If a page ever asks you to apply for one to read the network, that page
+is wrong.
+</Info>
+
+## 1. Confirm the network is there
+
+<CodeGroup>
+
+```bash curl
+curl -s https://registry.libertynet.ai/health
+```
+
+```typescript TypeScript
+const res = await fetch("https://registry.libertynet.ai/health");
+console.log(await res.json());
+```
+
+```python Python
+import json, urllib.request
+with urllib.request.urlopen("https://registry.libertynet.ai/health") as r:
+    print(json.load(r))
+```
+
+</CodeGroup>
+
+```json Response
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+`count` is how many nodes the registry currently knows about. If you got that, you are talking to
+the live network. <Status level="implemented" />
+
+## 2. See who is on the network
+
+<CodeGroup>
+
+```bash curl
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```typescript TypeScript
+const { count, nodes } = await (await fetch("https://registry.libertynet.ai/nodes")).json();
+console.log(`${count} nodes`);
+console.log(nodes[0]);
+```
+
+```python Python
+import json, urllib.request
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes") as r:
+    data = json.load(r)
+print(f"{data['count']} nodes")
+print(data["nodes"][0])
+```
+
+</CodeGroup>
+
+```json Response (one node)
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "endpoint": "172.20.10.5:55785",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z",
+  "first_seen": "2026-07-28T11:49:46Z"
+}
+```
+
+<Warning>
+**`status: "active"` does not mean online.** A node that stopped heart-beating stays in the table
+with a stale `last_seen`. Freshness is your job — step 3 does it properly. Trusting the `status`
+string is the single most common first mistake on this network.
+</Warning>
+
+## 3. Verify an identity yourself
+
+This is the step that makes LibertyNet different, and it is worth the two minutes.
+
+A LibertyNet DID is **self-certifying**: the identifier is derived from the public key. You can
+confirm that a claimed identity really belongs to a claimed key using nothing but a SHA-256
+implementation — no registry lookup, no certificate authority, no trusting the response you just
+received.
+
+Save this as `verify.mjs` (or `verify.py`) and run it. **No packages to install.**
+
+<CodeGroup>
+
+```typescript verify.mjs
+import { createHash } from "node:crypto";
+
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function b58decode(s) {
+  let n = 0n;
+  for (const c of s) {
+    const i = B58.indexOf(c);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  let hex = n.toString(16);
+  if (hex.length % 2) hex = "0" + hex;
+  // base58 drops leading zero bytes, so restore one per leading '1'
+  let lead = 0;
+  for (const c of s) { if (c === "1") lead++; else break; }
+  return Buffer.concat([Buffer.alloc(lead), Buffer.from(hex, "hex")]);
+}
+
+// The registry serves keys as hex in /nodes and as base58 in /peers. Same key.
+function keyBytes(pk) {
+  return /^[0-9a-f]{64}$/.test(pk) ? Buffer.from(pk, "hex") : b58decode(pk);
+}
+
+/** Does this DID actually derive from this public key? */
+function verifyIdBinding(did, publicKey) {
+  const key = keyBytes(publicKey);
+  if (!key || key.length !== 32) return false;
+
+  const digest = createHash("sha256").update(key).digest("hex");
+  const body = did.replace(/^did:svrp:(?:[a-z]:)?/, "");
+
+  if (body.length === 64) return body === key.toString("hex"); // full-hex form
+  if (body.length === 8) return body === digest.slice(0, 8);   // short form
+  if (body.length === 10) return body === digest.slice(0, 10); // collision fallback
+  return false;
+}
+
+const { nodes } = await (await fetch("https://registry.libertynet.ai/nodes")).json();
+
+let verified = 0;
+for (const n of nodes) {
+  if (verifyIdBinding(n.did, n.public_key)) verified++;
+  else console.log("REJECT", n.did);
+}
+console.log(`${verified}/${nodes.length} identities verified`);
+
+const fresh = nodes.filter(
+  (n) => n.last_seen && Date.now() - Date.parse(n.last_seen) < 10 * 60 * 1000,
+);
+console.log(`${fresh.length} seen in the last 10 minutes`);
+```
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # base58 drops leading zero bytes, so restore one per leading '1'
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# The registry serves keys as hex in /nodes and as base58 in /peers. Same key.
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """Does this DID actually derive from this public key?"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # full-hex form
+    if len(body) == 8:
+        return body == digest[:8]       # short form
+    if len(body) == 10:
+        return body == digest[:10]      # collision fallback
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"{verified}/{len(nodes)} identities verified")
+```
+
+</CodeGroup>
+
+```text Output — real run, 2026-07-31
+27/27 identities verified
+2 seen in the last 10 minutes
+```
+
+You just cryptographically checked every identity on the network without asking anyone's
+permission. That is the whole point.
+
+<Note>
+**Why two DID encodings?** The same key appears as short `did:svrp:n:<8hex>` (a truncated SHA-256
+of the key) and as full `did:svrp:<64hex>` (the key itself). Bindings are stored short; a running
+daemon announces long. They are the same node. String comparison will lie to you here —
+[DID reference](/reference/dids) has the details.
+</Note>
+
+## 4. Do it in one line instead
+
+Everything above is what the SDK does for you, with the verification non-optional.
+
+<CodeGroup>
+
+```typescript TypeScript
+import { LibertyNet } from "@libertynet/sdk";
+
+const ln = new LibertyNet();               // verification is on; you cannot turn it off
+const nodes = await ln.discovery.online(); // fresh, verified nodes only
+
+console.log(nodes.map((n) => `${n.did} ${n.region} ${n.capabilities.join(",")}`));
+```
+
+```python Python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # verification is on; you cannot turn it off
+nodes = ln.discovery.online()      # fresh, verified nodes only
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+</CodeGroup>
+
+`online()` rejects any record whose identity does not verify and drops anything not seen recently.
+There is no flag to disable the check — a client that trusts unverified identities is not a client
+we are willing to ship.
+
+See [SDK overview](/sdk/overview) for installation, including how to run it from source today.
+
+## Where to go next
+
+<Columns cols={2}>
+  <Card title="Scaffold a real project" icon="wand-magic-sparkles" href="/cli">
+    One command, runnable agent, tests included.
+  </Card>
+  <Card title="How identity works" icon="fingerprint" href="/concepts/identity">
+    Why self-certifying DIDs remove the certificate authority.
+  </Card>
+  <Card title="Log in as an operator" icon="key" href="/guides/operator-login">
+    Signature-based login, end to end. No passwords anywhere.
+  </Card>
+  <Card title="When something breaks" icon="triangle-exclamation" href="/reference/errors">
+    Every error code, its cause and its fix.
+  </Card>
+</Columns>
+
+<Tip>
+**Stuck?** Every error the API returns carries a stable `code`. Look it up in the
+[error dictionary](/reference/errors) — each entry says what caused it and what to do, not just
+what went wrong.
+</Tip>

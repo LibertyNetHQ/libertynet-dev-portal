@@ -1,0 +1,232 @@
+---
+title: "Log in as an operator"
+sidebarTitle: "Operator login"
+description: "Signature-based authentication, end to end. There is no password in this system."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+LibertyNet has no passwords. You prove who you are by signing a challenge with a key you
+hold. <Status level="implemented" />
+
+Which means there is nothing to phish, nothing to stuff, nothing to reset, and nothing
+useful in a breach of the registry's database.
+
+## The key hierarchy
+
+```text
+root key  ──signs once, offline──▶  DeviceCredential
+                                          │
+                                    device key signs
+                                          │
+                              ┌───────────┴───────────┐
+                              ▼                       ▼
+                         login challenge      AuthorizationCredential
+```
+
+Your **root key** signs exactly one thing — a DeviceCredential naming a device key — and
+then goes back in the safe. Every day-to-day operation uses the **device key**.
+
+<Note>
+The reason: a stolen laptop costs you a device, which you revoke and replace. It does not
+cost you your identity, which would be unrecoverable. Keep the root key offline and treat
+any moment you need it as an event.
+</Note>
+
+## The flow
+
+<Steps>
+  <Step title="Get a challenge">
+    ```bash
+    curl -s -X POST https://registry.libertynet.ai/v1/auth/challenge
+    # {"challenge": "7xyZt3pE8DSp6JzsSpRMc7o8PSUsH5R2P", "expires_in": 300}
+    ```
+
+    Single-use, 300-second life. Fetch it immediately before signing — never cache one,
+    and never hold one while a user goes to make coffee.
+  </Step>
+
+  <Step title="Sign it with your device key">
+    Over exactly these canonical bytes:
+
+    ```text
+    libertynet-auth-challenge:v1\n<operator_did>\n<device_public_key>\n<challenge>\n<issued_at>
+    ```
+
+    <Warning>
+    Byte-exact. `issued_at` is RFC3339 UTC with a `Z` suffix and **second precision** —
+    milliseconds or an offset will fail verification while looking correct to you.
+    </Warning>
+  </Step>
+
+  <Step title="Exchange it for a session">
+    ```bash
+    curl -s -X POST https://registry.libertynet.ai/v1/auth/device-login \
+      -H 'content-type: application/json' \
+      -d '{"device_credential": {...}, "challenge": "...", "issued_at": "...", "signature": "..."}'
+    # {"session_token": "...", "operator_did": "did:svrp:o:...", "expires_in": 3600}
+    ```
+  </Step>
+</Steps>
+
+## With the SDK
+
+<CodeGroup>
+
+```typescript TypeScript
+import { LibertyNet } from "@libertynet/sdk";
+
+const ln = new LibertyNet();
+
+const session = await ln.auth.login({
+  deviceCredential,                          // issued by your root key, offline
+  deviceSecretKey: await readFromKeychain(), // 32-byte Ed25519 seed
+});
+
+console.log(session.operator_did, "expires in", session.expires_in, "s");
+
+const { nodes } = await ln.operator.nodes();
+```
+
+```python Python
+from libertynet import LibertyNet
+import keyring
+
+ln = LibertyNet()
+
+secret = bytes.fromhex(keyring.get_password("libertynet", "device-key"))
+session = ln.auth.login(device_credential, secret)
+
+print(session.operator_did, "expires in", session.expires_in, "s")
+
+for node in ln.operator.nodes():
+    print(node.node_did, node.online)
+```
+
+</CodeGroup>
+
+The SDK fetches the challenge, builds the canonical bytes, signs, exchanges, and stores the
+session — and **zeroes its copy of your key** afterwards.
+
+## What the registry checks, in order
+
+It rejects at the first failure, and the order is not negotiable:
+
+<Steps>
+  <Step title="id-binding on the credential">
+    Does `operator_root_public_key` actually derive `operator_did`? Fail → `DC_ID_BINDING`.
+  </Step>
+  <Step title="The DeviceCredential's own signature">
+    Validly signed by the root key? Fail → `DC_BAD_SIGNATURE`.
+  </Step>
+  <Step title="Its validity window">
+    Within `issued_at`…`expires_at`, ±5s skew? Fail → `DC_EXPIRED`.
+  </Step>
+  <Step title="Your login signature">
+    Signed by the device key the credential names, over the challenge? Fail →
+    `BAD_SIGNATURE`.
+  </Step>
+</Steps>
+
+<Warning>
+Step 1 is not optional and cannot be moved. Verifying a signature against a caller-supplied
+key proves only that the key's holder signed — never that the key belongs to the identity
+being claimed. [Why](/concepts/identity#why-step-1-cannot-be-skipped).
+</Warning>
+
+The SDK performs the same id-binding check **before** it signs anything, so you never sign
+a challenge on behalf of an identity nobody proved they own.
+
+## Handling expiry
+
+Sessions last one hour and cannot be refreshed. That is deliberate: a token that lives
+forever is a token worth stealing.
+
+<CodeGroup>
+
+```typescript TypeScript
+async function withSession(fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e.code === "SESSION_EXPIRED" || e.code === "NO_SESSION") {
+      await ln.auth.login({ deviceCredential, deviceSecretKey: await readFromKeychain() });
+      return fn();
+    }
+    throw e;
+  }
+}
+
+const { nodes } = await withSession(() => ln.operator.nodes());
+```
+
+```python Python
+def with_session(fn):
+    try:
+        return fn()
+    except AuthError as e:
+        if e.code in ("SESSION_EXPIRED", "NO_SESSION"):
+            ln.auth.login(device_credential, read_from_keychain())
+            return fn()
+        raise
+
+nodes = with_session(ln.operator.nodes)
+```
+
+</CodeGroup>
+
+## Key handling
+
+<Warning>
+**Never** commit a private key, put one in `.env`, bake one into an image, or pass one as a
+command-line argument (it lands in your shell history and in `ps` output).
+
+Read it from your OS keychain or a secret manager, at the point of use.
+</Warning>
+
+<CodeGroup>
+
+```typescript TypeScript
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+// macOS Keychain
+async function readFromKeychain() {
+  const { stdout } = await promisify(execFile)("security", [
+    "find-generic-password", "-s", "libertynet-device-key", "-w",
+  ]);
+  return Buffer.from(stdout.trim(), "hex");
+}
+```
+
+```python Python
+import keyring
+
+def read_from_keychain() -> bytes:
+    return bytes.fromhex(keyring.get_password("libertynet", "device-key"))
+```
+
+</CodeGroup>
+
+If signing happens in a separate, more protected process, this client never needs to see a
+key at all:
+
+```typescript
+ln.auth.useSession(tokenFromElsewhere);
+```
+
+## Why no passwords is a security property
+
+| Attack | Against a password | Here |
+|---|---|---|
+| Phishing | Works | Nothing to type into a fake page |
+| Credential stuffing | Works | No credential to reuse |
+| Database breach | Hashes to crack | No secret is stored server-side |
+| Replay | Session cookie theft | Challenges are single-use, 300s |
+
+The cost is that you must not lose your key — there is no reset flow, because a reset flow
+is a second, weaker way in. That trade is deliberate.
+
+<Card title="Now bind a node" icon="link" href="/concepts/binding" horizontal>
+  With an operator identity you can adopt nodes under limits you set.
+</Card>

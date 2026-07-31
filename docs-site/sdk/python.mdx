@@ -1,0 +1,224 @@
+---
+title: "Python SDK"
+description: "libertynet — every method, with runnable examples. Dependency-free core."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+## Install
+
+<Warning>
+Not published to PyPI yet. Until it is, use it from the repository:
+
+```bash
+cd dev-portal/sdk/python
+pip install -e '.[dev]'
+```
+</Warning>
+
+```bash
+# What it will be:
+pip install libertynet
+pip install 'libertynet[signing]'   # adds Ed25519 signing
+```
+
+Python 3.10+. **The core has no third-party dependencies** — only `hashlib` and `urllib`.
+Checking who is on a public network should not require installing anything. Only signing
+(operator login) pulls in `cryptography`, and only when you call it.
+
+## Getting started
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()
+
+health = ln.discovery.health()
+print(f"{health['count']} nodes registered")
+
+for node in ln.discovery.online():
+    print(node.did, node.region, ",".join(node.capabilities))
+```
+
+### Options
+
+```python
+ln = LibertyNet(
+    "https://registry.libertynet.ai",   # self-hosted registries welcome
+    timeout=15.0,
+    retries=2,      # transient failures only — never a 4xx
+)
+```
+
+## discovery <Status level="implemented" />
+
+```python
+ln.discovery.health()
+# → {"status": "ok", "service": "libertynet-registry-standalone", "count": 27}
+
+ln.discovery.all()                                  # verified; failures dropped
+ln.discovery.online()                               # + seen in the last 600s
+ln.discovery.online(freshness_s=60)
+ln.discovery.online(region="asia-southeast")
+ln.discovery.online(capabilities=["inference"])
+ln.discovery.by_capability("inference", freshness_s=120)
+ln.discovery.get("did:svrp:n:8545027b")             # matches either DID encoding
+```
+
+<Warning>
+Use `online()`, not `all()`. `status == "active"` does **not** mean online — a node
+unplugged last week still says `"active"` forever. Only `last_seen` decays.
+</Warning>
+
+### `audit()`
+
+```python
+result = ln.discovery.audit()
+# → {"total": 27, "verified": [VerifiedNode, ...], "rejected": []}
+
+if result["rejected"]:
+    # A finding, not a nuisance to skip quietly.
+    print(f"{len(result['rejected'])} records failed id-binding")
+```
+
+### `VerifiedNode`
+
+```python
+node.did              # str
+node.public_key       # str — hex or base58 as served
+node.endpoint         # str | None — where it *says* it is; not probed
+node.capabilities     # list[str] — a claim, not a credential
+node.region           # str | None
+node.last_seen        # str | None — the only field that goes stale
+node.staleness_ms     # float | None
+node.verified         # always True
+node.raw              # the original dict, if you need a field we did not model
+```
+
+## Identity helpers
+
+Pure functions, no network, no dependencies.
+
+```python
+from libertynet import (
+    verify_id_binding, assert_id_binding, parse_did,
+    did_from_public_key, same_identity, fingerprint, decode_public_key,
+)
+
+verify_id_binding("did:svrp:n:268d4fe0", key)   # → bool
+assert_id_binding(did, key)                      # → raises IdentityError
+parse_did(did)                                   # → ParsedDid | None
+did_from_public_key(key, "n")                    # → "did:svrp:n:268d4fe0"
+same_identity(short_did, full_did, key)          # → same node under two spellings?
+fingerprint(key)                                 # → "268d:4fe0:b6ef:c390"
+decode_public_key(key)                           # → bytes | None (hex or base58)
+```
+
+## auth <Status level="implemented" />
+
+```python
+session = ln.auth.login(device_credential, device_secret_key)
+# → OperatorSession(session_token=..., operator_did=..., expires_in=3600, expires_at=...)
+```
+
+<Warning>
+**Never hard-code `device_secret_key`, and never read it from a file in your repository.**
+Read it from your OS keychain or a secret manager at the point of use.
+
+```python
+import keyring
+secret = bytes.fromhex(keyring.get_password("libertynet", "device-key"))
+```
+</Warning>
+
+Requires `cryptography`:
+
+```bash
+pip install 'libertynet[signing]'
+```
+
+Without it you get a clear error rather than an import failure three frames deep:
+
+```text
+LibertyNetError: [MISSING_DEPENDENCY] Signing needs the `cryptography` package:
+pip install 'libertynet[signing]'. Discovery and identity verification do not require it.
+```
+
+```python
+ln.auth.use_session(token)   # signing happened elsewhere; this client never sees a key
+ln.auth.logout()
+ln.auth.is_logged_in()
+```
+
+## operator
+
+### `nodes()` <Status level="implemented" />
+
+```python
+for n in ln.operator.nodes():
+    print(n.node_did, "online" if n.online else "offline", n.authorization["task_types"])
+```
+
+### Credits <Status level="not_yet_wired" />
+
+```python
+# Honest reader — envelope and `source` intact
+balance = ln.operator.credits_raw()
+print("Not connected yet" if not balance.is_wired else balance.settled["amount"])
+
+# Convenience reader — raises rather than hand you a misleading zero
+ln.operator.settled_credits()   # → NotYetWiredError, today
+```
+
+<Warning>
+Credits are a **test unit**: not cash, not redeemable, not a claim on future value. And
+nothing is counting them yet — `0` means "not measured", not "you earned nothing".
+[Details](/concepts/credits).
+</Warning>
+
+## binding <Status level="implemented" />
+
+```python
+request = ln.binding.resolve(short_code="K7M2NQ4X")
+print("Compare on the node's screen:", request.node_public_key_fingerprint)
+
+final = ln.binding.wait_for_terminal(request.binding_session_id, timeout_s=600)
+print(final.state, final.is_terminal)
+```
+
+`authorize()` raises —
+[see why](/sdk/overview#what-the-sdks-deliberately-do-not-do).
+
+## Errors
+
+```python
+from libertynet import (
+    LibertyNetError, ApiError, AuthError,
+    IdentityError, NotYetWiredError, TransportError,
+)
+
+try:
+    ln.operator.nodes()
+except AuthError as e:
+    if e.code == "SESSION_EXPIRED":
+        ln.auth.login(device_credential, device_secret_key)
+        ln.operator.nodes()
+except LibertyNetError as e:
+    print(e.code, e.message, "->", e.docs)   # every error links to its fix
+```
+
+[Error dictionary →](/reference/errors)
+
+## Tests
+
+```bash
+python3 -m pytest -q            # 50 hermetic tests, no network
+LN_LIVE=1 python3 -m pytest -q  # + 2 against the live registry
+```
+
+The live suite asserts every identity on the production registry still verifies.
+
+## Type checking
+
+Fully annotated, `from __future__ import annotations` throughout, dataclasses for wire
+types. Works with mypy and pyright without stubs.

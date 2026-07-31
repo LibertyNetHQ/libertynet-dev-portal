@@ -1,0 +1,159 @@
+---
+title: "DID reference"
+description: "Every DID form, every encoding, every edge case — as a lookup table."
+---
+
+This is the dictionary. For the reasoning, see [Identity concepts](/concepts/identity).
+
+## Grammar
+
+```text
+did:svrp:[<tag>:]<hex>
+```
+
+| Part | Values |
+|---|---|
+| `tag` | `n` node · `o` operator · `h` host. **Absent** on the full-hex form. |
+| `hex` | 8, 10 or 64 lowercase hex characters. |
+
+```text
+^did:svrp:(?:([a-z0-9]):)?([0-9a-f]+)$
+```
+
+## The three forms
+
+| Form | Length | Derivation | Where it appears |
+|---|---|---|---|
+| Short | 8 hex | `SHA-256(key)[0:4]` | Bindings, operator records, `/peers` |
+| Collision fallback | 10 hex | `SHA-256(key)[0:5]` | Reserved; issued only on an 8-hex collision |
+| Full-hex | 64 hex | the 32-byte key itself | `/nodes`, running daemons |
+
+<Warning>
+Handle **all three**. An implementation that hard-codes only the 4-byte formula will reject
+a legitimate identity the first time a 10-hex one is issued — and will do so with an error
+that looks like forgery.
+
+A tagged 64-hex value (`did:svrp:n:df9d…`) is **not** a shape this protocol produces.
+Reject it rather than guessing which half is meaningful.
+</Warning>
+
+## Public key encodings
+
+| Endpoint | Encoding | Example |
+|---|---|---|
+| `GET /nodes` | lowercase hex, 64 chars | `df9d4b9f…02d` |
+| `GET /peers` | base58 (Bitcoin alphabet) | `7441yUYc1qmW…` |
+| Binding payloads | base58 | `7441yUYc1qmW…` |
+
+Both are the same 32 bytes. Decode before hashing:
+
+```typescript
+const key = /^[0-9a-f]{64}$/.test(publicKey)
+  ? Buffer.from(publicKey, "hex")
+  : base58.decode(publicKey);
+if (key.length !== 32) throw new Error("not an Ed25519 public key");
+```
+
+<Note>
+Base58 drops leading zero bytes. A correct decoder restores one zero byte per leading `1`
+in the string — otherwise a key beginning with `0x00` decodes to 31 bytes and fails.
+</Note>
+
+## Verification
+
+```text
+form == full-hex   →  body == hex(key)
+form == short      →  body == hex(sha256(key))[0:8]
+form == fallback   →  body == hex(sha256(key))[0:10]
+```
+
+<CodeGroup>
+
+```typescript TypeScript
+import { verifyIdBinding, parseDid, sameIdentity, fingerprint } from "@libertynet/sdk";
+
+verifyIdBinding(did, publicKey);      // boolean
+parseDid(did);                        // { did, form, tag, body } | null
+sameIdentity(didA, didB, publicKey);  // same node under two spellings?
+fingerprint(publicKey);               // "268d:4fe0:b6ef:c390"
+```
+
+```python Python
+from libertynet import verify_id_binding, parse_did, same_identity, fingerprint
+
+verify_id_binding(did, public_key)      # bool
+parse_did(did)                          # ParsedDid | None
+same_identity(did_a, did_b, public_key) # same node under two spellings?
+fingerprint(public_key)                 # "268d:4fe0:b6ef:c390"
+```
+
+</CodeGroup>
+
+## Comparison rules
+
+| Question | Correct test |
+|---|---|
+| Same node? | `sameIdentity(a, b, key)` — **never** `a === b` |
+| Is this DID legitimate for this key? | `verifyIdBinding(did, key)` |
+| Canonical short form for a key | `didFromPublicKey(key, "n")` |
+| Show a human, for comparison | `fingerprint(key)` |
+
+<Warning>
+`did:svrp:n:8545027b` and `did:svrp:df9d4b9f…02d` can be the **same node**. String
+comparison will split one node into two across your database, dashboard and metrics — and
+the bug is invisible until someone notices a duplicate.
+</Warning>
+
+## Fingerprints
+
+```text
+fingerprint(key) = hex(sha256(key))[0:16] grouped in 4s
+                 → "268d:4fe0:b6ef:c390"
+```
+
+For humans to compare out-of-band — on two screens, or read aloud. Nobody can diff 64 hex
+characters reliably; four groups of four is a task a person can actually do.
+
+## Worked examples
+
+Real records from the live registry, 2026-07-31.
+
+```text
+DID         did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d
+key (hex)   df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d
+form        full-hex        body == hex(key)                  ✓
+short form  did:svrp:n:8545027b   (= sha256(key)[0:4])
+fingerprint 8545:027b:6100:1591
+```
+
+```text
+DID         did:svrp:n:268d4fe0
+key (b58)   7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg
+form        short           body == sha256(key)[0:8]          ✓
+fingerprint 268d:4fe0:b6ef:c390
+```
+
+## Verify the whole network yourself
+
+```bash
+node -e '
+const { createHash } = require("node:crypto");
+fetch("https://registry.libertynet.ai/nodes").then(r => r.json()).then(({nodes}) => {
+  const B58="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  const b58=s=>{let n=0n;for(const c of s){const i=B58.indexOf(c);if(i<0)return null;n=n*58n+BigInt(i)}
+    let h=n.toString(16);if(h.length%2)h="0"+h;let l=0;for(const c of s){if(c==="1")l++;else break}
+    return Buffer.concat([Buffer.alloc(l),Buffer.from(h,"hex")])};
+  const ok = nodes.filter(n => {
+    const k = /^[0-9a-f]{64}$/.test(n.public_key) ? Buffer.from(n.public_key,"hex") : b58(n.public_key);
+    const b = n.did.replace(/^did:svrp:(?:[a-z0-9]:)?/, "");
+    return b.length===64 ? b===k.toString("hex")
+         : b===createHash("sha256").update(k).digest("hex").slice(0,b.length);
+  });
+  console.log(`${ok.length}/${nodes.length} verified`);
+});'
+# → 27/27 verified
+```
+
+<Card title="Why any of this" icon="fingerprint" href="/concepts/identity" horizontal>
+  **Identity concepts** — what self-certifying buys you, and the verification order.
+</Card>

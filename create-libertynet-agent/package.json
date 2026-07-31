@@ -1,0 +1,20 @@
+{
+  "name": "create-libertynet-agent",
+  "version": "0.1.0",
+  "description": "Scaffold a runnable LibertyNet agent in one command.",
+  "type": "module",
+  "bin": { "create-libertynet-agent": "./index.mjs" },
+  "files": ["index.mjs", "src", "README.md"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {},
+  "keywords": ["libertynet", "scaffold", "create", "agent", "cli"],
+  "license": "SEE LICENSE IN REPOSITORY",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LibertyNetHQ/LibertyNet-hq",
+    "directory": "dev-portal/create-libertynet-agent"
+  }
+}

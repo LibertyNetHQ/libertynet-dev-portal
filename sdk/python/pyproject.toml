@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "libertynet"
+version = "0.1.0"
+description = "Python SDK for LibertyNet — discovery, self-certifying identity, operator login and node binding."
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["libertynet", "did", "ed25519", "decentralized", "sdk"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Intended Audience :: Developers",
+  "Typing :: Typed",
+]
+
+# Core is dependency-free on purpose: discovering and cryptographically verifying
+# a public network must not require installing anything.
+dependencies = []
+
+[project.optional-dependencies]
+# Only Ed25519 signing (operator login) needs this, and only when called.
+signing = ["cryptography>=42"]
+dev = ["pytest>=8", "cryptography>=42"]
+
+[project.urls]
+Documentation = "https://docs.libertynet.ai"
+Source = "https://github.com/LibertyNetHQ/LibertyNet-hq"
+
+[tool.setuptools.packages.find]
+include = ["libertynet*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

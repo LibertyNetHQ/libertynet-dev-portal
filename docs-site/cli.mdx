@@ -1,0 +1,237 @@
+---
+title: "CLI scaffolder"
+description: "One command produces a runnable LibertyNet agent with discovery, verification and tests already wired. Zero dependencies."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+```bash
+npx create-libertynet-agent my-agent
+```
+
+Ten seconds later you have a project that runs against the live network. **No `npm
+install`** — the generated project has zero dependencies, so `npm start` works the moment
+the files land.
+
+<Note>
+`create-libertynet-agent` is not on npm yet. Until it is published, run it from the
+repository:
+
+```bash
+node dev-portal/create-libertynet-agent/index.mjs my-agent
+```
+
+Identical behaviour. The `npx` form above is what it will be — this note disappears when
+that becomes true, not before.
+</Note>
+
+## What you get
+
+<CodeGroup>
+
+```text Interactive
+◐ LibertyNet  create-libertynet-agent
+
+Project name (my-agent) watcher
+
+What are you building?
+  1 Network monitor     Watches the live network, verifies every identity, reports what changed.
+      Runs against the live network today with no setup at all.
+  2 Service agent       Offers a capability to the network and verifies who is calling.
+      The local service runs today; joining the network as a servable node needs ln-node.
+  3 Intent solver       Skeleton for solving user intents.
+      The intent system is not built yet — this generates the shape, not a working solver.
+  4 Custom              Just the client, verified discovery and a test.
+      Runs today.
+
+1-4 (1) 1
+
+✓ watcher created in 0.01s
+  8 files · Network monitor · zero dependencies
+```
+
+```text Non-interactive
+$ npx create-libertynet-agent watcher --type monitor -y
+
+◐ LibertyNet  create-libertynet-agent
+
+✓ watcher created in 0.01s
+  8 files · Network monitor · zero dependencies
+
+  · .env.example
+  · .gitignore
+  · README.md
+  · libertynet.config.json
+  · package.json
+  · src/index.mjs
+  · src/libertynet.mjs
+  · test/agent.test.mjs
+
+Run it
+  cd watcher
+  npm start      # no install needed
+  npm test
+```
+
+</CodeGroup>
+
+Every prompt has a flag, so the whole scaffolder is scriptable — by CI, and by an AI
+assistant that cannot answer a question.
+
+## Agent types
+
+<Tabs>
+  <Tab title="Network monitor">
+    **Runs today, fully.** <Status level="implemented" />
+
+    Polls the live registry, verifies every identity it is handed, and reports arrivals,
+    departures and — loudly — any record whose DID does not derive from its key.
+
+    ```bash
+    npx create-libertynet-agent watcher --type monitor -y
+    cd watcher && npm start
+    ```
+
+    ```text
+    Watching https://registry.libertynet.ai every 30s. Ctrl-C to stop.
+
+    JOINED    did:svrp:h:2216a202            region:?  node  fp=2216:a202:8332:7693
+    JOINED    did:svrp:df9d4b9f390bc49...    asia-southeast  inference,health:ready
+    [2026-07-31T16:41:02.884Z] 27 registered · 27 verified · 2 online
+    ```
+
+    The best starting point: it is short, it does something real, and it is honest about
+    the difference between "registered" and "online".
+  </Tab>
+
+  <Tab title="Service agent">
+    **Local service runs today.** Network discoverability needs `ln-node`.
+
+    Serves a capability over HTTP and identifies callers before doing work for them.
+
+    ```bash
+    npx create-libertynet-agent infer-svc --type service --caps inference -y
+    cd infer-svc && npm start
+    ```
+
+    ```bash
+    # Anonymous — refused
+    curl -s -w " [%{http_code}]" localhost:8787/work
+    # {"error": "no identity presented"} [401]
+
+    # Forged identity — refused, because the DID does not derive from the key
+    curl -s localhost:8787/work \
+      -H "x-ln-did: did:svrp:n:deadbeef" \
+      -H "x-ln-public-key: df9d4b9f...02d"
+    # {"error": "id-binding failed"} [401]
+
+    # Real identity — served
+    curl -s localhost:8787/work \
+      -H "x-ln-did: did:svrp:df9d4b9f...02d" \
+      -H "x-ln-public-key: df9d4b9f...02d"
+    # {"served": "did:svrp:df9d4b9f...02d", "result": "replace me"} [200]
+    ```
+
+    <Warning>
+    The generated `identify()` checks id-binding, which proves the identifier is
+    well-formed for that key — **not** that the caller holds the private key. For real
+    authentication you must also verify a signature over a challenge you chose. The
+    generated code says so at the point where it matters, and
+    [Service agent guide](/guides/service-agent) walks through it.
+    </Warning>
+  </Tab>
+
+  <Tab title="Intent solver">
+    **The intent system does not exist yet.** <Status level="planned" />
+
+    So this generates the *shape* of a solver, with the unbuilt calls throwing rather than
+    returning invented data:
+
+    ```javascript
+    export async function fetchIntents() {
+      notBuilt("GET /v1/dex/intent");
+      // → Error: GET /v1/dex/intent is planned, not built. There is no endpoint
+      //   behind it. Track it at https://docs.libertynet.ai/status
+    }
+    ```
+
+    A stub that returns fake quotes is how you end up shipping fake quotes.
+
+    What you *can* do today is write and unit-test `priceIntent()` — it is pure, and the
+    generated test suite already covers it.
+  </Tab>
+
+  <Tab title="Custom">
+    **Runs today.** The client, verified discovery, and a test. Nothing else in your way.
+
+    ```bash
+    npx create-libertynet-agent my-thing --type custom -y
+    cd my-thing && npm start
+    ```
+
+    ```text
+    Registry is ok with 27 nodes registered.
+
+    Online now:
+      did:svrp:h:2216a202  ?  node  fp=2216:a202:8332:7693
+      did:svrp:df9d4b9f390bc49b2210e  asia-southeast  inference,health:ready
+    ```
+  </Tab>
+</Tabs>
+
+## Options
+
+| Flag | Effect |
+|---|---|
+| `--type <id>` | `monitor` · `service` · `solver` · `custom`. Prompted if omitted. |
+| `--caps <a,b,c>` | Capabilities to declare: `inference`, `storage`, `verification`, `proof`, `solver`, `oracle`. |
+| `-y`, `--yes` | Accept defaults, ask nothing. For CI and AI assistants. |
+| `--force` | Scaffold into a non-empty directory. Refused without this. |
+| `-h`, `--help` | Usage. |
+
+<Tip>
+Only `inference` has actually been observed on the live network so far. The others are
+declared in the spec but nobody is advertising them yet — the CLI marks which is which
+rather than presenting all six as equally real.
+</Tip>
+
+## What the generated project looks like
+
+```text
+my-agent/
+├── src/
+│   ├── index.mjs          # your agent — start here
+│   └── libertynet.mjs     # zero-dep client: discovery + identity verification
+├── test/
+│   └── agent.test.mjs     # offline, milliseconds, real registry records as fixtures
+├── libertynet.config.json # what this project was generated as
+├── package.json           # zero dependencies
+├── .env.example           # copy to .env — never put a key in it
+├── .gitignore             # .env is ignored before it can exist
+└── README.md
+```
+
+`src/libertynet.mjs` is a strict subset of [`@libertynet/sdk`](/sdk/overview) with
+identical method names and semantics. When the package is published, delete the file and
+change one import — nothing else changes.
+
+## What the templates will never generate
+
+These are enforced by the scaffolder's own test suite, not by good intentions:
+
+- **No hard-coded secrets.** A scaffold that ships a literal key teaches every reader
+  that literal keys are normal. Secrets come from the environment; `.env` is git-ignored
+  before it can exist.
+- **Nothing that moves value.** No wallet, no transfer, no key generation for spending —
+  because none of it is built, and a scaffold that pretends otherwise teaches a habit
+  before it teaches a task.
+- **No way to skip verification.** Every template verifies identity, and the test suite
+  asserts that no `skipVerify` / `insecure` / `trustAll` escape hatch can appear in the
+  generated client.
+- **No fake data for unbuilt endpoints.** Unbuilt calls throw with a link to
+  [capability status](/status).
+
+<Card title="Run your first one" icon="terminal" href="/quickstart" horizontal>
+  If you have not done the **Quickstart** yet, do that first — it takes five minutes and
+  makes the generated code obvious.
+</Card>

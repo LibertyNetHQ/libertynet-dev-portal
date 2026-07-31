@@ -1,0 +1,949 @@
+openapi: 3.1.0
+info:
+  title: LibertyNet API
+  version: 1.0.0
+  summary: Node discovery, operator identity, and node↔operator binding for the LibertyNet network.
+  description: |
+    The LibertyNet public API. Everything documented here with `x-ln-status: implemented`
+    is live right now at `https://registry.libertynet.ai` and was probed on 2026-07-31.
+
+    ## Honesty contract
+
+    Every operation carries an `x-ln-status` extension. The portal renders it as a badge and
+    never overrides it:
+
+    | Status | What it means |
+    |---|---|
+    | `implemented` | Live on a public endpoint. Call it today. |
+    | `not_yet_wired` | The endpoint is live and returns `200`, but its data source is not connected. It returns zeros/empties **plus** `"source": "not_yet_wired"`. Safe to read; the numbers are not earnings. |
+    | `testing` | Code exists and its tests pass, but there is no public endpoint. |
+    | `planned` | Designed, not built. There is nothing behind it. |
+
+    `planned` operations are listed so you can see where the network is going. They are **not**
+    callable and the SDKs raise a typed `NotYetWiredError` instead of pretending.
+
+    ## Authentication
+
+    Discovery is public — no key, no signup. Operator endpoints use a signature-based login:
+    fetch a challenge, sign it with your **device key**, exchange it for a 1-hour bearer session.
+    There is no password anywhere in this API, so there is nothing to phish and nothing to stuff.
+
+    ## What this API deliberately does not do
+
+    There is no endpoint that moves value. No wallet, no swap, no staking, no token transfer.
+    Credits are a **test unit** — not cash, and not a claim on future value.
+  contact:
+    name: LibertyNet developer support
+    url: https://docs.libertynet.ai/community
+  license:
+    name: See repository
+    url: https://github.com/LibertyNetHQ/LibertyNet-hq
+
+servers:
+  - url: https://registry.libertynet.ai
+    description: Production registry (live)
+
+tags:
+  - name: Discovery
+    description: Find nodes on the network. Public, no authentication.
+  - name: Identity
+    description: Operator login by signature. No passwords.
+  - name: Binding
+    description: The double-signature handshake that binds a node to an operator.
+  - name: Node
+    description: Endpoints a node daemon calls on its own behalf.
+  - name: Economics
+    description: Credits and contribution evidence. Live endpoints, unconnected data sources.
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Registry liveness
+      description: |
+        The cheapest possible first call. No key, no headers, no body. If this returns `200`,
+        you are talking to the network.
+      tags: [Discovery]
+      security: []
+      x-ln-status: implemented
+      responses:
+        '200':
+          description: Registry is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service, count]
+                properties:
+                  status: { type: string, const: ok }
+                  service: { type: string, example: libertynet-registry-standalone }
+                  count:
+                    type: integer
+                    description: Number of nodes currently in the registry table.
+                    example: 27
+              examples:
+                live:
+                  summary: Real response, probed 2026-07-31
+                  value: { status: ok, service: libertynet-registry-standalone, count: 27 }
+
+  /nodes:
+    get:
+      operationId: listNodes
+      summary: List all registered nodes
+      description: |
+        The full node table. This is how you discover who is on the network and what they can do.
+
+        `last_seen` is the honest freshness signal — a node that stopped heart-beating stays in
+        the table with a stale `last_seen`. Do not treat presence in this list as "online";
+        compare `last_seen` against now yourself, or use
+        [`GET /v1/operator/me/nodes`](#operation/getOperatorNodes) which computes `online` for you.
+      tags: [Discovery]
+      security: []
+      x-ln-status: implemented
+      responses:
+        '200':
+          description: The node table.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count, nodes]
+                properties:
+                  count: { type: integer, example: 27 }
+                  nodes:
+                    type: array
+                    items: { $ref: '#/components/schemas/NodeRecord' }
+              examples:
+                live:
+                  summary: Real response (one node shown), probed 2026-07-31
+                  value:
+                    count: 27
+                    nodes:
+                      - did: 'did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d'
+                        public_key: df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d
+                        endpoint: 172.20.10.5:55785
+                        capabilities: [inference, 'health:ready']
+                        region: asia-southeast
+                        status: active
+                        last_seen: '2026-07-31T16:33:08Z'
+                        first_seen: '2026-07-28T11:49:46Z'
+
+  /peers:
+    get:
+      operationId: listPeersText
+      summary: List peers as plain text
+      description: |
+        One peer per line: `<did> <public_key> <endpoint>`. Exists for shell tooling that would
+        rather not depend on a JSON parser. Prefer [`/nodes`](#operation/listNodes) in code.
+      tags: [Discovery]
+      security: []
+      x-ln-status: implemented
+      responses:
+        '200':
+          description: Newline-delimited peer list.
+          content:
+            text/plain:
+              schema: { type: string }
+              examples:
+                live:
+                  value: |
+                    did:svrp:n:268d4fe0 7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg 34.21.237.177:4001
+                    did:svrp:n:5af1b351 8xbsLtBacNvgr3sBwguKExAwEFuGNAQQG54qQKwPshtv 35.241.69.59:4001
+
+  /api/v1/peers:
+    get:
+      operationId: listPeers
+      summary: List peers (JSON envelope)
+      tags: [Discovery]
+      security: []
+      x-ln-status: implemented
+      responses:
+        '200':
+          description: Peer list wrapped in the standard envelope.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data: { type: array, items: { $ref: '#/components/schemas/NodeRecord' } }
+                  error: { type: [string, 'null'] }
+
+  /api/v1/register:
+    post:
+      operationId: registerNode
+      summary: Register a node
+      description: |
+        A node announces itself to the registry. You normally do **not** call this by hand —
+        `ln-node` does it for you on startup. It is documented because self-hosted and
+        experimental nodes need the exact contract.
+
+        Signature verification runs in grace mode: a malformed signature is recorded rather than
+        rejected outright during the beta. Do not rely on that staying true.
+      tags: [Discovery]
+      security: []
+      x-ln-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '200':
+          description: Registered.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  data: { $ref: '#/components/schemas/NodeRecord' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/v1/heartbeat:
+    post:
+      operationId: heartbeatNode
+      summary: Refresh a node's last_seen
+      description: |
+        Keeps a node's `last_seen` fresh, which is what makes it show as `online` to its operator.
+        `ln-node` sends this on an interval; a node that stops sending it goes stale, not deleted.
+      tags: [Discovery]
+      security: []
+      x-ln-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [did]
+              properties:
+                did: { $ref: '#/components/schemas/Did' }
+                public_key: { $ref: '#/components/schemas/PublicKeyHex' }
+      responses:
+        '200':
+          description: Heartbeat accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { ok: { type: boolean } }
+
+  /v1/auth/challenge:
+    post:
+      operationId: createAuthChallenge
+      summary: Get a login challenge
+      description: |
+        Returns a single-use random challenge with a 300-second TTL. You sign it with your device
+        key and hand it back to [`/v1/auth/device-login`](#operation/deviceLogin). The challenge is
+        consumed on success and cannot be replayed.
+      tags: [Identity]
+      security: []
+      x-ln-status: implemented
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: A fresh challenge.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challenge, expires_in]
+                properties:
+                  challenge:
+                    type: string
+                    description: Base58, 24 random bytes.
+                    example: 7xyZt3pE8DSp6JzsSpRMc7o8PSUsH5R2P
+                  expires_in: { type: integer, const: 300, description: Seconds. }
+
+  /v1/auth/device-login:
+    post:
+      operationId: deviceLogin
+      summary: Exchange a signed challenge for a bearer session
+      description: |
+        The registry verifies, in this order, and rejects at the first failure:
+
+        1. **id-binding** — that `operator_root_public_key` actually derives `operator_did`.
+        2. the DeviceCredential's own signature by the operator root key;
+        3. that the DeviceCredential is inside its validity window;
+        4. your signature over the challenge, by the device key the credential names.
+
+        A valid signature is not a valid identity. Step 1 is not optional and not reorderable.
+
+        On success you get a bearer token good for one hour. It is a session, not an API key:
+        it is not listed anywhere, not recoverable, and expires on its own.
+      tags: [Identity]
+      security: []
+      x-ln-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_credential, challenge, issued_at, signature]
+              properties:
+                device_credential: { $ref: '#/components/schemas/DeviceCredential' }
+                challenge: { type: string, description: Verbatim from /v1/auth/challenge. }
+                issued_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+                signature:
+                  type: string
+                  description: Base58 Ed25519 signature by `device_credential.device_public_key`.
+      responses:
+        '200':
+          description: Logged in.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session_token, operator_did, expires_in]
+                properties:
+                  session_token: { type: string, description: 'Bearer token. Send as `Authorization: Bearer <token>`.' }
+                  operator_did: { $ref: '#/components/schemas/Did' }
+                  expires_in: { type: integer, const: 3600 }
+        '401':
+          description: |
+            Rejected. `code` tells you which gate failed: `BAD_CHALLENGE`, `DC_ID_BINDING`,
+            `DC_BAD_SIGNATURE`, `DC_EXPIRED`, `BAD_SIGNATURE`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/operator/me/nodes:
+    get:
+      operationId: getOperatorNodes
+      summary: List the nodes bound to you
+      description: |
+        Every node bound to the authenticated operator, with a computed `online` flag and the
+        authorization limits that were agreed at binding time.
+
+        Note the DID subtlety this endpoint resolves for you: a binding is stored under the node's
+        short `did:svrp:n:<8hex>` form, but a running daemon announces itself under its full
+        `did:svrp:<64hex>` form. Same key, two encodings. This endpoint reconciles them and returns
+        the freshest live record.
+      tags: [Identity]
+      x-ln-status: implemented
+      responses:
+        '200':
+          description: Your nodes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [operator_did, count, nodes]
+                properties:
+                  operator_did: { $ref: '#/components/schemas/Did' }
+                  count: { type: integer }
+                  nodes:
+                    type: array
+                    items: { $ref: '#/components/schemas/BoundNode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/operator/me/credits:
+    get:
+      operationId: getOperatorCredits
+      summary: Read your Credits balance
+      description: |
+        **This endpoint is live and returns `200`, but no credits ledger is connected to it.**
+        It returns `settled`, `pending` and `estimated` all equal to `0`, together with
+        `"source": "not_yet_wired"`.
+
+        That field is the contract. If your UI shows a balance, it must check `source` and say
+        "not connected yet" rather than render `0` as an earned amount. The SDKs enforce this:
+        reading `.settled` on a `not_yet_wired` response raises rather than returning a
+        misleading zero.
+
+        Credits are a **test unit**. Not cash. Not redeemable. Not a claim on future value.
+      tags: [Economics]
+      x-ln-status: not_yet_wired
+      responses:
+        '200':
+          description: Balance envelope — see `source` before believing any number.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreditsBalance' }
+              examples:
+                live:
+                  summary: Real response today
+                  value:
+                    operator_did: 'did:svrp:o:<your-operator-id>'
+                    unit: test-credit
+                    disclaimer: 测试单位，非现金，不代表未来可兑换价值。
+                    settled: { amount: 0, meaning: '已入账：由 Evidence 验证与结算系统确认' }
+                    pending: { amount: 0, meaning: '待验证：Evidence 已提交，尚未完成验证或结算' }
+                    estimated: { amount: 0, meaning: '模拟估算：内测模型估算，不代表承诺或未来价值' }
+                    source: not_yet_wired
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/operator/me/evidence:
+    get:
+      operationId: getOperatorEvidence
+      summary: Read your contribution evidence
+      description: |
+        **Live, but the read-only Evidence source is not connected.** Returns `count: 0`,
+        `evidence: []` and `"source": "not_yet_wired"`. Treat an empty list here as "unknown",
+        not as "you contributed nothing".
+      tags: [Economics]
+      x-ln-status: not_yet_wired
+      responses:
+        '200':
+          description: Evidence envelope.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [operator_did, count, evidence, source]
+                properties:
+                  operator_did: { $ref: '#/components/schemas/Did' }
+                  count: { type: integer }
+                  evidence: { type: array, items: { type: object } }
+                  source: { type: string, const: not_yet_wired }
+                  note: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/bindings/initiate:
+    post:
+      operationId: initiateBinding
+      summary: Open a binding session (node side)
+      description: |
+        A node asks to be adopted by an operator. It signs a canonical description of what it is
+        and what permissions it wants, and gets back a human-readable `short_code` and a
+        `binding_token`.
+
+        **Both are returned exactly once and never again.** They are stored only as SHA-256
+        hashes. If you lose them, cancel the session and start over.
+
+        The registry enforces `0 < expires_at - created_at <= 600s`. A node cannot grant itself a
+        longer window than the protocol allows.
+      tags: [Binding]
+      security: []
+      x-ln-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BindingInitiateRequest' }
+      responses:
+        '200':
+          description: Session opened. Save `short_code` and `binding_token` now.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [binding_session_id, short_code, binding_token, expires_at, state]
+                properties:
+                  binding_session_id: { type: string }
+                  short_code:
+                    type: string
+                    description: |
+                      Human-typeable code from the alphabet `23456789ABCDEFGHJKMNPQRSTUVWXYZ` —
+                      no `I`, `O`, `0` or `1`, so it survives being read aloud.
+                  binding_token: { type: string, description: 128-bit token, base58. }
+                  expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+                  state: { const: INITIATED }
+        '400':
+          description: '`TTL_TOO_LONG`, `ALREADY_EXPIRED`, or a missing required field.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '401':
+          description: '`ID_BINDING_FAILED`, `ID_BINDING_REQUIRED`, or `BAD_SIGNATURE`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: '`SESSION_EXISTS` — that `binding_session_id` was already used.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /v1/bindings/resolve:
+    post:
+      operationId: resolveBinding
+      summary: Redeem a binding code (console side)
+      description: |
+        The operator's console redeems the `short_code` (or `binding_token`) and sees exactly what
+        the node is requesting, including a fingerprint of its public key to compare out-of-band.
+
+        Anti-enumeration is deliberate here: after 5 failed attempts on a code within 600s you get
+        `429`, and *every* failure returns the same generic `404` — not found, expired and already
+        used are indistinguishable, so the endpoint cannot be used to probe for valid codes.
+      tags: [Binding]
+      security: []
+      x-ln-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Supply at least one of `binding_token` or `short_code`.
+              anyOf:
+                - { required: [binding_token] }
+                - { required: [short_code] }
+              properties:
+                binding_token: { type: string }
+                short_code: { type: string }
+      responses:
+        '200':
+          description: What the node is asking for.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BindingResolveResponse' }
+        '404':
+          description: '`NOT_FOUND` — deliberately generic (invalid, expired or already used).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '429':
+          description: '`RATE_LIMITED` — 5 failed attempts on this code within 600s.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /v1/bindings/authorize:
+    post:
+      operationId: authorizeBinding
+      summary: Authorize a binding (operator side)
+      description: |
+        The operator's **device key** signs an AuthorizationCredential naming the node and the
+        limits it may operate under. The registry verifies the whole chain
+        Root → Device → Authorization, and refuses any authorization whose scope exceeds what the
+        node asked for.
+
+        The operator's root key never touches this request. It signed the DeviceCredential once,
+        offline; the device key does the day-to-day work.
+      tags: [Binding]
+      security: []
+      x-ln-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [binding_session_id, device_credential, authorization_credential]
+              properties:
+                binding_session_id: { type: string }
+                device_credential: { $ref: '#/components/schemas/DeviceCredential' }
+                authorization_credential: { $ref: '#/components/schemas/AuthorizationCredential' }
+      responses:
+        '200':
+          description: Authorized — now waiting on the node to accept.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  binding_session_id: { type: string }
+                  state: { const: PENDING_NODE_ACCEPTANCE }
+        '401':
+          description: The credential chain failed. `code` names the failing gate.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: '`BAD_STATE` — the session is not awaiting an operator.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /v1/bindings/{binding_session_id}/status:
+    get:
+      operationId: getBindingStatus
+      summary: Poll a binding session
+      tags: [Binding]
+      security: []
+      x-ln-status: implemented
+      parameters:
+        - { name: binding_session_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Current state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  binding_session_id: { type: string }
+                  state: { $ref: '#/components/schemas/BindingState' }
+                  node_did: { $ref: '#/components/schemas/Did' }
+                  operator_did: { oneOf: [ { $ref: '#/components/schemas/Did' }, { type: 'null' } ] }
+                  expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/bindings/{binding_session_id}/cancel:
+    post:
+      operationId: cancelBinding
+      summary: Cancel a binding session
+      tags: [Binding]
+      security: []
+      x-ln-status: implemented
+      parameters:
+        - { name: binding_session_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Cancelled. The code and token are invalidated immediately.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  binding_session_id: { type: string }
+                  state: { const: CANCELLED }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`BAD_STATE` — already terminal.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /v1/node/bindings/pending:
+    post:
+      operationId: listPendingBindings
+      summary: Poll for authorizations awaiting this node
+      description: |
+        The node proves who it is on every poll — there is no session for nodes. It signs
+        `"libertynet-node-poll:v1\n<node_did>\n<unix_ts>"` and the registry checks id-binding,
+        then timestamp skew (±300s), then the signature.
+      tags: [Node]
+      security: []
+      x-ln-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [node_did, node_public_key, ts, signature]
+              properties:
+                node_did: { $ref: '#/components/schemas/Did' }
+                node_public_key: { $ref: '#/components/schemas/PublicKeyB58' }
+                ts: { type: integer, description: Unix seconds, within ±300s of registry time. }
+                signature: { type: string, description: Base58 Ed25519 over the domain-separated poll message. }
+      responses:
+        '200':
+          description: Sessions waiting for this node to accept.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        binding_session_id: { type: string }
+                        operator_did: { $ref: '#/components/schemas/Did' }
+                        nonce: { type: string }
+                        expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+                        device_credential: { $ref: '#/components/schemas/DeviceCredential' }
+                        authorization_credential: { $ref: '#/components/schemas/AuthorizationCredential' }
+        '401':
+          description: '`ID_BINDING_FAILED`, `STALE_TS`, or `BAD_SIGNATURE`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /v1/node/bindings/{binding_session_id}/accept:
+    post:
+      operationId: acceptBinding
+      summary: Accept a binding (node side)
+      description: |
+        The final step. Before writing anything, the registry re-verifies **all four signatures**
+        atomically — node session, operator root over device, device over authorization, and node
+        acceptance. Only then does the session become `ACTIVE`.
+
+        A failure here reverts the session to `PENDING_NODE_ACCEPTANCE` rather than destroying it,
+        so a transient client bug does not burn the binding.
+      tags: [Node]
+      security: []
+      x-ln-status: implemented
+      parameters:
+        - { name: binding_session_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [acceptance]
+              properties:
+                acceptance:
+                  type: object
+                  description: Node's signed acceptance of the specific authorization.
+      responses:
+        '200':
+          description: Binding is ACTIVE.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  binding_session_id: { type: string }
+                  state: { const: ACTIVE }
+                  binding: { type: object, description: The stored operator↔node relation. }
+        '401':
+          description: A signature in the chain failed re-verification.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: '`ALREADY_ACTIVE` or `BAD_STATE`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /v1/node/bindings/{binding_session_id}/reject:
+    post:
+      operationId: rejectBinding
+      summary: Reject a binding (node side)
+      tags: [Node]
+      security: []
+      x-ln-status: implemented
+      parameters:
+        - { name: binding_session_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Rejected.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  binding_session_id: { type: string }
+                  state: { const: REJECTED_BY_NODE }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`BAD_STATE` — already terminal.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+components:
+  securitySchemes:
+    operatorSession:
+      type: http
+      scheme: bearer
+      description: |
+        A 1-hour session token from [`/v1/auth/device-login`](#operation/deviceLogin).
+        Not an API key — it cannot be listed, rotated or recovered, and it expires on its own.
+
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unauthorized:
+      description: '`NO_SESSION` (no bearer header) or `SESSION_EXPIRED` (past its hour).'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            missing: { value: { code: NO_SESSION, error: missing bearer token } }
+    NotFound:
+      description: '`NOT_FOUND`.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  schemas:
+    Error:
+      type: object
+      description: |
+        Every error carries a stable machine-readable `code`. Look it up in the
+        [error dictionary](https://docs.libertynet.ai/reference/errors) — each one is documented
+        with its cause and its fix.
+      required: [error]
+      properties:
+        code:
+          type: string
+          description: Stable identifier. Switch on this, never on `error`.
+          examples: [NO_SESSION, ID_BINDING_FAILED, BAD_SIGNATURE, RATE_LIMITED]
+        error:
+          type: string
+          description: Human-readable message. Wording may change between releases.
+
+    Did:
+      type: string
+      description: |
+        A self-certifying LibertyNet identity. The identifier is derived from the public key, so
+        an id-binding check can confirm the pairing without any registry lookup.
+
+        Two encodings exist for the same key and both are valid:
+        short `did:svrp:n:<8hex>` (as stored in bindings) and full `did:svrp:<64hex>`
+        (as announced by a running daemon). Do not assume string equality means same node, and do
+        not assume inequality means different node.
+      examples: ['did:svrp:n:8545027b', 'did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d']
+
+    PublicKeyHex:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+      description: Ed25519 public key, lowercase hex.
+
+    PublicKeyB58:
+      type: string
+      description: Ed25519 public key, base58.
+
+    Rfc3339Utc:
+      type: string
+      description: RFC3339 UTC, `Z` suffix, second precision. Offsets other than `Z` are rejected.
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
+      examples: ['2026-07-31T16:33:08Z']
+
+    NodeRecord:
+      type: object
+      properties:
+        did: { $ref: '#/components/schemas/Did' }
+        public_key: { $ref: '#/components/schemas/PublicKeyHex' }
+        endpoint: { type: string, description: 'host:port as the node reported it.' }
+        capabilities:
+          type: array
+          items: { type: string }
+          description: 'Free-form capability strings, e.g. `inference`, `health:ready`.'
+        region: { type: string, examples: [asia-southeast] }
+        status: { type: string, examples: [active] }
+        last_seen: { $ref: '#/components/schemas/Rfc3339Utc' }
+        first_seen: { $ref: '#/components/schemas/Rfc3339Utc' }
+        signature: { type: [string, 'null'] }
+
+    BoundNode:
+      type: object
+      properties:
+        node_did: { $ref: '#/components/schemas/Did' }
+        online:
+          type: boolean
+          description: Computed from `last_seen`, so you do not have to.
+        last_seen: { oneOf: [ { $ref: '#/components/schemas/Rfc3339Utc' }, { type: 'null' } ] }
+        endpoint: { type: [string, 'null'] }
+        region: { type: [string, 'null'] }
+        capabilities: { type: array, items: { type: string } }
+        authorization:
+          type: object
+          description: The limits agreed when this binding was activated.
+          properties:
+            task_types: { type: [array, 'null'], items: { type: string } }
+            single_limit: { type: [number, 'null'] }
+            daily_limit: { type: [number, 'null'] }
+            revocation_id: { type: [string, 'null'] }
+            activated_at: { type: [string, 'null'] }
+
+    CreditsBalance:
+      type: object
+      required: [operator_did, unit, settled, pending, estimated, source]
+      properties:
+        operator_did: { $ref: '#/components/schemas/Did' }
+        unit: { type: string, const: test-credit }
+        disclaimer: { type: string, description: Test unit. Not cash. Not redeemable. }
+        settled: { $ref: '#/components/schemas/CreditsBucket' }
+        pending: { $ref: '#/components/schemas/CreditsBucket' }
+        estimated: { $ref: '#/components/schemas/CreditsBucket' }
+        source:
+          type: string
+          enum: [not_yet_wired, ledger]
+          description: |
+            **Check this before rendering any amount.** `not_yet_wired` means no ledger is
+            connected and every amount is a placeholder zero, not a measurement.
+
+    CreditsBucket:
+      type: object
+      properties:
+        amount: { type: number }
+        meaning: { type: string }
+
+    RegisterRequest:
+      type: object
+      required: [did, public_key, endpoint]
+      properties:
+        did: { $ref: '#/components/schemas/Did' }
+        public_key: { $ref: '#/components/schemas/PublicKeyHex' }
+        endpoint: { type: string }
+        capabilities: { type: array, items: { type: string } }
+        region: { type: string }
+        signature: { type: [string, 'null'] }
+        short_did: { $ref: '#/components/schemas/Did' }
+
+    BindingState:
+      type: string
+      description: |
+        Session state machine. Terminal states are `ACTIVE`, `EXPIRED`, `REJECTED_BY_OPERATOR`,
+        `REJECTED_BY_NODE`, `CANCELLED` — once terminal, a session never moves again.
+      enum:
+        - INITIATED
+        - PENDING_OPERATOR
+        - PENDING_NODE_ACCEPTANCE
+        - VERIFYING
+        - ACTIVE
+        - EXPIRED
+        - REJECTED_BY_OPERATOR
+        - REJECTED_BY_NODE
+        - CANCELLED
+
+    BindingInitiateRequest:
+      type: object
+      required: [binding_session_id, node_did, node_public_key, nonce, created_at, expires_at, node_signature]
+      properties:
+        binding_session_id: { type: string, description: Client-chosen unique id. Reuse returns 409. }
+        node_did: { $ref: '#/components/schemas/Did' }
+        node_public_key: { $ref: '#/components/schemas/PublicKeyB58' }
+        device_summary: { type: [string, 'null'] }
+        os: { type: [string, 'null'] }
+        region: { type: [string, 'null'] }
+        requested_task_types: { type: array, items: { type: string } }
+        requested_single_limit: { type: [number, 'null'] }
+        requested_daily_limit: { type: [number, 'null'] }
+        nonce: { type: string }
+        created_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+        expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+        node_signature:
+          type: string
+          description: |
+            Base58 Ed25519 over the canonical binding-session bytes. Canonicalisation is
+            byte-exact — booleans serialise as `True`/`False` and keys are ordered by the
+            canonicaliser, not by your JSON library. Use an SDK rather than rebuilding it.
+
+    BindingResolveResponse:
+      type: object
+      properties:
+        binding_session_id: { type: string }
+        state: { $ref: '#/components/schemas/BindingState' }
+        node_did: { $ref: '#/components/schemas/Did' }
+        node_public_key: { $ref: '#/components/schemas/PublicKeyB58' }
+        node_signature: { type: string }
+        device_summary: { type: [string, 'null'] }
+        os: { type: [string, 'null'] }
+        region: { type: [string, 'null'] }
+        node_public_key_fingerprint:
+          type: string
+          description: |
+            First 8 bytes of SHA-256 over the key, grouped as `xxxx:xxxx:xxxx:xxxx`. Show this to
+            the human and have them compare it against the node's own screen before authorizing.
+          examples: ['a1b2:c3d4:e5f6:0718']
+        requested:
+          type: object
+          properties:
+            task_types: { type: array, items: { type: string } }
+            single_limit: { type: [number, 'null'] }
+            daily_limit: { type: [number, 'null'] }
+        nonce: { type: string }
+        expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+
+    DeviceCredential:
+      type: object
+      description: |
+        Issued once by the operator's **root** key, offline, to a specific device key. This is what
+        lets the root key stay cold: the device key does everything afterwards, and revoking a
+        device does not touch the root identity.
+      required: [credential_id, operator_did, operator_root_public_key, device_public_key, issued_at, expires_at, signature]
+      properties:
+        credential_id: { type: string }
+        operator_did: { $ref: '#/components/schemas/Did' }
+        operator_root_public_key: { $ref: '#/components/schemas/PublicKeyB58' }
+        device_public_key: { $ref: '#/components/schemas/PublicKeyB58' }
+        permissions:
+          type: array
+          items: { type: string }
+          description: 'Binding requires `nodes.bind`.'
+          examples: [['nodes.bind']]
+        issued_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+        expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+        signature: { type: string, description: Base58 Ed25519 by the root key. }
+
+    AuthorizationCredential:
+      type: object
+      description: |
+        Signed by the **device** key. Its scope may never exceed what the node requested — the
+        registry checks and rejects over-broad authorizations.
+      required: [binding_session_id, node_did, operator_did, issued_at, expires_at, signature]
+      properties:
+        binding_session_id: { type: string }
+        node_did: { $ref: '#/components/schemas/Did' }
+        operator_did: { $ref: '#/components/schemas/Did' }
+        task_types: { type: array, items: { type: string } }
+        single_limit: { type: [number, 'null'] }
+        daily_limit: { type: [number, 'null'] }
+        revocation_id: { type: string }
+        issued_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+        expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
+        signature: { type: string, description: Base58 Ed25519 by the device key. }
+
+security:
+  - operatorSession: []

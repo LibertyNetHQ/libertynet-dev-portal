@@ -1,0 +1,256 @@
+---
+title: "TypeScript SDK"
+description: "@libertynet/sdk — every method, with runnable examples."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+## Install
+
+<Warning>
+Not published to npm yet. Until it is, use it from the repository:
+
+```bash
+cd dev-portal/sdk/typescript
+npm install && npm run build
+```
+
+Then reference it from your project with `"@libertynet/sdk": "file:../dev-portal/sdk/typescript"`.
+</Warning>
+
+```bash
+# What it will be:
+npm install @libertynet/sdk
+```
+
+Node 20+. Works in browsers. Three dependencies, all audited: `@noble/ed25519`,
+`@noble/hashes`, `@scure/base`.
+
+## Getting started
+
+```typescript
+import { LibertyNet } from "@libertynet/sdk";
+
+const ln = new LibertyNet();
+
+const health = await ln.discovery.health();
+console.log(`${health.count} nodes registered`);
+
+const nodes = await ln.discovery.online();
+console.log(`${nodes.length} online now`);
+```
+
+### Options
+
+```typescript
+const ln = new LibertyNet({
+  baseUrl: "https://registry.libertynet.ai",  // self-hosted registries welcome
+  timeoutMs: 15_000,
+  retries: 2,        // transient failures only — never a 4xx
+  fetch: myFetch,    // inject your own, e.g. for tests
+  headers: { "x-my-header": "value" },
+});
+```
+
+## discovery <Status level="implemented" />
+
+### `health()`
+
+```typescript
+await ln.discovery.health();
+// → { status: "ok", service: "libertynet-registry-standalone", count: 27 }
+```
+
+### `all()`
+
+Every node whose identity verifies. Failures are dropped.
+
+```typescript
+const nodes = await ln.discovery.all();
+// → VerifiedNode[]
+```
+
+### `online(options?)`
+
+Verified **and** heard from recently.
+
+```typescript
+await ln.discovery.online();                          // default: 10 minutes
+await ln.discovery.online({ freshnessMs: 60_000 });   // stricter
+await ln.discovery.online({ region: "asia-southeast" });
+await ln.discovery.online({ capabilities: ["inference"] });
+```
+
+<Warning>
+Use this, not `all()`. `status: "active"` in a raw record does **not** mean online — a node
+unplugged last week still says `"active"` forever. Only `last_seen` decays.
+</Warning>
+
+### `byCapability(capability, options?)`
+
+```typescript
+const workers = await ln.discovery.byCapability("inference", { freshnessMs: 120_000 });
+```
+
+### `get(did)`
+
+Matches across both DID encodings — short or full-hex both find the same node.
+
+```typescript
+await ln.discovery.get("did:svrp:n:8545027b");
+// → VerifiedNode | null
+```
+
+### `audit()`
+
+The raw table plus a verdict per record. For monitoring.
+
+```typescript
+const { total, verified, rejected } = await ln.discovery.audit();
+
+if (rejected.length) {
+  console.error(`${rejected.length} records failed id-binding`, rejected.map((n) => n.did));
+}
+```
+
+<Note>
+As of the last live check, 27/27 records on production verified. If `rejected` is ever
+non-empty, that is a finding worth reporting rather than a record to skip quietly.
+</Note>
+
+## Identity helpers
+
+Pure functions, no network.
+
+```typescript
+import {
+  verifyIdBinding, assertIdBinding, parseDid,
+  didFromPublicKey, sameIdentity, fingerprint, decodePublicKey,
+} from "@libertynet/sdk";
+
+verifyIdBinding("did:svrp:n:268d4fe0", key);   // → boolean
+assertIdBinding(did, key);                      // → throws IdentityError
+parseDid(did);                                  // → { did, form, tag, body } | null
+didFromPublicKey(key, "n");                     // → "did:svrp:n:268d4fe0"
+sameIdentity(shortDid, fullDid, key);           // → same node under two spellings?
+fingerprint(key);                               // → "268d:4fe0:b6ef:c390"
+decodePublicKey(key);                           // → Uint8Array | null (hex or base58)
+```
+
+## auth <Status level="implemented" />
+
+```typescript
+const session = await ln.auth.login({
+  deviceCredential,                                    // issued by your root key, offline
+  deviceSecretKey: readKeyFromKeychain(),              // 32-byte Ed25519 seed
+});
+// → { session_token, operator_did, expires_in: 3600, expires_at }
+```
+
+<Warning>
+**Never hard-code `deviceSecretKey`, and never read it from a file in your repository.**
+Read it from your OS keychain or a secret manager at the point of use. The SDK zeroes its
+own copy after signing, but it cannot un-commit a key you checked in.
+</Warning>
+
+Before signing anything, `login()` verifies that the credential's `operator_root_public_key`
+really derives its `operator_did` — otherwise it would be signing a challenge for an
+identity nobody proved they own.
+
+```typescript
+ln.auth.useSession(token);   // signing happened elsewhere; this client never sees a key
+ln.auth.logout();
+ln.auth.isLoggedIn();
+```
+
+## operator
+
+### `nodes()` <Status level="implemented" />
+
+```typescript
+const { operator_did, count, nodes } = await ln.operator.nodes();
+for (const n of nodes) {
+  console.log(n.node_did, n.online ? "online" : "offline", n.authorization.task_types);
+}
+```
+
+### `creditsRaw()` · `settledCredits()` · `isWired()` <Status level="not_yet_wired" />
+
+```typescript
+// Honest reader — envelope and `source` intact
+const balance = await ln.operator.creditsRaw();
+if (balance.source === "not_yet_wired") {
+  render("Not connected yet");
+} else {
+  render(balance.settled.amount);
+}
+
+// Convenience reader — raises rather than hand you a misleading zero
+await ln.operator.settledCredits();   // → NotYetWiredError, today
+```
+
+<Warning>
+Credits are a **test unit**: not cash, not redeemable, not a claim on future value. And
+right now nothing is counting them — `0` means "not measured", not "you earned nothing".
+[Details](/concepts/credits).
+</Warning>
+
+## binding <Status level="implemented" />
+
+```typescript
+const request = await ln.binding.resolve({ shortCode: "K7M2NQ4X" });
+console.log("Compare on the node's screen:", request.node_public_key_fingerprint);
+
+const final = await ln.binding.waitForTerminal(request.binding_session_id, {
+  intervalMs: 2_000,
+  timeoutMs: 600_000,   // matches the protocol's own session TTL
+});
+```
+
+`initiate`, `authorize` and `accept` raise —
+[see why](/sdk/overview#what-the-sdks-deliberately-do-not-do).
+
+## Errors
+
+```typescript
+import {
+  LibertyNetError, ApiError, AuthError,
+  IdentityError, NotYetWiredError, TransportError,
+} from "@libertynet/sdk";
+
+try {
+  await ln.operator.nodes();
+} catch (e) {
+  if (e instanceof AuthError && e.code === "SESSION_EXPIRED") {
+    await ln.auth.login({ deviceCredential, deviceSecretKey });
+    return ln.operator.nodes();
+  }
+  if (e instanceof LibertyNetError) {
+    console.error(e.code, e.message, "→", e.docs);   // every error links to its fix
+  }
+  throw e;
+}
+```
+
+[Error dictionary →](/reference/errors)
+
+## Retries
+
+Built in: transient failures (429, 5xx, network errors) retry with exponential backoff and
+jitter — the jitter matters, so a fleet recovering from an outage does not re-create it by
+retrying in lockstep.
+
+**4xx is never retried.** Replaying a rejected signature just gets it rejected again, more
+expensively.
+
+## Tests
+
+```bash
+npm test           # 46 hermetic tests, no network
+npm run test:live  # + 2 against the live registry
+npm run typecheck
+```
+
+The live suite asserts that every identity on the production registry still verifies. If
+that fails, either the network or this documentation is wrong — and both are worth knowing
+about immediately.

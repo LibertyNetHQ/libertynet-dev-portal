@@ -1,0 +1,112 @@
+---
+title: "Dashboard"
+description: "Your operator account and the live network, with every identity verified in your own browser."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+A small web app showing what your operator identity looks like through the public API, and
+what the network looks like right now.
+
+```bash
+cd dev-portal/dashboard
+npm install && npm run dev      # http://localhost:3000
+```
+
+<Note>
+**Not deployed.** It builds to a static export with no server component, so it can be hosted
+anywhere — but choosing a host and a domain is a decision for the project owner, not
+something to do silently as part of a documentation change.
+</Note>
+
+## Pages
+
+| Page | Shows | Needs a session |
+|---|---|---|
+| **Overview** | Registered / verified / online / failed counts | No |
+| **Network** | Every node, with a fingerprint and computed freshness | No |
+| **My nodes** | Nodes bound to you, with their agreed limits | Yes |
+| **Credits** | The balance envelope, with its `source` field | Yes |
+
+Everything not marked "needs a session" works without signing in — discovery is public.
+
+## There is no API key manager
+
+<Warning>
+**LibertyNet has no API keys.**
+
+Discovery needs no credential at all. Operator access is a signature-based challenge–response
+that yields a 1-hour session token. There is no key to issue, nothing to store at rest, and
+nothing to rotate.
+
+A key-management UI would have meant inventing a concept the network does not have, and
+teaching developers to hunt for a key that does not exist. So there is not one.
+</Warning>
+
+What the usual security requirements were protecting against is handled structurally
+instead:
+
+| Requirement | How it is met |
+|---|---|
+| Keys never reach the frontend | There are no keys. |
+| Keys never reach logs | There are no keys. |
+| Encrypted at rest | Nothing is stored at rest. The session token lives in memory only. |
+| Resistant to credential stuffing | No password exists to stuff. Authentication is a signature over a single-use, 300-second challenge. |
+
+## What happens to your private key
+
+<Steps>
+  <Step title="It stays in your browser">
+    Used once, in the tab, to sign one challenge. Never transmitted.
+  </Step>
+  <Step title="It is zeroed immediately">
+    Whether the login succeeded or failed.
+  </Step>
+  <Step title="It never appears in an error">
+    Failures report a message and nothing else — a key in a stack trace is a key in your
+    error reporter.
+  </Step>
+</Steps>
+
+The resulting session token is held in React memory: not `localStorage`, not a cookie, not
+`sessionStorage`. **A page refresh signs you out**, which is deliberate — anything persisted
+is readable by every script on the origin and survives into profile backups. A one-hour
+token is not worth that exposure.
+
+## The Credits page is careful on purpose
+
+The credits endpoint returns `200` with a body that looks exactly like a balance, and every
+number in it is `0`. <Status level="not_yet_wired" />
+
+So the page shows the caveat and greys the figures rather than presenting them as
+measurements — because a `0` rendered next to the word "earnings" is a lie told through a
+number. It also prints the raw response, so you can check the page against what the API
+actually said.
+
+[Why Credits work this way →](/concepts/credits)
+
+## Relationship to the Operator Console
+
+Different jobs, deliberately not merged:
+
+| | Purpose |
+|---|---|
+| **Operator Console** | The end-user product for node operators: identity creation, mnemonic recovery, device binding, multi-account vaults. **Manages keys.** |
+| **Developer Dashboard** | The developer view: what my account looks like through the public API, what the network looks like, what is actually wired. **Manages nothing.** |
+
+To bind a node, use the Console. This dashboard deliberately does not implement binding —
+the signing involved
+[should not be reimplemented](/sdk/overview#what-the-sdks-deliberately-do-not-do).
+
+## Verify it yourself
+
+Every identity the dashboard displays is checked in your browser, against the same
+arithmetic you can run by hand:
+
+```bash
+node examples/verify-network/verify.mjs
+# → 27/27 identities verified
+```
+
+If the dashboard and that script ever disagree, trust the script and
+[tell us](/community).

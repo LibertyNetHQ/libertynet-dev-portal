@@ -1,0 +1,131 @@
+---
+title: "Examples"
+description: "Small, complete programs that run against the live network with zero dependencies."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Every example runs today, against the real network, with **nothing to install**.
+
+<Note>
+Every `→` output shown here was produced by running the code, not written from memory. If
+one is wrong, that is a bug worth [reporting](/community).
+</Note>
+
+## Verify the whole network <Status level="implemented" />
+
+Check every identity on LibertyNet yourself, in about forty lines with no dependencies.
+
+<CodeGroup>
+
+```bash Node
+node examples/verify-network/verify.mjs
+```
+
+```bash Python
+python3 examples/verify-network/verify.py
+```
+
+</CodeGroup>
+
+```text
+27/27 identities verified
+2 seen in the last 10 minutes
+```
+
+If any identity fails, it prints which and why, and exits non-zero — so it works as a
+monitoring check unchanged.
+
+<Card title="Read it" icon="github" href="https://github.com/LibertyNetHQ/LibertyNet-hq/tree/main/dev-portal/examples/verify-network" horizontal>
+  `examples/verify-network/` — the core of the [quickstart](/quickstart), as a standalone
+  program.
+</Card>
+
+## Capability monitor <Status level="implemented" />
+
+"Is there anyone who can do X right now?" — a far more useful question than "how many nodes
+are registered?".
+
+```bash
+node examples/capability-monitor/monitor.mjs inference --once
+# → 2026-08-01T00:12:44.031Z  inference: 1 available    (exit 0)
+
+node examples/capability-monitor/monitor.mjs storage --once
+# → 2026-08-01T00:12:45.502Z  storage: NONE AVAILABLE   (exit 1)
+```
+
+Exits non-zero when nobody can serve the capability, so it drops into cron or CI with no
+extra plumbing. Without `--once` it polls and reports `GAINED` / `LOST` as providers come
+and go.
+
+<Note>
+`storage: NONE AVAILABLE` is a real answer about the network, not a bug. Most capability
+strings in the spec have never been advertised by anyone — they exist as vocabulary, not
+as practice.
+</Note>
+
+## Identity gate <Status level="implemented" />
+
+Reject forged identities at an HTTP boundary — and see exactly where that check stops being
+enough.
+
+```bash
+node examples/identity-gate/server.mjs
+```
+
+```bash
+# anonymous
+curl -s localhost:8788/whoami
+# → {"error": "no identity presented", "need": ["x-ln-did", "x-ln-public-key"]}   [401]
+
+# forged: the DID does not derive from the key
+curl -s localhost:8788/whoami \
+  -H 'x-ln-did: did:svrp:n:deadbeef' \
+  -H 'x-ln-public-key: df9d4b9f...02d'
+# → {"error": "id-binding failed", "hint": "GET /nodes serves keys as hex; GET /peers
+#    serves base58. Decoding one as the other fails every check."}                [401]
+
+# real
+curl -s localhost:8788/whoami \
+  -H 'x-ln-did: did:svrp:df9d4b9f...02d' \
+  -H 'x-ln-public-key: df9d4b9f...02d'
+# → {"did": "did:svrp:df9d...", "fingerprint": "8545:027b:6100:1591",
+#    "authenticated": false, "note": "id-binding passed ... That is NOT proof you hold
+#    the private key"}                                                            [200]
+```
+
+<Warning>
+Note `"authenticated": false` on the successful response. **id-binding is not
+authentication.** It proves the identifier is well-formed for that key — the caller could
+have copied both out of the public registry.
+
+The example goes on to show the challenge–response that does prove possession, and the
+order the three gates must run in.
+</Warning>
+
+## Generated projects
+
+The [CLI scaffolder](/cli) produces four more, complete with tests:
+
+```bash
+npx create-libertynet-agent watcher --type monitor -y
+npx create-libertynet-agent infer-svc --type service --caps inference -y
+npx create-libertynet-agent my-solver --type solver -y
+npx create-libertynet-agent my-thing --type custom -y
+```
+
+## What every example here obeys
+
+Enforced by `dev-portal/tools/check-examples.mjs`, not by good intentions:
+
+| Rule | Why |
+|---|---|
+| No hard-coded secrets | An example that ships a literal key teaches every reader that literal keys are normal. |
+| Nothing touches value | LibertyNet has no wallet, transfer, swap or trading, so no example can demonstrate one. |
+| Verification always present, never optional | A beginner's first program should verify by default, so verifying feels ordinary. |
+| Unbuilt capabilities are never faked | An exception cannot be mistaken for a result; convincing mock data can. |
+| Outputs are real | Every `→` was produced by running the code. |
+
+<Card title="Contribute one" icon="code-pull-request" href="/contributing" horizontal>
+  The bar: it must run, it must be honest, and it must teach one thing well.
+</Card>

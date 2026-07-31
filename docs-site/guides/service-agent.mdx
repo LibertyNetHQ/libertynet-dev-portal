@@ -1,0 +1,195 @@
+---
+title: "Build a service agent"
+sidebarTitle: "Service agent"
+description: "Offer a capability, identify your callers properly, and understand exactly what stands between you and being discoverable."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Note>
+**Scope, stated up front.** The service you build here runs today and you can call it.
+Being *findable on the network* — so strangers can discover and reach your capability —
+requires running the `ln-node` daemon. This guide does not fake that step, and it says
+clearly where the line is.
+</Note>
+
+## Scaffold it
+
+```bash
+npx create-libertynet-agent infer-svc --type service --caps inference -y
+cd infer-svc && npm start
+```
+
+```text
+Service listening on http://localhost:8787
+Capabilities: inference
+
+Not yet discoverable on the network — that needs ln-node.
+```
+
+## Identifying callers
+
+The generated `identify()` does the first half of the job:
+
+```javascript
+function identify(req) {
+  const did = req.headers["x-ln-did"];
+  const key = req.headers["x-ln-public-key"];
+  if (!did || !key) return { identified: false, reason: "no identity presented" };
+  if (!verifyIdBinding(did, key)) return { identified: false, reason: "id-binding failed" };
+  return { identified: true, did };
+}
+```
+
+Try it:
+
+```bash
+# Anonymous
+curl -s -w " [%{http_code}]" localhost:8787/work
+# {"error": "no identity presented"} [401]
+
+# Forged — the DID does not derive from the key
+curl -s -w " [%{http_code}]" localhost:8787/work \
+  -H "x-ln-did: did:svrp:n:deadbeef" \
+  -H "x-ln-public-key: df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d"
+# {"error": "id-binding failed"} [401]
+
+# Real
+curl -s -w " [%{http_code}]" localhost:8787/work \
+  -H "x-ln-did: did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d" \
+  -H "x-ln-public-key: df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d"
+# {"served": "did:svrp:df9d...02d", "result": "replace me"} [200]
+```
+
+## The half that is missing
+
+<Warning>
+**id-binding is not authentication.**
+
+The check above proves the identifier is well-formed for that key. It does **not** prove
+the caller holds the private key — they could have copied both out of the public registry,
+which is, after all, public.
+
+For real authentication the caller must sign something **you** chose. Otherwise you are
+accepting a claim, not a proof.
+</Warning>
+
+### Challenge–response
+
+<Steps>
+  <Step title="Issue a challenge">
+    ```javascript
+    import { randomBytes } from "node:crypto";
+
+    const challenges = new Map();   // challenge → { did, expires }
+
+    function issueChallenge(did) {
+      const challenge = randomBytes(24).toString("base64url");
+      // Short-lived and single-use. A long-lived challenge is a replay waiting to happen.
+      challenges.set(challenge, { did, expires: Date.now() + 300_000 });
+      return challenge;
+    }
+    ```
+  </Step>
+
+  <Step title="Verify the signature over it">
+    ```javascript
+    import * as ed from "@noble/ed25519";
+    import { base58 } from "@scure/base";
+    import { verifyIdBinding, decodePublicKey } from "@libertynet/sdk";
+
+    function authenticate({ did, publicKey, challenge, signature }) {
+      // 1. id-binding FIRST. A valid signature from an unbound key proves nothing.
+      if (!verifyIdBinding(did, publicKey)) return false;
+
+      // 2. the challenge must be one we issued, unexpired, and for this DID
+      const record = challenges.get(challenge);
+      if (!record || record.expires < Date.now() || record.did !== did) return false;
+
+      // 3. single use — delete before verifying, so a failed attempt burns it too
+      challenges.delete(challenge);
+
+      // 4. only now, the signature
+      return ed.verify(base58.decode(signature), new TextEncoder().encode(challenge),
+                       decodePublicKey(publicKey));
+    }
+    ```
+  </Step>
+</Steps>
+
+The ordering is the point, and it is the same ordering the registry itself uses: identity
+binding, then freshness, then signature. [Why](/concepts/identity#the-verification-order).
+
+## Becoming discoverable
+
+Your service is reachable at `localhost:8787`. Nobody else knows it exists.
+
+To join the network a node must register and heartbeat, signing both. That is what
+`ln-node` does:
+
+<Steps>
+  <Step title="Install and run ln-node">
+    See the [ln-node installation](https://libertynet.ai/install.sh). It registers your
+    identity, announces your capabilities, and heartbeats so you show as online.
+  </Step>
+  <Step title="Bind it to your operator identity">
+    So the node has a responsible owner and agreed limits.
+    [Binding](/concepts/binding).
+  </Step>
+  <Step title="Confirm you are visible">
+    ```bash
+    curl -s https://registry.libertynet.ai/nodes | grep -c "$YOUR_DID"
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+Do not implement `POST /api/v1/register` by hand to shortcut this. It requires signing
+canonical bytes that must match the registry's reconstruction exactly, and a near-miss
+produces a signature that verifies nowhere while looking perfectly correct.
+[Why the SDKs refuse to reimplement it](/sdk/overview#what-the-sdks-deliberately-do-not-do).
+</Warning>
+
+## Production notes
+
+<AccordionGroup>
+  <Accordion title="Bound your handler">
+    An unbounded handler is a denial-of-service waiting to be found. Cap request size,
+    cap execution time, and cap concurrency per caller DID.
+
+    ```javascript
+    const inFlight = new Map();
+
+    function admit(did) {
+      const n = inFlight.get(did) ?? 0;
+      if (n >= 4) return false;          // per-identity concurrency cap
+      inFlight.set(did, n + 1);
+      return true;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Never log identity secrets — or full keys">
+    Log the DID and a fingerprint. Never log a signature, a challenge, or a full key: they
+    are individually harmless and collectively a replay kit.
+
+    ```javascript
+    console.log(`served ${did} fp=${fingerprint(publicKey)}`);
+    ```
+  </Accordion>
+
+  <Accordion title="Terminate TLS in front">
+    The generated server is plain HTTP because it is a scaffold. Put a reverse proxy in
+    front, or the challenge–response above is being read by anyone on the path.
+  </Accordion>
+
+  <Accordion title="Advertise honestly">
+    Only declare capabilities you actually serve. Nothing verifies these strings, which
+    means the only thing keeping them meaningful is that operators do not lie in them — and
+    a capability that turns out to be false is worse for you than one you never claimed.
+  </Accordion>
+</AccordionGroup>
+
+<Card title="Understand binding first" icon="link" href="/concepts/binding" horizontal>
+  Before running `ln-node`, it is worth knowing what you are agreeing to.
+</Card>

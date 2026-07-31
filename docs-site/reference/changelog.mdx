@@ -1,0 +1,71 @@
+---
+title: "Changelog"
+description: "What changed, when, and what it means for code you already wrote."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Note>
+**How this list works.** A capability's badge changes in the same release that changes its
+behaviour — never before. An entry appearing here means the thing shipped, not that it was
+announced.
+
+Breaking changes get their own heading and a migration note. Nothing is quietly renamed.
+</Note>
+
+## 2026-07-31 — Developer portal
+
+First public release of the developer portal, SDKs and scaffolder.
+
+**Added**
+
+- **Documentation portal** at `docs.libertynet.ai` — concept and reference sections kept
+  separate, every API operation carrying a status badge.
+- **[Capability status](/status)** — one machine-readable matrix
+  (`dev-portal/api-spec/status.json`) driving every badge in the docs, both SDKs and the
+  OpenAPI spec, with a drift checker that fails the build if they disagree.
+- **[OpenAPI 3.1 spec](/api-reference)** — 19 operations, each with `x-ln-status`, a runnable
+  example and a real recorded response.
+- **[TypeScript SDK](/sdk/typescript)** (`@libertynet/sdk`) — discovery, identity, operator
+  login, binding. Identity verification is non-optional.
+- **[Python SDK](/sdk/python)** (`libertynet`) — same surface, same guarantees.
+  Dependency-free core.
+- **[CLI scaffolder](/cli)** (`create-libertynet-agent`) — four templates, zero-dependency
+  output, runnable immediately.
+- **[Error dictionary](/reference/errors)** — every code with its cause and its fix. SDK
+  errors link directly to their entry.
+- **[MCP server](/ai/mcp)** — your own Claude or Cursor can read these docs and the live
+  network directly.
+- **English and Chinese** documentation.
+
+**Verified at release**
+
+- 27/27 identities on the live registry pass id-binding.
+- 19/19 documented endpoints probed against production.
+- TypeScript SDK: 48 tests. Python SDK: 52 tests. Scaffolder: 44 tests.
+
+## Current API status
+
+No API endpoint has changed in this release — the portal documents what was already there.
+
+| Area | Status |
+|---|---|
+| Discovery · identity · binding | <Status level="implemented" /> |
+| Credits · evidence | <Status level="not_yet_wired" /> — live endpoints, no ledger connected |
+| Oracle contracts | <Status level="testing" /> — 23/23 tests, not deployed |
+| Wallet · DEX · token | <Status level="planned" /> — not built |
+
+Full detail, with how each was checked: [capability status](/status).
+
+## Versioning
+
+- **API** — path-versioned (`/v1/`). A breaking change means a new path, not a silent
+  change under the old one.
+- **SDKs** — semantic versioning. Before `1.0.0`, a minor bump may break.
+- **Error codes** — stable. A `code` will not change meaning without a version bump, which
+  is why you should branch on `code` and never on `error` text.
+- **Status badges** — not versioned. They describe reality now, and reality moves.
+
+<Card title="Subscribe to changes" icon="discord" href="/community" horizontal>
+  Releases and breaking changes are announced in Discord before they land.
+</Card>

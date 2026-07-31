@@ -1,0 +1,100 @@
+---
+title: "Build on LibertyNet"
+sidebarTitle: "Home"
+description: "A network of independent nodes with self-certifying identities. Public discovery, no signup, no API key. Your first real call takes one line."
+mode: "wide"
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Card title="Your first call — right now, nothing installed" icon="terminal" horizontal>
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+```json
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+That is a live network answering you. No key, no account, no waiting list.
+
+</Card>
+
+## What LibertyNet is
+
+A network of independently operated nodes. Each one has a **self-certifying identity** — the
+identifier is derived from the public key, so anyone can verify the pairing without asking a
+central authority for permission or for a lookup.
+
+Nodes announce what they can do. You discover them, you talk to them, you verify their signatures
+yourself. There is no gatekeeper in the middle, which is also why there is no API key to apply for.
+
+<Columns cols={2}>
+  <Card title="Start in 5 minutes" icon="rocket" href="/quickstart">
+    From nothing to a verified, signed call against the live network. Timed, not estimated.
+  </Card>
+  <Card title="Scaffold a project" icon="wand-magic-sparkles" href="/cli">
+    One command produces a runnable agent with discovery, signing and tests already wired.
+  </Card>
+  <Card title="Understand the model" icon="book-open" href="/concepts/overview">
+    Identity, discovery, binding, credits — in plain language, in the order they make sense.
+  </Card>
+  <Card title="Read the API" icon="code" href="/api-reference">
+    Every endpoint with a runnable example and a real response. Every one status-badged.
+  </Card>
+</Columns>
+
+## What is actually built
+
+This portal will not tell you something works when it does not. Every endpoint, SDK method and
+example in these docs carries one of four badges, and they are generated from a single machine-readable
+matrix rather than written by hand.
+
+| Area | Status | Notes |
+|---|---|---|
+| Node discovery | <Status level="implemented" /> | Public, live, no auth. `/health`, `/nodes`, `/peers`. |
+| Operator login | <Status level="implemented" /> | Challenge → device-key signature → 1-hour session. No passwords. |
+| Node ↔ operator binding | <Status level="implemented" /> | Full double-signature handshake, all four signatures re-verified. |
+| Credits & evidence | <Status level="not_yet_wired" /> | Endpoints live and return `200`, but no ledger behind them. They return zeros and say so. |
+| Oracle contracts | <Status level="testing" /> | 23/23 tests pass. Not deployed to any public network. |
+| Wallet · DEX · token | <Status level="planned" /> | Not built. Nothing to call. |
+
+<Info>
+The full matrix, with every endpoint and how each status was verified, lives on
+[Capability status](/status). If a badge here ever disagrees with an endpoint's real behaviour,
+that is a bug — [tell us](/community) and it gets fixed, not reworded.
+</Info>
+
+## What LibertyNet deliberately does not do
+
+There is no endpoint in this API that moves value. No wallet, no swap, no staking, no token
+transfer, no trading. That is a scope decision, not an oversight, and the docs will not imply
+otherwise.
+
+**Credits are a test unit.** Not cash, not redeemable, not a claim on future value. Any page that
+shows you a Credits number will say that next to the number.
+
+## The shape of a LibertyNet program
+
+Most programs you write here follow the same three beats.
+
+<Steps>
+  <Step title="Discover">
+    Ask the registry who is on the network and what they can do. Public, unauthenticated, one GET.
+  </Step>
+  <Step title="Verify">
+    Check the node's identity yourself — confirm the DID actually derives from the public key
+    before you trust anything it signed. The SDKs do this by default and refuse to skip it.
+  </Step>
+  <Step title="Act">
+    Talk to the node, or bind it to an operator identity so it can work on your behalf under
+    limits you set.
+  </Step>
+</Steps>
+
+Everything else in these docs is detail on those three.
+
+<Card title="Ready" icon="arrow-right" href="/quickstart" horizontal>
+  **Quickstart** — first verified call in under five minutes.
+</Card>

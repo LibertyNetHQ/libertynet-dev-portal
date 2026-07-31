@@ -1,0 +1,174 @@
+---
+title: "Nodes and discovery"
+description: "How nodes announce themselves, what capabilities mean, and the difference between registered and online."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+The registry is a **directory, not a gatekeeper**. It records what nodes claim about
+themselves. It does not vouch for any of it — that part is your job, and
+[it is cheap](/concepts/identity).
+
+Reading it needs no key and no account. <Status level="implemented" />
+
+## A node record
+
+```json
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "endpoint": "172.20.10.5:55785",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z",
+  "first_seen": "2026-07-28T11:49:46Z",
+  "signature": null
+}
+```
+
+| Field | What it actually tells you |
+|---|---|
+| `did` · `public_key` | The identity claim. **Verify it** — this is the one thing you can check for yourself. |
+| `endpoint` | Where the node says it can be reached. Often a private address; the registry does not test reachability. |
+| `capabilities` | Free-form strings the node chose. Advertising is not proof of ability. |
+| `region` | Self-reported. May be `null`. |
+| `status` | Nearly meaningless — see below. |
+| `last_seen` | The only field that goes stale. This is your freshness signal. |
+| `first_seen` | When the registry first heard from it. |
+
+## Registered ≠ online
+
+<Warning>
+**`status: "active"` does not mean the node is running.**
+
+A node that was unplugged a week ago is still `"active"` in this table. Nothing sets it
+back. The field describes an administrative state, not a live one.
+
+The only field that decays is `last_seen`. A node refreshes it by heart-beating; when the
+node stops, the timestamp stops moving and that is how you know.
+</Warning>
+
+<CodeGroup>
+
+```typescript TypeScript
+// Wrong — includes nodes that vanished a week ago
+const nodes = await ln.discovery.all();
+
+// Right — verified AND heard from recently
+const nodes = await ln.discovery.online();               // default: 10 minutes
+const strict = await ln.discovery.online({ freshnessMs: 60_000 });
+```
+
+```python Python
+# Wrong — includes nodes that vanished a week ago
+nodes = ln.discovery.all()
+
+# Right — verified AND heard from recently
+nodes = ln.discovery.online()                  # default: 600 seconds
+strict = ln.discovery.online(freshness_s=60)
+```
+
+</CodeGroup>
+
+Choosing a freshness window is a real decision. Ten minutes is a reasonable default for
+"probably still there". If you are about to send work somewhere and care about latency,
+use a much tighter window — and be ready for the node to have gone anyway, because a
+timestamp is a description of the past.
+
+## Capabilities
+
+Capabilities are free-form strings a node chooses for itself.
+
+| Capability | Seen on the live network? |
+|---|---|
+| `inference` | Yes |
+| `health:ready` | Yes — a liveness marker rather than a service |
+| `storage` · `verification` · `proof` · `solver` · `oracle` | Declared in the spec; not yet observed in the wild |
+
+<Note>
+**Advertising a capability is a claim, not a credential.** Nothing in the registry verifies
+that a node advertising `inference` can actually perform inference, or will do it correctly.
+Treat capabilities as a filter for *who to try*, never as a guarantee about *what you will
+get back*. Verify results on their own merits.
+</Note>
+
+<CodeGroup>
+
+```typescript TypeScript
+const workers = await ln.discovery.byCapability("inference", {
+  region: "asia-southeast",
+  freshnessMs: 120_000,
+});
+```
+
+```python Python
+workers = ln.discovery.by_capability(
+    "inference", region="asia-southeast", freshness_s=120
+)
+```
+
+</CodeGroup>
+
+## Registration and heartbeats
+
+Nodes call these themselves — `ln-node` handles it. They are documented because
+self-hosted and experimental nodes need the exact contract.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/register` <Status level="implemented" /> | Announce identity, endpoint, capabilities. |
+| `POST /api/v1/heartbeat` <Status level="implemented" /> | Refresh `last_seen`. |
+
+<Warning>
+Signature verification on registration currently runs in **grace mode**: a malformed
+signature is recorded rather than rejected during the beta. Do not build anything on the
+assumption that a record's presence in the table implies a checked signature. Verify
+id-binding yourself — which costs one hash and works regardless of what the registry did.
+</Warning>
+
+## Auditing instead of filtering
+
+`discovery.all()` and `online()` drop records that fail verification, because a caller who
+must remember to check a flag is a caller who will forget.
+
+When you specifically want to *see* the failures — monitoring, security work — ask for them:
+
+<CodeGroup>
+
+```typescript TypeScript
+const { total, verified, rejected } = await ln.discovery.audit();
+
+if (rejected.length) {
+  // Not a nuisance to skip quietly. Report it.
+  console.error(`${rejected.length} records failed id-binding`, rejected.map((n) => n.did));
+}
+```
+
+```python Python
+result = ln.discovery.audit()
+
+if result["rejected"]:
+    # Not a nuisance to skip quietly. Report it.
+    print(f"{len(result['rejected'])} records failed id-binding")
+```
+
+</CodeGroup>
+
+As of the last live check, **27 of 27** records on the production registry verified. If that
+ever stops being true, something is wrong that is worth knowing about immediately — which is
+why the SDK ships a live test asserting it.
+
+## Endpoints are not guarantees
+
+`endpoint` is where a node *says* it can be reached. In practice many are private addresses
+(`172.20.10.5:55785` above), reachable only inside their own network. The registry does not
+probe them.
+
+Plan for: unreachable endpoints, addresses that changed since registration, and nodes behind
+NAT that can dial out but not receive. Discovery tells you a node exists and what it claims —
+connectivity is a separate problem.
+
+<Card title="Next: binding" icon="link" href="/concepts/binding" horizontal>
+  How a node and an operator agree to work together, in four signatures.
+</Card>

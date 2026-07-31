@@ -1,0 +1,187 @@
+---
+title: "What LibertyNet is"
+sidebarTitle: "Overview"
+description: "The whole model in one page, in plain language, in the order the pieces make sense."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+LibertyNet is a network of independently operated computers that can find each other and
+prove who they are, without a company in the middle deciding who is allowed to participate.
+
+That is the whole idea. Everything below is detail.
+
+## The problem it is built around
+
+Normally, when two machines on the internet want to trust each other, they ask a third
+party. A certificate authority vouches for a domain. An API gateway checks a key it issued.
+A platform decides who gets an account.
+
+That works, and it also means the third party can decide it does not like you. It is a
+single point of permission — and, when it is compromised, a single point of forgery.
+
+LibertyNet removes that middle party from the identity question by making identities
+**self-certifying**.
+
+## Idea 1 — an identity is derived from its key
+
+A LibertyNet identity looks like this:
+
+```text
+did:svrp:n:268d4fe0
+```
+
+That is not an account number issued to someone. It is a **fingerprint of a public key** —
+the first four bytes of `SHA-256(public_key)`, in hex.
+
+Which means: given a public key and a claimed identity, anyone can check the pairing
+themselves, offline, with nothing but a hash function.
+
+```javascript
+sha256(publicKey).slice(0, 8) === "268d4fe0"   // → the claim holds
+```
+
+No lookup. No authority. No network call. You did the whole verification locally.
+
+<Card title="This is worth doing once by hand" icon="fingerprint" href="/quickstart#3-verify-an-identity-yourself" horizontal>
+  The quickstart has you verify every identity on the live network in about ten lines of
+  dependency-free code. It is the fastest way to make this concrete.
+</Card>
+
+### The rule that follows from it
+
+<Warning>
+**A valid signature is not a valid identity.**
+
+If someone hands you a public key, a message and a signature, verifying that signature
+proves exactly one thing: whoever holds that private key signed that message. It says
+*nothing* about whether that key belongs to the identity they are claiming.
+
+So the order is fixed, everywhere in this system:
+
+1. Verify the **id-binding** — does the claimed identity derive from this key? If not,
+   reject. Do not proceed to step 2.
+2. Verify the **signature** over the canonical bytes.
+3. Verify every remaining rule — validity windows, replay protection, permissions.
+4. Accept only after all of them pass.
+
+Skipping step 1 is not a shortcut, it is a verification bypass: you would be checking that
+*a* key signed something, then trusting it as if *the right* key had. The SDKs do step 1
+for you and offer no way to disable it.
+</Warning>
+
+## Idea 2 — nodes announce themselves; nobody approves them
+
+A node tells the registry it exists: here is my identity, my address, and what I can do.
+
+```json
+{
+  "did": "did:svrp:df9d4b9f...02d",
+  "public_key": "df9d4b9f...02d",
+  "endpoint": "172.20.10.5:55785",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+The registry is a **directory, not a gatekeeper**. It does not decide who may join. Reading
+it requires no key and no account — which is why the [quickstart](/quickstart) has no signup
+step.
+
+Since anyone can register, you should assume some records are wrong or hostile. That is
+fine, and it is exactly what idea 1 is for: you verify every record yourself, and a forged
+one fails arithmetic rather than policy.
+
+<Warning>
+**`status: "active"` does not mean online.**
+
+A node that stopped heart-beating keeps that string forever. The only field that goes stale
+is `last_seen`, so freshness is computed from that — which is why the SDKs give you
+`discovery.online()` and why `discovery.all()` is usually not what you want.
+
+This is the single most common first mistake on this network.
+</Warning>
+
+## Idea 3 — a node can be adopted by an operator, with limits
+
+A node is a machine. An **operator** is whoever is responsible for it.
+
+Binding the two is a four-signature handshake, and the interesting part is that both sides
+must consent — the operator cannot claim a node, and a node cannot attach itself to an
+operator who did not agree.
+
+<Steps>
+  <Step title="The node asks">
+    It signs a description of itself and what permissions it wants, and gets back a short
+    human-readable code.
+  </Step>
+  <Step title="The operator sees the request">
+    They redeem the code and see the node's details, including a **fingerprint** of its key
+    to compare against the node's own screen. That out-of-band comparison is what stops you
+    from adopting a node you do not control.
+  </Step>
+  <Step title="The operator authorizes">
+    Their **device key** signs an authorization naming the node and its limits. The
+    authorization can never be broader than what the node asked for.
+  </Step>
+  <Step title="The node accepts">
+    All four signatures are re-verified atomically before anything becomes active.
+  </Step>
+</Steps>
+
+The reason for a separate device key: your **root key** signs one credential, offline, and
+then goes back in the safe. Everything day-to-day is done by a device key. A stolen laptop
+costs you a device, not your identity.
+
+[Full walkthrough →](/concepts/binding)
+
+## Idea 4 — contribution is measured, not yet paid
+
+<Warning>
+**Credits are a test unit.** Not cash. Not redeemable. Not a claim on future value.
+
+And right now they are not even being counted: the credits endpoint is live and returns
+`200`, but no ledger is connected to it. It returns zeros and says
+`"source": "not_yet_wired"` — which means "nothing is measuring this", not "you earned
+nothing". <Status level="not_yet_wired" />
+</Warning>
+
+[What Credits are and are not →](/concepts/credits)
+
+## What LibertyNet deliberately is not
+
+There is no endpoint in this API that moves value. No wallet, no swap, no staking, no token
+transfer, no trading. That is a scope decision, and this documentation will not imply
+otherwise. See [capability status](/status) for the full, current list of what exists.
+
+## The shape of every LibertyNet program
+
+<Steps>
+  <Step title="Discover">
+    Ask the registry who is out there. Public, one GET, no auth.
+  </Step>
+  <Step title="Verify">
+    Check identities yourself before trusting anything. Non-optional in the SDKs.
+  </Step>
+  <Step title="Act">
+    Talk to a node, or bind one to an operator so it can work under limits you set.
+  </Step>
+</Steps>
+
+## Where to go next
+
+<Columns cols={2}>
+  <Card title="Identity in depth" icon="fingerprint" href="/concepts/identity">
+    Both DID encodings, why string comparison lies, and the verification order.
+  </Card>
+  <Card title="Discovery in depth" icon="tower-broadcast" href="/concepts/nodes-and-discovery">
+    Registration, heartbeats, capabilities, and what "online" really means.
+  </Card>
+  <Card title="Binding in depth" icon="link" href="/concepts/binding">
+    The four signatures, the state machine, and why codes are anti-enumerable.
+  </Card>
+  <Card title="Build something" icon="rocket" href="/quickstart">
+    Five minutes to a verified call against the live network.
+  </Card>
+</Columns>

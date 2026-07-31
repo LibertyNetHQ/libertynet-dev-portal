@@ -1,0 +1,117 @@
+---
+title: "能力状态"
+description: "到底哪些建好了、哪些在线、哪些没有。每一条都附核实方式。"
+---
+
+import { Status, StatusKey } from '/snippets/status.mdx';
+
+这一页是你可以信任其余文档的原因。LibertyNet API 能做的每一件事都带四个标记之一，
+任何页面都不允许把某个能力描述得比这里写的更完成。
+
+<StatusKey />
+
+<Info>
+**这些标记从哪来。** 下面的表格由
+[`dev-portal/api-spec/status.json`](https://github.com/LibertyNetHQ/LibertyNet-hq/blob/main/dev-portal/api-spec/status.json)
+推导——同一份机器可读清单也驱动着两个 SDK 和 OpenAPI 规范。有一个漂移检查器，只要文档里的
+标记与清单不一致就会让构建失败，所以它们不会各自腐烂。
+
+最近一次直接探测核实：**2026-07-31**。
+</Info>
+
+## 节点发现 <Status level="implemented" />
+
+公开。不需要 Key，不需要注册。
+
+| 端点 | 状态 |
+|---|---|
+| `GET /health` | <Status level="implemented" /> |
+| `GET /nodes` | <Status level="implemented" /> |
+| `GET /peers` · `GET /api/v1/peers` | <Status level="implemented" /> |
+| `POST /api/v1/register` · `POST /api/v1/heartbeat` | <Status level="implemented" /> |
+
+## 运营者身份 <Status level="implemented" />
+
+基于签名的登录。这套系统里没有密码。
+
+| 端点 | 状态 |
+|---|---|
+| `POST /v1/auth/challenge` | <Status level="implemented" /> |
+| `POST /v1/auth/device-login` | <Status level="implemented" /> |
+| `GET /v1/operator/me/nodes` | <Status level="implemented" /> |
+
+## 节点↔运营者绑定 <Status level="implemented" />
+
+完整的双签名握手，在绑定生效前四个签名会被原子性地重新验证一遍。8 个端点全部在线。
+
+## Credits 与 Evidence <Status level="not_yet_wired" />
+
+<Warning>
+**这些端点在线并返回 `200`，但背后什么都没接。**
+
+`GET /v1/operator/me/credits` 返回的 `settled`、`pending`、`estimated` 全是 `0`，
+并附带 `"source": "not_yet_wired"`。
+
+**这个零是占位符，不是测量结果**——它的意思是"还没有任何东西在计数"，
+而不是"你没有赚到任何东西"。这是两句完全不同的话。
+
+如果你要展示这些数字，就必须把说明一起展示。SDK 强制执行这一点：`settledCredits()`
+会抛异常，而不是把一个可能被当成余额显示的零交给你。想展示时请用 `creditsRaw()`。
+</Warning>
+
+**Credits 是测试单位。** 不是现金，不可兑换，不代表对未来价值的任何主张。
+
+## 预言机 <Status level="testing" />
+
+和"planned"确实不同：合约是真的存在，测试也真的通过了。缺的是部署。
+
+| 组件 | 状态 | 说明 |
+|---|---|---|
+| `EvidenceOracle` | <Status level="testing" /> | Solidity，23/23 测试通过。**未部署**到任何公开网络。 |
+| `PythPriceAdapter` | <Status level="testing" /> | 同上：测试通过，未部署。 |
+| `GET /v1/oracle/price` | <Status level="planned" /> | 没有 HTTP 读取接口。 |
+
+<Note>
+"测试通过"和"已部署"是两个不同的说法，把它们混为一谈是文档变成假话最容易的路径之一。
+现在没有任何合约地址可以调用。
+</Note>
+
+## 没有做的 <Status level="planned" />
+
+没有代码，没有端点，没有东西可调用。列在这里是为了让你看清网络的意图，**不是**为了让你
+基于它开发。
+
+| 领域 | 状态 |
+|---|---|
+| Agent 钱包（创建 / 会话密钥 / 转账） | <Status level="planned" /> |
+| 意图交易（intent / quote / solve / pools） | <Status level="planned" /> |
+| `$LNT` 余额 | <Status level="planned" /> |
+
+<Warning>
+**这套 API 里没有任何一个端点会转移价值。** 没有钱包，没有 swap，没有质押，没有代币转账，
+没有交易。这是刻意的范围决策。如果你发现哪个页面暗示了相反的意思，那是 bug，
+请[报告](/community)。
+</Warning>
+
+## 自己核实
+
+不必相信这一页。
+
+```bash
+curl -s https://registry.libertynet.ai/health
+curl -s https://registry.libertynet.ai/nodes | head -c 300
+```
+
+SDK 里有一个对着真实网络跑的测试，专门断言这一页仍然成立：
+
+```bash
+cd dev-portal/sdk/python && LN_LIVE=1 python3 -m pytest -q
+```
+
+只要真实注册表上有任何一个身份验证不通过，它就会失败——那意味着要么网络出了问题，
+要么这份文档错了，两种都值得立刻知道。
+
+## 状态什么时候会变
+
+一个能力的标记，在**改变其行为的同一个提交里**改变，绝不提前。先宣布、后交付，正是
+"规划中"在读者记忆里悄悄变成"已启用"的方式，这个项目不这么做。

@@ -1,0 +1,124 @@
+---
+title: "Community"
+description: "Where to ask, what gets answered, and how to show what you built."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Columns cols={2}>
+  <Card title="Discord" icon="discord" href="https://discord.gg/libertynet">
+    Questions, help, release announcements. The fastest way to reach someone.
+  </Card>
+  <Card title="GitHub" icon="github" href="https://github.com/LibertyNetHQ">
+    Issues, pull requests, and the source for everything documented here.
+  </Card>
+</Columns>
+
+## Getting help
+
+Ask in **#developers** on Discord. Bring:
+
+- What you were calling, and with which SDK and language.
+- The error's **`code`** — every LibertyNet error has a stable one.
+- What you expected instead.
+
+<Tip>
+Check the [error dictionary](/reference/errors) first. Every code there has a documented
+cause and fix, and about half of all questions are answered by the entry for the code
+already in the error message.
+</Tip>
+
+### Early developers get hands-on help
+
+The network is small enough that this is a real offer, not a slogan: if you are among the
+first building on LibertyNet and get stuck, say so in **#developers** and someone will work
+through it with you directly.
+
+That will not scale forever. Take advantage of it while it lasts.
+
+## Showcase
+
+Built something? Post it in **#showcase**. What is useful to include:
+
+- What it does, in one sentence.
+- Which parts of LibertyNet it uses.
+- What was harder than it should have been.
+
+<Note>
+That last one is the most valuable thing you can give us. Friction you hit is friction
+everyone hits — and it usually means a documentation page is unclear rather than that you
+did something wrong.
+</Note>
+
+## Contributor rewards <Status level="planned" />
+
+<Warning>
+**Not implemented, and deliberately not specified.**
+
+The intention is that people who write tutorials, build examples and answer questions
+should be recognised in Credits. But:
+
+- **Credits are a test unit** — not cash, not redeemable, not a claim on future value.
+- **Nothing is counting them yet.** The credits endpoint is live and returns zeros with
+  `"source": "not_yet_wired"`. [Details](/concepts/credits).
+- **No rates, amounts or eligibility rules have been decided.** None are published here
+  because none exist, and inventing a number to make this page feel complete would be
+  exactly the kind of thing this documentation refuses to do.
+
+The interface is reserved. The economics are not settled. When they are, they will appear
+here with a badge and a date — not as an implication.
+</Warning>
+
+Contribute because the work is useful and you want it to exist. If rewards arrive later,
+good. Do not budget for them.
+
+## Reporting a problem
+
+<AccordionGroup>
+  <Accordion title="A documentation page is wrong">
+    Tell us in Discord or open an issue. **The fix is the page, not the wording** — if a
+    page describes a capability as more finished than it is, we change the badge or the
+    code, never the phrasing.
+  </Accordion>
+
+  <Accordion title="An endpoint behaves differently from the docs">
+    That is a bug in one of the two. Bring the exact request and response. The
+    [capability matrix](/status) is the source of truth for what should be true.
+  </Accordion>
+
+  <Accordion title="A node record failed id-binding">
+    **Report this immediately.** On the production registry it should always be zero. A
+    record whose DID does not derive from its key is corruption or forgery, and it is worth
+    interrupting someone over.
+
+    ```bash
+    node examples/verify-network/verify.mjs
+    ```
+  </Accordion>
+
+  <Accordion title="A security issue">
+    Do not post it publicly. Contact the maintainers directly through Discord and ask for a
+    private channel.
+  </Accordion>
+
+  <Accordion title="The AI assistant said something false">
+    Report both the question and the answer. A wrong AI answer usually means a page is
+    ambiguous — fixing the page fixes every future answer at once.
+  </Accordion>
+</AccordionGroup>
+
+## What we will not do
+
+Worth stating so nobody wastes their time:
+
+- **We will not describe unbuilt things as built.** Not in a launch post, not in a
+  conference talk, not to make a roadmap look better.
+- **We will not add a wallet, transfer or trading endpoint quietly.** If value movement ever
+  ships, it arrives with its own documentation and its own review.
+- **We will not remove a status badge to make a page read better.**
+
+If you catch us doing any of these, that is the report we most want to receive.
+
+<Card title="Contributing" icon="code-pull-request" href="/contributing" horizontal>
+  How to add an example, fix a page, or improve an SDK.
+</Card>

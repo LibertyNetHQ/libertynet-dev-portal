@@ -1,0 +1,95 @@
+---
+title: "在 LibertyNet 上开发"
+sidebarTitle: "首页"
+description: "一个由独立节点组成的网络，身份自证。发现是公开的——不需要注册，不需要 API Key。第一次调用只要一行命令。"
+mode: "wide"
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Card title="现在就调用一次——什么都不用装" icon="terminal" horizontal>
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+```json
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+这是一个真实运行的网络在回答你。不需要 Key，不需要账号，不需要排队等待。
+
+</Card>
+
+## LibertyNet 是什么
+
+一个由独立运营的节点组成的网络。每个节点都有**自证身份**——标识符由公钥推导而来，所以
+任何人都能自己验证这对关系，不必向任何机构申请许可，也不必查询任何目录。
+
+节点公布自己能做什么。你去发现它们、与它们通信、自己验证它们的签名。中间没有守门人——
+这也正是这里没有 API Key 可申请的原因。
+
+<Columns cols={2}>
+  <Card title="5 分钟上手" icon="rocket" href="/zh/quickstart">
+    从零到对着真实网络完成一次经过密码学验证的调用。实测，不是估算。
+  </Card>
+  <Card title="理解模型" icon="book-open" href="/zh/concepts/overview">
+    身份、发现、绑定、Credits——用大白话，按能听懂的顺序讲。
+  </Card>
+  <Card title="能力状态" icon="list-check" href="/zh/status">
+    到底哪些是真的做好了。每一条都标注了核实方式。
+  </Card>
+  <Card title="错误字典" icon="triangle-exclamation" href="/zh/reference/errors">
+    每个错误码的成因和解决办法。
+  </Card>
+</Columns>
+
+## 真正建好的部分
+
+这个门户不会把没做的东西说成做好了。文档里每个端点、每个 SDK 方法都带一个状态标记，
+而且这些标记由一份机器可读的清单生成，不是手写的。
+
+| 领域 | 状态 | 说明 |
+|---|---|---|
+| 节点发现 | <Status level="implemented" /> | 公开、在线、无需认证。 |
+| 运营者登录 | <Status level="implemented" /> | 挑战 → 设备密钥签名 → 1 小时会话。没有密码。 |
+| 节点↔运营者绑定 | <Status level="implemented" /> | 完整的双签名握手，四个签名全部重新验证。 |
+| Credits 与 Evidence | <Status level="not_yet_wired" /> | 端点在线并返回 `200`，但背后没有接账本。返回的是零，并且如实说明。 |
+| 预言机合约 | <Status level="testing" /> | 23/23 测试通过。**未部署**到任何公开网络。 |
+| 钱包 · DEX · 代币 | <Status level="planned" /> | 没有做。没有东西可调用。 |
+
+<Info>
+完整清单以及每一条的核实方式，见[能力状态](/zh/status)。如果哪个标记与端点的真实行为不符，
+那是 bug——请[告诉我们](/community)，我们改代码或改标记，绝不改措辞。
+</Info>
+
+## LibertyNet 刻意不做的事
+
+<Warning>
+**这套 API 里没有任何一个端点会转移价值。**
+
+没有钱包，没有 swap，没有质押，没有代币转账，没有交易。这是范围决策，不是还没来得及做，
+文档也不会暗示相反的意思。
+
+**Credits 是测试单位。** 不是现金，不可兑换，不代表对未来价值的任何主张。文档里每一处
+出现 Credits 数字的地方，旁边都会写着这句话。
+</Warning>
+
+## 每个 LibertyNet 程序的形状
+
+<Steps>
+  <Step title="发现">
+    问注册表谁在网络上、能做什么。公开，一个 GET，不需要认证。
+  </Step>
+  <Step title="验证">
+    自己核对节点身份——在相信它签的任何东西之前，先确认 DID 确实由那个公钥推导而来。
+    SDK 默认这么做，而且不提供关闭的开关。
+  </Step>
+  <Step title="行动">
+    与节点通信，或者把节点绑定到一个运营者身份上，让它在你设定的限额内代你工作。
+  </Step>
+</Steps>
+
+<Card title="开始" icon="arrow-right" href="/zh/quickstart" horizontal>
+  **快速开始** — 5 分钟内完成第一次经过验证的调用。
+</Card>

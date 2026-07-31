@@ -1,0 +1,208 @@
+---
+title: "MCP server"
+description: "Give your own Claude or Cursor direct access to these docs, the capability matrix, and the live network."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Point your assistant at this server and it stops guessing about LibertyNet. Six tools:
+documentation search, full pages, the capability matrix, arithmetic identity verification,
+the live node list, and endpoint probing.
+
+<Note>
+**Why this exists.** An assistant asked to "write a LibertyNet agent that checks my
+balance" will, without help, produce something plausible and wrong — because a balance
+endpoint sounds like it should work, and much of LibertyNet's intended surface is not
+built.
+
+With `libertynet_capability_status`, it can find out that credits are `not_yet_wired`
+before writing a line. The tools are shaped around preventing specific, predictable
+mistakes rather than around exposing an API.
+</Note>
+
+## Install
+
+Not on npm yet — run it from the repository. It has **zero dependencies**.
+
+<Tabs>
+  <Tab title="Claude Desktop">
+    `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or
+    `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+    ```json
+    {
+      "mcpServers": {
+        "libertynet": {
+          "command": "node",
+          "args": ["/absolute/path/to/dev-portal/mcp-server/src/server.mjs"]
+        }
+      }
+    }
+    ```
+
+    Restart Claude Desktop. The tools appear in the tools menu.
+  </Tab>
+
+  <Tab title="Claude Code">
+    ```bash
+    claude mcp add libertynet -- node /absolute/path/to/dev-portal/mcp-server/src/server.mjs
+    ```
+  </Tab>
+
+  <Tab title="Cursor">
+    `.cursor/mcp.json` in your project:
+
+    ```json
+    {
+      "mcpServers": {
+        "libertynet": {
+          "command": "node",
+          "args": ["/absolute/path/to/dev-portal/mcp-server/src/server.mjs"]
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Verify by hand">
+    ```bash
+    printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+      | node dev-portal/mcp-server/src/server.mjs
+    ```
+
+    You should get one JSON line listing six tools.
+  </Tab>
+</Tabs>
+
+## The tools
+
+| Tool | What it is for |
+|---|---|
+| `libertynet_capability_status` | **Call before writing any code.** What is implemented, wired, tested or merely planned. |
+| `libertynet_search_docs` | Ranked search across this documentation, with excerpts and URLs. |
+| `libertynet_get_page` | One page in full, by slug. |
+| `libertynet_verify_identity` | Check a DID/key pair arithmetically instead of by eye. |
+| `libertynet_list_nodes` | The live network right now, every identity verified first. |
+| `libertynet_check_endpoint` | Probe an endpoint and report its real status, latency and body. |
+
+### `libertynet_capability_status`
+
+```json
+{
+  "verified_at": "2026-07-31",
+  "guidance": "Only 'implemented' capabilities can be called today. 'not_yet_wired' endpoints return 200 with placeholder zeros...",
+  "groups": [
+    { "id": "discovery", "endpoints": [{ "method": "GET", "path": "/nodes", "status": "implemented" }] },
+    { "id": "economics", "endpoints": [{ "path": "/v1/operator/me/credits", "status": "not_yet_wired" }] },
+    { "id": "wallet",    "endpoints": [{ "path": "/v1/wallet/transfer",     "status": "planned" }] }
+  ]
+}
+```
+
+The same matrix that drives every badge in these docs and both SDKs — one source, so there
+is only one thing to disagree with.
+
+### `libertynet_verify_identity`
+
+```json
+{
+  "valid": false,
+  "form": "short",
+  "expected": "268d4fe0",
+  "reason": "expected 268d4fe0"
+}
+```
+
+When the key encoding is the problem — the most common cause — it says so rather than just
+returning `false`:
+
+```json
+{
+  "valid": false,
+  "reason": "public_key is not 32 bytes in hex or base58. GET /nodes serves hex; GET /peers serves base58 — decoding one as the other silently produces garbage."
+}
+```
+
+### `libertynet_list_nodes`
+
+Real output, live:
+
+```json
+{
+  "registered": 27,
+  "verified": 27,
+  "rejected_id_binding": [],
+  "returned": 2,
+  "note": "A node's \"status\" field never decays — freshness comes from last_seen only.",
+  "nodes": [
+    { "did": "did:svrp:h:2216a202", "capabilities": ["node"], "online": true },
+    { "did": "did:svrp:df9d4b9f...", "region": "asia-southeast", "capabilities": ["inference"], "online": true }
+  ]
+}
+```
+
+Every identity is verified before being returned, and anything that fails is surfaced in
+`rejected_id_binding` rather than quietly dropped.
+
+## The honesty contract
+
+The server sends this to the assistant at connection time, so the rules arrive before the
+first question rather than as an afterthought:
+
+```text
+1. Call libertynet_capability_status BEFORE writing code that uses any LibertyNet
+   feature. Much of the intended surface is not built.
+
+2. Never present a 'not_yet_wired' value as a measurement. A 0 there means
+   "nothing is counting", not "the value is zero".
+
+3. Credits are a test unit: not cash, not redeemable, not a claim on future value.
+
+4. LibertyNet has NO wallet, transfer, swap, staking or trading.
+
+5. Use libertynet_verify_identity rather than judging a DID by eye, and
+   libertynet_list_nodes rather than answering about the network from memory.
+
+6. In generated code: read secrets from the environment or an OS keychain, never
+   hard-code them; never disable identity verification.
+```
+
+## Try it
+
+Once connected, ask your assistant things like:
+
+- *"How many LibertyNet nodes are online right now?"* — it calls `list_nodes` instead of
+  answering from training data.
+- *"Write me an agent that reads my credits balance."* — it should check status first and
+  tell you the endpoint is unwired, rather than producing code that displays a fake zero.
+- *"Is this DID valid for this key?"* — arithmetic, not vibes.
+- *"Can I transfer tokens on LibertyNet?"* — a straight no, with the reason.
+
+<Warning>
+Connecting this server does not make an assistant infallible. It removes the excuse: the
+model can now check, cheaply, before it asserts. If yours still claims a `planned` endpoint
+works, that is worth [telling us](/community) — the tool description probably needs to be
+sharper.
+</Warning>
+
+## Configuration
+
+| Variable | Default |
+|---|---|
+| `LN_REGISTRY_URL` | `https://registry.libertynet.ai` |
+| `LN_DOCS_DIR` | the bundled `docs-site/` |
+| `LN_STATUS_FILE` | the bundled `api-spec/status.json` |
+
+## Tests
+
+```bash
+cd dev-portal/mcp-server && npm test   # 29 tests
+```
+
+Covering the tools as functions **and** the real JSON-RPC protocol as a subprocess —
+including that stdout carries only protocol traffic. A stray `console.log` there would
+corrupt the stream for every client, and only a subprocess test catches it.
+
+<Card title="Other AI integrations" icon="robot" href="/ai/context" horizontal>
+  `llms.txt`, page-level context export, and what to feed an assistant that has no MCP.
+</Card>

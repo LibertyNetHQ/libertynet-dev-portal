@@ -1,0 +1,197 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "LibertyNet",
+  "description": "Build on LibertyNet. First successful call in under five minutes.",
+  "colors": {
+    "primary": "#00E5C7",
+    "light": "#5BFFE4",
+    "dark": "#00A88F"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/livingmark-light.svg",
+    "dark": "/logo/livingmark-dark.svg",
+    "href": "https://docs.libertynet.ai"
+  },
+  "appearance": {
+    "default": "dark",
+    "strict": false
+  },
+  "styling": {
+    "codeblocks": "dark",
+    "eyebrows": "section"
+  },
+  "fonts": {
+    "heading": { "family": "Inter", "weight": 200 },
+    "body": { "family": "Inter" }
+  },
+  "api": {
+    "openapi": "../api-spec/libertynet-v1.yaml",
+    "playground": {
+      "display": "interactive",
+      "proxy": true
+    },
+    "examples": {
+      "languages": ["curl", "typescript", "python"]
+    }
+  },
+  "search": { "prompt": "Search the docs" },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude", "mcp"]
+  },
+  "navigation": {
+    "languages": [
+      {
+        "language": "en",
+        "groups": [
+          {
+            "group": "Start here",
+            "pages": [
+              "index",
+              "quickstart",
+              "cli",
+              "status"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/overview",
+              "concepts/identity",
+              "concepts/nodes-and-discovery",
+              "concepts/binding",
+              "concepts/credits",
+              "concepts/intents"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/service-agent",
+              "guides/discovery-agent",
+              "guides/operator-login",
+              "guides/solver-node",
+              "guides/tokens"
+            ]
+          },
+          {
+            "group": "SDK",
+            "pages": [
+              "sdk/overview",
+              "sdk/typescript",
+              "sdk/python"
+            ]
+          },
+          {
+            "group": "API reference",
+            "openapi": "../api-spec/libertynet-v1.yaml"
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/errors",
+              "reference/dids",
+              "reference/changelog"
+            ]
+          },
+          {
+            "group": "AI",
+            "pages": [
+              "ai/assistant",
+              "ai/mcp",
+              "ai/context"
+            ]
+          },
+          {
+            "group": "Build with us",
+            "pages": [
+              "examples",
+              "dashboard",
+              "community",
+              "contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "language": "zh",
+        "groups": [
+          {
+            "group": "从这里开始",
+            "pages": [
+              "zh/index",
+              "zh/quickstart",
+              "zh/status"
+            ]
+          },
+          {
+            "group": "核心概念",
+            "pages": [
+              "zh/concepts/overview",
+              "zh/concepts/identity",
+              "zh/concepts/credits"
+            ]
+          },
+          {
+            "group": "参考",
+            "pages": [
+              "zh/reference/errors"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      { "label": "Status", "href": "https://docs.libertynet.ai/status" },
+      { "label": "GitHub", "href": "https://github.com/LibertyNetHQ" }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Quickstart",
+      "href": "https://docs.libertynet.ai/quickstart"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/LibertyNetHQ",
+      "discord": "https://discord.gg/libertynet"
+    },
+    "links": [
+      {
+        "header": "Developers",
+        "items": [
+          { "label": "Quickstart", "href": "https://docs.libertynet.ai/quickstart" },
+          { "label": "API reference", "href": "https://docs.libertynet.ai/api-reference" },
+          { "label": "Capability status", "href": "https://docs.libertynet.ai/status" },
+          { "label": "Error dictionary", "href": "https://docs.libertynet.ai/reference/errors" }
+        ]
+      },
+      {
+        "header": "Community",
+        "items": [
+          { "label": "Discord", "href": "https://discord.gg/libertynet" },
+          { "label": "Showcase", "href": "https://docs.libertynet.ai/community#showcase" },
+          { "label": "Contributing", "href": "https://docs.libertynet.ai/contributing" }
+        ]
+      }
+    ]
+  },
+  "integrations": {},
+  "seo": {
+    "metatags": {
+      "og:site_name": "LibertyNet Developers",
+      "og:type": "website"
+    },
+    "indexing": "navigable"
+  },
+  "errors": {
+    "404": {
+      "redirect": false,
+      "title": "Nothing here",
+      "description": "That page does not exist. Try the quickstart."
+    }
+  }
+}

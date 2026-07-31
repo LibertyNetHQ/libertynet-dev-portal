@@ -1,0 +1,94 @@
+---
+title: "Credits"
+description: "Credits 是什么、不是什么，以及为什么这个端点现在故意返回零。"
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Warning>
+**Credits 是测试单位。**
+
+不是现金。不可兑换。不可转换。不代表对未来价值的任何主张，也不承诺这种主张将来会存在。
+
+这句话会出现在文档、SDK 和 Dashboard 里每一个 Credits 数字旁边。它不是免责套话——
+**它是这一页上最重要的内容。**
+</Warning>
+
+## 现状：什么都还没在计数 <Status level="not_yet_wired" />
+
+`GET /v1/operator/me/credits` 在线，返回 `200`。它同时返回这个：
+
+```json
+{
+  "unit": "test-credit",
+  "settled":   { "amount": 0 },
+  "pending":   { "amount": 0 },
+  "estimated": { "amount": 0 },
+  "source": "not_yet_wired"
+}
+```
+
+`"source": "not_yet_wired"` 是关键字段。它的意思是**没有任何 credits 账本接到这个端点上**。
+每一个数字都是占位符，不是测量结果。
+
+<Warning>
+**这里的零不代表"你没赚到"。它代表"还没有东西在计数"。**
+
+这是两句完全不同的话，而在后者为真时显示前者，正是这个网络竭力避免的那种"安静的不诚实"。
+一个 `0` 摆在"收益"两个字旁边、没有任何说明——**这是用数字撒的谎**。
+</Warning>
+
+### SDK 如何强制执行
+
+不是靠提醒每个调用者记住，而是让诚实的路好走、让不诚实的路不存在：
+
+```python
+# 抛异常，而不是把一个会误导人的零交给你
+ln.operator.settled_credits()
+# → NotYetWiredError: [NOT_YET_WIRED] ... 端点在线但没有接账本，
+#   返回的 0 是占位符而不是余额。
+
+# 诚实的读法——保留信封和 source 字段，由你带着说明展示
+balance = ln.operator.credits_raw()
+print("尚未接入" if not balance.is_wired else balance.settled["amount"])
+```
+
+等 `source` 变成 `"ledger"` 的那一刻，`settled_credits()` 就会开始正常工作，
+**你这边一行代码都不用改**。
+
+## 三个桶
+
+等账本真的接上时，Credits 会分三种状态报告——而且**故意不合并成一个数字**，
+因为合并恰好会抹掉最要紧的区分。
+
+| 桶 | 含义 | 该信几分 |
+|---|---|---|
+| `settled` | 已由 Evidence 验证与结算确认 | 这是真的那个 |
+| `pending` | 已提交，尚未验证或结算 | **可能永远不会入账。不要当它存在。** |
+| `estimated` | 内测模型的估算 | 不是承诺，也不是预测。仅供参考 |
+
+**一个把这三者加起来只显示一个数字的界面，同时歪曲了这三者。**
+
+## Evidence
+
+Credits 一旦开始计数，将来源于 **Evidence**——可验证的贡献签名记录——而不是自我申报的活动。
+这正是让这个数字**可核对**而不只是**被声称**的原因。
+
+`GET /v1/operator/me/evidence` 同样在线、同样未接通：`count: 0`，`"source": "not_yet_wired"`。
+<Status level="not_yet_wired" />
+
+<Note>
+把空的 evidence 列表当成**未知**，绝不要当成"你没有贡献"。数据源没接上——
+它不是在报告"没有"，它是**根本没在报告**。
+</Note>
+
+链上的 evidence 锚定部分以合约形式存在且测试通过（23/23），但**未部署**到任何公开网络。
+<Status level="testing" />
+
+## 在这里，Credits 永远不会是什么
+
+这套 API 里没有任何一个端点会转移价值。没有钱包，没有转账，没有 swap，没有质押，没有交易——
+当前清单见[能力状态](/zh/status)。
+
+如果将来某个版本加入了其中任何一项，它会带着自己的文档、自己的标记和自己的评审到来。
+**它不会悄悄出现在一篇讲测试单位的页面里。**

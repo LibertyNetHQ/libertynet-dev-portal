@@ -1,0 +1,312 @@
+---
+title: "Error dictionary"
+description: "Every error code, what caused it, and what to do. Errors here explain themselves — you should not have to read source to recover from one."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+Every error carries a stable machine-readable `code`:
+
+```json
+{ "code": "ID_BINDING_FAILED", "error": "node must use a did:svrp identity" }
+```
+
+<Warning>
+**Branch on `code`, never on `error`.** The `code` is a contract and will not change
+without a version bump. The `error` text is for humans and may be reworded in any release.
+</Warning>
+
+Every SDK error also carries a `docs` link straight to its entry here:
+
+```text
+NotYetWiredError [NOT_YET_WIRED]: GET /v1/operator/me/credits is not_yet_wired: ...
+  → https://docs.libertynet.ai/status
+```
+
+---
+
+## Identity
+
+### `ID_BINDING_FAILED`
+
+**HTTP 401.** The DID does not derive from the public key presented with it.
+
+**Cause.** Either the pair is genuinely mismatched, or — far more often — the key was
+decoded with the wrong encoding. `GET /nodes` serves keys as **hex**; `GET /peers` serves
+them as **base58**. Parsing a base58 key as hex does not error, it produces garbage that
+fails every check.
+
+**Fix.**
+
+```typescript
+// Accept either encoding, as the SDK does:
+const key = /^[0-9a-f]{64}$/.test(publicKey)
+  ? Buffer.from(publicKey, "hex")
+  : base58.decode(publicKey);
+```
+
+Also confirm you handle **all three DID forms**: 8-hex short, 10-hex collision fallback, and
+64-hex full. Hard-coding only the 4-byte formula rejects legitimate identities.
+
+<Note>
+If *every* identity suddenly fails, it is the encoding. If *one* fails, take it seriously —
+that is either a corrupt record or a forgery, and it should be reported rather than skipped.
+</Note>
+
+[Identity concepts →](/concepts/identity)
+
+---
+
+### `ID_BINDING_REQUIRED`
+
+**HTTP 401.** The identity supplied is not a `did:svrp` identity at all.
+
+**Fix.** Use a self-certifying `did:svrp:` identifier. Other DID methods are not accepted
+here because they cannot be verified offline, which is the entire point.
+
+---
+
+### `BAD_SIGNATURE`
+
+**HTTP 401.** The signature did not verify over the canonical bytes.
+
+**Cause.** Almost always canonicalisation drift rather than a broken key. The registry
+rebuilds the signed bytes from the fields you sent and checks against *those*. If your
+serialisation differs by one byte, verification fails while everything looks correct.
+
+Classic culprits:
+
+- Booleans serialised as `true`/`false` instead of Python's `True`/`False`.
+- Fields in your JSON library's order rather than the canonicaliser's.
+- List fields not sorted before joining.
+- A timestamp with an offset instead of `Z`, or with sub-second precision.
+
+**Fix.** Do not re-derive canonicalisation from prose. Use an audited implementation:
+
+| Implementation | Use it for |
+|---|---|
+| `operator-console/lib/crypto/canonical.ts` | Browser / TypeScript |
+| `code/portal-daemon/deploy/gce/svrp_crypto.py` | Python, the registry's own |
+| `ln-node bind` | Node daemon |
+
+This is exactly why the SDKs [refuse to reimplement the signing steps](/concepts/binding#signing-is-not-in-the-sdks-on-purpose).
+
+---
+
+## Session
+
+### `NO_SESSION`
+
+**HTTP 401.** No `Authorization: Bearer <token>` header.
+
+**Fix.** Log in first. The SDKs raise this *before* making the request, so you get it at
+the call site instead of after a round trip.
+
+```typescript
+ln.auth.useSession(token);        // or: await ln.auth.login({...})
+await ln.operator.nodes();
+```
+
+[Operator login guide →](/guides/operator-login)
+
+---
+
+### `SESSION_EXPIRED`
+
+**HTTP 401.** The session passed its one hour.
+
+**Fix.** Log in again. Sessions are deliberately short and deliberately not refreshable —
+a token that lives forever is a token worth stealing. Catch this and re-authenticate rather
+than trying to extend it.
+
+```typescript
+try {
+  await ln.operator.nodes();
+} catch (e) {
+  if (e.code === "SESSION_EXPIRED") {
+    await ln.auth.login({ deviceCredential, deviceSecretKey });
+    return ln.operator.nodes();
+  }
+  throw e;
+}
+```
+
+---
+
+### `BAD_CHALLENGE`
+
+**HTTP 401.** The login challenge is unknown, expired, or already used.
+
+**Cause.** Challenges live **300 seconds** and are consumed on first use. You cannot replay
+one, and you cannot hold one while a user goes to make coffee.
+
+**Fix.** Fetch a fresh challenge immediately before signing. Never cache one.
+
+---
+
+### `DC_ID_BINDING` · `DC_BAD_SIGNATURE` · `DC_EXPIRED`
+
+**HTTP 401.** The DeviceCredential itself failed, before your login signature was even
+considered.
+
+| Code | Meaning | Fix |
+|---|---|---|
+| `DC_ID_BINDING` | `operator_did` is not derived from `operator_root_public_key`. | The credential is malformed or forged. Re-issue it. |
+| `DC_BAD_SIGNATURE` | Not validly signed by the root key. | Re-issue with the correct root key. |
+| `DC_EXPIRED` | Outside its validity window. | Issue a new one. Note the registry allows ±5s clock skew and no more. |
+
+---
+
+## Binding
+
+### `NOT_FOUND` (on resolve)
+
+**HTTP 404.** The binding code is invalid, expired, or already used.
+
+<Note>
+**This is deliberately ambiguous.** All three causes return the identical response.
+
+If they were distinguishable, this endpoint would be an oracle for testing whether a code
+was ever real — so a wrong code and a stale code look the same on purpose. The worse error
+message is the price of the endpoint not being enumerable.
+</Note>
+
+**Fix.** Have the node generate a new binding session. Codes live 10 minutes maximum.
+
+---
+
+### `RATE_LIMITED`
+
+**HTTP 429.** Five failed resolve attempts on one code within 600 seconds.
+
+**Fix.** Wait for the window to pass, then use a fresh code. A successful resolve clears the
+counter. If you are hitting this legitimately, you are probably retrying a typo — have the
+user re-read the code rather than retrying it.
+
+---
+
+### `SESSION_EXISTS`
+
+**HTTP 409.** That `binding_session_id` was already used.
+
+**Fix.** Generate a fresh unique id per session. Do not reuse or derive it from something
+stable like a hostname.
+
+---
+
+### `TTL_TOO_LONG` · `ALREADY_EXPIRED`
+
+**HTTP 400.** The session window is invalid.
+
+| Code | Meaning |
+|---|---|
+| `TTL_TOO_LONG` | `expires_at − created_at` exceeds 600s, or is ≤ 0. |
+| `ALREADY_EXPIRED` | `expires_at` is already in the past. |
+
+**Fix.** Use RFC3339 UTC with a `Z` suffix and second precision, and keep the window inside
+ten minutes. A node cannot grant itself a longer window than the protocol permits.
+
+```typescript
+const created = new Date();
+const expires = new Date(created.getTime() + 600_000);
+const fmt = (d) => d.toISOString().slice(0, 19) + "Z";   // no milliseconds, no offset
+```
+
+Check your clock too — if the machine is skewed by more than a few seconds, timestamps that
+look correct locally are rejected remotely.
+
+---
+
+### `BAD_STATE`
+
+**HTTP 409.** The session is not in a state where that operation makes sense — usually it
+is already terminal.
+
+**Fix.** Read `state` first. Terminal states (`ACTIVE`, `EXPIRED`, `REJECTED_BY_OPERATOR`,
+`REJECTED_BY_NODE`, `CANCELLED`) are final; a session in one of them never moves again.
+Start a new session instead of trying to revive it.
+
+---
+
+### `ALREADY_ACTIVE`
+
+**HTTP 409.** The binding already succeeded.
+
+**Fix.** Nothing to do — this is success arriving twice. Treat it as idempotent rather than
+as a failure.
+
+---
+
+### `STALE_TS`
+
+**HTTP 401.** A node's poll timestamp is more than 300 seconds from registry time.
+
+**Fix.** Fix the node's clock. Use NTP. This is a clock problem masquerading as an auth
+problem, and no amount of retrying will fix it.
+
+---
+
+## SDK-only
+
+These come from the client, not the server.
+
+### `NOT_YET_WIRED`
+
+You called something with no data source behind it, or that is not built at all.
+
+```text
+NotYetWiredError [NOT_YET_WIRED]: GET /v1/operator/me/credits is not_yet_wired:
+  the endpoint is live but no credits ledger is connected, so the returned 0 is a
+  placeholder rather than a balance.
+```
+
+**This is not a bug.** The alternative — returning a plausible-looking zero — would let an
+unwired balance be rendered to a user as an earning.
+
+**Fix.** Check `error.level`:
+
+| `level` | Meaning | What to do |
+|---|---|---|
+| `not_yet_wired` | Endpoint live, no data source. | Use the `*Raw()` reader and display the caveat with the value. |
+| `testing` | Code exists and passes tests, not deployed. | Wait. Watch [status](/status). |
+| `planned` | Not built. | Do not design around it yet. |
+
+[Capability status →](/status)
+
+---
+
+### `TRANSPORT_ERROR`
+
+The network call itself failed — DNS, TLS, timeout, offline.
+
+**Fix.** The SDKs already retry transient failures (429, 5xx, network errors) with
+exponential backoff and jitter, and deliberately **do not** retry 4xx — replaying a rejected
+signature just gets it rejected again, more expensively.
+
+If you see this after retries, the problem is connectivity or the registry is down. Check:
+
+```bash
+curl -s https://registry.libertynet.ai/health
+```
+
+---
+
+### `MISSING_DEPENDENCY` (Python)
+
+Signing needs `cryptography`, which the core SDK deliberately does not require.
+
+```bash
+pip install 'libertynet[signing]'
+```
+
+Discovery and identity verification need nothing at all — checking who is on a public
+network should not require installing anything.
+
+---
+
+## Nothing here matches?
+
+<Card title="Ask" icon="discord" href="/community" horizontal>
+  If you hit an error code that is not documented on this page, that is a documentation bug
+  and we want to hear about it. Bring the `code` and what you were calling.
+</Card>

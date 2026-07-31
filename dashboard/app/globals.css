@@ -1,0 +1,212 @@
+/* Living Language — dashboard.
+   Same law as the docs skin: pure black ground, life cyan as the only brand hue,
+   colour IS state, 95% silence. Contrast figures are recorded in
+   dev-portal/docs-site/style.css and hold here unchanged. */
+
+:root {
+  --bg: #000000;
+  --surface: #07090a;
+  --surface-2: #0d1112;
+  --border: #1a2220;
+  --text: #e6efec;        /* 17.3:1 on black — AAA */
+  --muted: #8fa5a0;       /*  8.8:1 on black — AAA */
+  --cyan: #00e5c7;        /* 13.0:1 on black — AAA */
+
+  /* Colour is state, never decoration. */
+  --live: #00e5c7;        /* online / implemented / verified */
+  --partial: #ffc98a;     /* not_yet_wired / stale / testing */
+  --idle: #8fa5a0;        /* offline / planned / unknown */
+  --fault: #ff8a8a;       /* rejected / error */
+
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "PingFang SC", "Noto Sans SC", sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-ligatures: none;
+}
+
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------ shell -- */
+
+.shell { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0 22px;
+  flex-wrap: wrap;
+}
+.masthead h1 { font-size: 17px; font-weight: 300; margin: 0; letter-spacing: -0.01em; }
+.masthead h1 b { font-weight: 500; color: var(--cyan); }
+
+nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+nav a {
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  border: 1px solid transparent;
+}
+nav a:hover { color: var(--text); text-decoration: none; }
+nav a[aria-current="page"] { color: var(--cyan); border-color: var(--border); }
+
+h2 { font-size: 22px; font-weight: 200; letter-spacing: -0.015em; margin: 0 0 6px; }
+.lead { color: var(--muted); margin: 0 0 24px; max-width: 68ch; }
+
+/* ------------------------------------------------------------------ cards -- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.card h3 { margin: 0 0 10px; font-size: 14px; font-weight: 500; }
+
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.stat .n { font-size: 30px; font-weight: 200; line-height: 1.1; }
+.stat .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 6px; }
+.stat .note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+.stat.is-live .n { color: var(--cyan); }
+.stat.is-fault .n { color: var(--fault); }
+
+/* ------------------------------------------------------------------ state -- */
+/* Every pill pairs its colour with a word. Colour alone is never the message. */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.live { color: var(--live); }
+.pill.partial { color: var(--partial); }
+.pill.idle { color: var(--idle); }
+.pill.fault { color: var(--fault); }
+
+/* --------------------------------------------------------------- notices -- */
+
+.notice {
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--partial);
+  border-radius: var(--radius);
+  background: rgba(255, 201, 138, 0.05);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+.notice strong { color: var(--partial); }
+.notice.fault { border-left-color: var(--fault); background: rgba(255, 138, 138, 0.06); }
+.notice.fault strong { color: var(--fault); }
+
+/* ---------------------------------------------------------------- tables -- */
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td { padding: 11px 12px 11px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.mono { font-size: 12.5px; color: var(--muted); }
+
+/* ----------------------------------------------------------------- forms -- */
+
+label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+
+input, textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+textarea { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; min-height: 130px; resize: vertical; }
+input:focus, textarea:focus { outline: none; border-color: var(--cyan); }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn:hover:not(:disabled) { border-color: var(--cyan); }
+.btn.primary { background: var(--cyan); border-color: var(--cyan); color: #001512; }
+.btn.primary:hover:not(:disabled) { background: #5bffe4; border-color: #5bffe4; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+/* ---------------------------------------------------------------- motion -- */
+/* 95% silence: a healthy dashboard does not move. The only animation is the
+   mark's breath, at a period long enough to read as still. */
+
+.mark { width: 26px; height: 26px; flex: none; animation: breathe 43s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { opacity: 0.86; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell { padding: 16px 14px 60px; }
+  nav { margin-left: 0; width: 100%; }
+  .stat .n { font-size: 26px; }
+}

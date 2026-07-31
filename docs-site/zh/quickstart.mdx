@@ -1,0 +1,167 @@
+---
+title: "快速开始"
+description: "从零到对着真实网络完成一次经过密码学验证的调用。不用注册，不用 API Key，不用装任何依赖。"
+---
+
+import { Status } from '/snippets/status.mdx';
+
+四步。第一步只需要 `curl`；后面几步只需要 Node.js **或** Python，**不用安装任何包**。
+本页每段代码在发布前都对着真实网络跑过，展示的输出就是真实输出。
+
+<Info>
+**这里没有注册这一步。** LibertyNet 的发现是公开的。你不是在等一个 Key——根本就没有 Key。
+如果哪个页面要你申请 Key 才能读取网络，那个页面是错的。
+</Info>
+
+## 1. 确认网络还在
+
+<CodeGroup>
+
+```bash curl
+curl -s https://registry.libertynet.ai/health
+```
+
+```python Python
+import json, urllib.request
+with urllib.request.urlopen("https://registry.libertynet.ai/health") as r:
+    print(json.load(r))
+```
+
+</CodeGroup>
+
+```json 返回
+{ "status": "ok", "service": "libertynet-registry-standalone", "count": 27 }
+```
+
+`count` 是注册表当前知道的节点数量。拿到这个，说明你已经在和真实网络对话了。
+<Status level="implemented" />
+
+## 2. 看看网络上都有谁
+
+```bash
+curl -s https://registry.libertynet.ai/nodes | head -c 400
+```
+
+```json 返回（一个节点）
+{
+  "did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "public_key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+  "endpoint": "172.20.10.5:55785",
+  "capabilities": ["inference", "health:ready"],
+  "region": "asia-southeast",
+  "status": "active",
+  "last_seen": "2026-07-31T16:33:08Z"
+}
+```
+
+<Warning>
+**`status: "active"` 不等于在线。**
+
+一个上周就拔了电的节点，这个字段永远还是 `"active"`，没有任何机制会把它改回去。唯一会
+"过期"的字段是 `last_seen`——新鲜度得你自己算，第 3 步会正确地做这件事。
+
+**这是新手在这个网络上最常犯的第一个错误。**
+</Warning>
+
+## 3. 自己验证一个身份
+
+这一步是 LibertyNet 与众不同的地方，值得花两分钟。
+
+LibertyNet 的 DID 是**自证的**：标识符由公钥推导而来。给你一个公钥和一个声称的身份，
+你只用一个 SHA-256 就能确认这对关系——不查目录，不问证书机构，也不必相信刚收到的这个响应。
+
+存成 `verify.py` 跑一下。**不用装任何包。**
+
+```python verify.py
+import hashlib, json, re, urllib.request
+
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode(s):
+    n = 0
+    for c in s:
+        i = B58.find(c)
+        if i < 0:
+            return None
+        n = n * 58 + i
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+    # base58 会丢掉前导零字节，每个前导 '1' 补回一个
+    return b"\0" * (len(s) - len(s.lstrip("1"))) + raw
+
+# 注册表在 /nodes 用 hex 发公钥，在 /peers 用 base58。是同一个密钥。
+def key_bytes(pk):
+    if re.fullmatch(r"[0-9a-f]{64}", pk):
+        return bytes.fromhex(pk)
+    return b58decode(pk)
+
+def verify_id_binding(did: str, public_key: str) -> bool:
+    """这个 DID 真的是由这个公钥推导出来的吗？"""
+    key = key_bytes(public_key)
+    if not key or len(key) != 32:
+        return False
+
+    digest = hashlib.sha256(key).hexdigest()
+    body = re.sub(r"^did:svrp:(?:[a-z]:)?", "", did)
+
+    if len(body) == 64:
+        return body == key.hex()        # 全 hex 形式
+    if len(body) == 8:
+        return body == digest[:8]       # 短形式
+    if len(body) == 10:
+        return body == digest[:10]      # 碰撞回退形式
+    return False
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes", timeout=10) as r:
+    nodes = json.load(r)["nodes"]
+
+verified = sum(verify_id_binding(n["did"], n["public_key"]) for n in nodes)
+print(f"{verified}/{len(nodes)} 个身份通过验证")
+```
+
+```text 真实运行结果，2026-07-31
+27/27 个身份通过验证
+```
+
+你刚刚在没有向任何人申请许可的情况下，用密码学核对了这个网络上的每一个身份。
+**这就是全部的意义所在。**
+
+<Note>
+**为什么有两种 DID 编码？** 同一个密钥会以短形式 `did:svrp:n:<8位hex>`（公钥 SHA-256 的截断）
+和全形式 `did:svrp:<64位hex>`（公钥本身）两种样子出现。绑定里存短的，运行中的守护进程报全的。
+**它们是同一个节点。** 在这里做字符串比较会骗你——详见
+[身份](/zh/concepts/identity)。
+</Note>
+
+## 4. 或者用 SDK 一行搞定
+
+上面这些就是 SDK 替你做的事，而且验证不可关闭。
+
+```python
+from libertynet import LibertyNet
+
+ln = LibertyNet()                  # 验证默认开启，且无法关闭
+nodes = ln.discovery.online()      # 只返回验证通过且新鲜的节点
+
+for n in nodes:
+    print(n.did, n.region, ",".join(n.capabilities))
+```
+
+`online()` 会拒绝任何身份验证不通过的记录，并丢弃太久没有心跳的节点。**没有开关可以关掉
+这个检查**——一个会信任未经验证身份的客户端，我们不愿意发布。
+
+## 接下来
+
+<Columns cols={2}>
+  <Card title="核心概念" icon="book-open" href="/zh/concepts/overview">
+    身份、发现、绑定、Credits。
+  </Card>
+  <Card title="能力状态" icon="list-check" href="/zh/status">
+    哪些是真的，此时此刻。
+  </Card>
+  <Card title="身份原理" icon="fingerprint" href="/zh/concepts/identity">
+    为什么自证身份能去掉证书机构。
+  </Card>
+  <Card title="出错时" icon="triangle-exclamation" href="/zh/reference/errors">
+    每个错误码的成因和解决办法。
+  </Card>
+</Columns>
