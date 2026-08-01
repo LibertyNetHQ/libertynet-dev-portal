@@ -114,6 +114,27 @@ const QUOTED_AS_BROKEN = [
 
 // ---------------------------------------------------------------------------
 
+/**
+ * URL-shaped *identifiers* that are not web pages.
+ *
+ * Both of these come from /download, and neither is something a reader clicks:
+ *
+ *   · An OIDC issuer is a name. The only thing anyone does with it is compare it
+ *     character-for-character against a signing certificate. GitHub's issuer
+ *     answers 404 to a browser, which is correct.
+ *   · A certificate's signer identity (SAN) is likewise a name that happens to
+ *     be URL-shaped — `…/.github/workflows/sign-release.yml@refs/…` addresses a
+ *     workflow *run identity*, not a page, and GitHub serves nothing at it.
+ *
+ * Getting these wrong is worse than noise: the fix a reader would infer is to
+ * "correct" the value, and the value is exactly what has to be pinned verbatim
+ * for the signature check to mean anything.
+ */
+const IDENTIFIERS = [
+  /^https:\/\/token\.actions\.githubusercontent\.com\/?$/,
+  /^https:\/\/github\.com\/[^/]+\/[^/]+\/\.github\/workflows\/[^/]+\.yml@/,
+];
+
 async function walk(dir, out = []) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     if (e.isDirectory()) {
@@ -133,7 +154,19 @@ for (const file of files) {
   const text = await readFile(file, "utf8").catch(() => "");
   const rel = path.relative(ROOT, file);
 
+  // The character class excludes `\` on purpose, so a URL-shaped *regular
+  // expression* is never mistaken for a link. `/reference/verifying-downloads`
+  // documents a cosign `--certificate-identity-regexp` beginning
+  // `https://github\.com/…`; backslashes cannot appear in a URL, so fetching it
+  // could only ever fail, and reporting that as a dead link would train people
+  // to ignore this check.
+  //
+  // Stopping at the backslash is not enough on its own: it leaves the scheme
+  // and bare host in front of it looking like a perfectly good link, which then
+  // fails to resolve. A match butting up against a backslash is a fragment of a
+  // regex, not a URL somebody can click — skip the whole thing.
   for (const m of text.matchAll(/https?:\/\/[^\s"'`)<>\]\\]+/g)) {
+    if (text[m.index + m[0].length] === "\\") continue;
     // Trailing punctuation, and the closing brace of a template literal,
     // belong to the surrounding code rather than to the URL.
     const url = m[0].replace(/[.,;:}]+$/, "");
@@ -195,6 +228,7 @@ if (!OFFLINE) {
   const skip = (u) =>
     isApi(u) ||
     NOT_A_LINK.some((re) => re.test(u)) ||
+    IDENTIFIERS.some((re) => re.test(u)) ||
     QUOTED_AS_BROKEN.some((q) => q.pattern.test(u));
 
   const urls = [...links.keys()].filter((u) => !skip(u));
