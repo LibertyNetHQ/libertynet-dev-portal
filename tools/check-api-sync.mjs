@@ -30,8 +30,11 @@ const TIMEOUT = 20_000;
 
 const json = process.argv.includes("--json");
 
-async function probe(method, urlPath) {
-  const url = `${REGISTRY}${urlPath.replace(/\{[^}]+\}/g, "probe-nonexistent")}`;
+async function probe(method, urlPath, base = REGISTRY) {
+  // Each group declares its own base_url. Probing the demo node's paths against
+  // the registry reported three phantom "overclaim" findings — the endpoints are
+  // fine, they just live somewhere else.
+  const url = `${base}${urlPath.replace(/\{[^}]+\}/g, "probe-nonexistent")}`;
   try {
     const res = await fetch(url, {
       method,
@@ -69,6 +72,7 @@ function routeExists(result) {
 }
 
 const findings = [];
+const unverifiable = [];
 
 const status = JSON.parse(await readFile(path.join(ROOT, "api-spec/status.json"), "utf8"));
 
@@ -87,7 +91,7 @@ for (const group of status.groups) {
   for (const endpoint of group.endpoints) {
     if (endpoint.method === "CONTRACT") continue;
 
-    const result = await probe(endpoint.method, endpoint.path);
+    const result = await probe(endpoint.method, endpoint.path, group.base_url);
     const exists = routeExists(result);
 
     if (exists === null) {
@@ -120,6 +124,28 @@ for (const group of status.groups) {
         observed: `HTTP ${result.status}`,
         detail: "This shipped without the matrix being updated. Update status.json.",
       });
+    }
+
+    // (4) claimed live, but the response admits it has no data source. This is
+    // the overclaim that matters most: the endpoint answers 200 and looks
+    // healthy, so nothing else notices.
+    if (endpoint.status === "implemented" && result.body?.source === "not_yet_wired") {
+      findings.push({
+        severity: "overclaim",
+        endpoint: `${endpoint.method} ${endpoint.path}`,
+        claimed: "implemented",
+        observed: 'source: "not_yet_wired"',
+        detail:
+          "The endpoint returns 200 but says its own data source is not connected. " +
+          "Marking it implemented tells developers to trust numbers that are placeholders.",
+      });
+    }
+
+    // Endpoints behind auth hide their body from an unauthenticated probe, so
+    // rules (2) and (4) cannot see them. Say so rather than reporting a clean
+    // bill of health we did not actually earn.
+    if (result.status === 401 && (endpoint.status === "not_yet_wired" || endpoint.status === "implemented")) {
+      unverifiable.push(`${endpoint.method} ${endpoint.path}`);
     }
 
     // (2) claimed unwired, but the source is connected
@@ -195,7 +221,7 @@ if (!nodes.error && nodes.body?.nodes) {
 // ---------------------------------------------------------------------------
 
 if (json) {
-  console.log(JSON.stringify({ reachable: true, registry: REGISTRY, identitySummary, findings }, null, 2));
+  console.log(JSON.stringify({ reachable: true, registry: REGISTRY, identitySummary, unverifiable, findings }, null, 2));
 } else {
   console.log(`\nprobed ${REGISTRY}`);
   if (identitySummary) {
@@ -204,6 +230,14 @@ if (json) {
     );
   }
   console.log(`  registry reports ${health.body.count} nodes`);
+  if (unverifiable.length) {
+    // Not a finding — a limit on what this check can honestly claim to have checked.
+    console.log(
+      `\n  ${unverifiable.length} endpoint(s) sit behind auth, so their data source could not\n` +
+        `  be inspected without a session. Their status is taken on trust:`,
+    );
+    for (const e of unverifiable) console.log(`    ${e}`);
+  }
 
   if (findings.length === 0) {
     console.log("\n✓ docs and live API agree\n");

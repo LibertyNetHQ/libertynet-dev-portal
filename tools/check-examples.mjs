@@ -118,7 +118,19 @@ async function checkExampleShape() {
     // Every example must verify identity somewhere — a LibertyNet example that
     // trusts the registry's word teaches exactly the wrong reflex.
     const combined = (await Promise.all(files.map((f) => readFile(f, "utf8")))).join("\n");
-    if (!/verify_?[iI]d[_-]?[bB]inding/.test(combined)) {
+
+    // The rule is "no example trusts the registry's word about who a node is".
+    // There is more than one honest way to honour that: call the helper, do the
+    // arithmetic inline, or ask the MCP tool. Matching only one function name
+    // failed examples that verify perfectly well, which teaches people to
+    // silence the check rather than obey it.
+    const verifies = [
+      /verify_?[iI]d[_-]?[bB]inding/,           // the named helper
+      /verify_identity/,                         // via the MCP tool
+      /sha256\((?:key|raw|pk|public)/i,          // the arithmetic, inline
+    ].some((re) => re.test(combined));
+
+    if (!verifies) {
       fail("shape", `examples/${e.name}`, "never verifies an identity");
     }
   }

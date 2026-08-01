@@ -1,0 +1,27 @@
+name: A page is wrong or unclear
+description: Something in the docs is inaccurate, confusing, or does not match reality
+labels: [documentation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The fix is the page or the code — never the wording.** If a page describes a
+        capability as more finished than it is, we change the badge or the behaviour. We do
+        not soften the sentence.
+  - type: input
+    id: page
+    attributes:
+      label: Which page
+      placeholder: https://docs.libertynet.ai/quickstart
+    validations: { required: true }
+  - type: textarea
+    id: says
+    attributes:
+      label: What it says
+    validations: { required: true }
+  - type: textarea
+    id: reality
+    attributes:
+      label: What is actually true
+      description: Paste the command and its output if you have one — that settles it fastest.
+    validations: { required: true }

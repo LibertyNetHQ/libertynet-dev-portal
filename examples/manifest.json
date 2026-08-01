@@ -1,0 +1,169 @@
+{
+  "$comment": "Every example, how to run it, and what its output must contain. `node examples/run-all.mjs` executes each one for real and asserts on the output — the bar is 'it ran and did the right thing', not 'it parsed'. An example that stops working is a broken promise to whoever copies it.",
+  "examples": [
+    {
+      "dir": "verify-network",
+      "title": "Verify every identity on the network",
+      "teaches": "Self-certifying identity: check the whole network's claims with SHA-256 and nothing else.",
+      "runs": [
+        { "cmd": ["node", "verify.mjs"], "expect": ["^\\d+/\\d+ identities verified$"] },
+        { "cmd": ["python3", "verify.py"], "expect": ["^\\d+/\\d+ identities verified$"] }
+      ],
+      "network": true
+    },
+    {
+      "dir": "callable-nodes",
+      "title": "Who can you actually call?",
+      "teaches": "A directory of addresses is not a directory of reachable addresses.",
+      "runs": [
+        {
+          "cmd": ["node", "callable.mjs"],
+          "expect": ["registered\\s+\\d+", "publicly reachable\\s+\\d+", "CALLABLE\\s+\\d+"]
+        }
+      ],
+      "network": true
+    },
+    {
+      "dir": "full-loop",
+      "title": "discover → verify → act",
+      "teaches": "The whole loop, from any machine, with public URLs only.",
+      "runs": [
+        {
+          "cmd": ["python3", "full_loop.py"],
+          "expect": ["1 DISCOVER", "2 VERIFY", "3 ACT", "LOOP CLOSED"],
+          "python_deps": ["cryptography"]
+        }
+      ],
+      "network": true
+    },
+    {
+      "dir": "challenge-response",
+      "title": "Proof of possession, and why a replay is not one",
+      "teaches": "Identity ≠ authentication. A nonce you chose is what makes a signature mean something.",
+      "runs": [
+        {
+          "cmd": ["node", "challenge.mjs"],
+          "expect": [
+            "signature verifies: true",
+            "different nonce → verifies: false",
+            "Correctly rejected"
+          ]
+        }
+      ],
+      "network": true
+    },
+    {
+      "dir": "did-toolkit",
+      "title": "DID toolkit",
+      "teaches": "Every question about an identity is arithmetic you can do offline.",
+      "runs": [
+        {
+          "cmd": ["node", "did.mjs", "verify", "did:svrp:n:268d4fe0", "7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg"],
+          "expect": ["^VALID"],
+          "exit": 0
+        },
+        {
+          "cmd": ["node", "did.mjs", "verify", "did:svrp:n:268d4fe0", "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d"],
+          "expect": ["^INVALID", "expected 8545027b"],
+          "exit": 1,
+          "why": "A crossed DID/key pair MUST fail. If this ever passes, verification is broken."
+        },
+        {
+          "cmd": ["node", "did.mjs", "derive", "7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg"],
+          "expect": ["did:svrp:n:268d4fe0", "268d:4fe0:b6ef:c390"]
+        },
+        {
+          "cmd": ["node", "did.mjs", "explain", "did:svrp:n:268d4fe0"],
+          "expect": ["form\\s+short", "sha256"]
+        }
+      ],
+      "network": false
+    },
+    {
+      "dir": "health-check",
+      "title": "Network health check",
+      "teaches": "Operational integration: exit codes a monitoring agent can act on.",
+      "runs": [
+        { "cmd": ["node", "healthcheck.mjs"], "expect": ["^(HEALTHY|DEGRADED)"] },
+        { "cmd": ["node", "healthcheck.mjs", "--json"], "expect": ["\"status\":", "\"verified\":"] }
+      ],
+      "network": true
+    },
+    {
+      "dir": "registry-watch",
+      "title": "Watch the registry for change",
+      "teaches": "The registry has no history. Change detection is yours to build.",
+      "runs": [
+        { "cmd": ["node", "watch.mjs"], "expect": ["baseline recorded: \\d+ nodes"] },
+        { "cmd": ["node", "watch.mjs"], "expect": ["(no change|change\\(s\\))"] }
+      ],
+      "network": true,
+      "scratch": true
+    },
+    {
+      "dir": "identity-gate",
+      "title": "Reject forged identities at an HTTP boundary",
+      "teaches": "Where id-binding stops being enough, and what comes next.",
+      "server": {
+        "cmd": ["node", "server.mjs"],
+        "port": 8788,
+        "ready": "Identity gate on",
+        "probes": [
+          { "path": "/whoami", "expect_status": 401, "expect": ["no identity presented"] },
+          {
+            "path": "/whoami",
+            "headers": {
+              "x-ln-did": "did:svrp:n:deadbeef",
+              "x-ln-public-key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d"
+            },
+            "expect_status": 401,
+            "expect": ["id-binding failed"],
+            "why": "A forged identity MUST be refused."
+          },
+          {
+            "path": "/whoami",
+            "headers": {
+              "x-ln-did": "did:svrp:df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d",
+              "x-ln-public-key": "df9d4b9f390bc49b2210eca81ca3c54c4d63b37b739442a21e28f2ed5b8aa02d"
+            },
+            "expect_status": 200,
+            "expect": ["\"authenticated\": false"],
+            "why": "Genuine id-binding passes — and still reports authenticated:false, which is the lesson."
+          }
+        ]
+      },
+      "network": false
+    },
+    {
+      "dir": "capability-monitor",
+      "title": "Watch for a capability appearing or disappearing",
+      "teaches": "\"Can anyone do X right now?\" is more useful than \"how many nodes exist?\".",
+      "runs": [
+        { "cmd": ["node", "monitor.mjs", "demo", "--once"], "expect": ["demo: \\d+ available"], "exit": 0 },
+        {
+          "cmd": ["node", "monitor.mjs", "storage", "--once"],
+          "expect": ["storage: NONE AVAILABLE"],
+          "exit": 1,
+          "why": "Nobody advertises storage. Exiting non-zero is what makes this usable as a health check."
+        }
+      ],
+      "network": true
+    },
+    {
+      "dir": "mcp-client",
+      "title": "Drive the MCP server from code",
+      "teaches": "The AI layer is ordinary software you can script and test.",
+      "runs": [
+        {
+          "cmd": ["node", "mcp.mjs"],
+          "expect": [
+            "6 tools available",
+            "every endpoint \"planned\"",
+            "genuine=true  forged=false"
+          ]
+        }
+      ],
+      "network": true
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security issue
+    url: https://github.com/LibertyNetHQ/libertynet-dev-portal/security/advisories/new
+    about: >-
+      Do NOT open a public issue. Report privately. Never paste a private key,
+      seed phrase or session token — nobody here will ever ask for one.
+  - name: A node record failed id-binding
+    url: https://docs.libertynet.ai/community#reporting-a-problem
+    about: >-
+      A DID that does not derive from its key is corruption or forgery, not a
+      documentation problem. Report it immediately.

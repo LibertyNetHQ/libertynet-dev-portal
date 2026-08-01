@@ -1,0 +1,81 @@
+---
+title: "Showcase"
+description: "What has been built on LibertyNet. Currently: the reference implementations, honestly labelled as such."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+<Warning>
+**No third-party projects yet.** <Status level="planned" />
+
+This page exists and is empty of outside work, which is the honest state of a network whose
+external loop only closed recently. Every entry below is something the project built itself,
+and each one says so.
+
+A showcase padded with the maintainers' own demos, presented as though strangers had built
+them, is a lie that costs a reader real time — they come here to gauge whether anyone else
+has succeeded. **You would be first.**
+</Warning>
+
+## Reference implementations
+
+Built by the project. Listed because they are real, runnable and worth reading — not as
+evidence of adoption.
+
+<Columns cols={2}>
+  <Card title="Canonical demo node" icon="server" href="https://libertynet.ai/demo-node/health">
+    <Status level="implemented" /> A real node with a signed registration, publicly
+    reachable, signing caller-supplied nonces. The first node whose registration the
+    registry verified rather than accepted in grace mode.
+  </Card>
+  <Card title="Ten examples" icon="code" href="/examples">
+    <Status level="implemented" /> All CI-executed against the live network. Includes
+    assertions that things correctly *fail* — forged identities, replayed signatures.
+  </Card>
+  <Card title="MCP server" icon="plug" href="/ai/mcp">
+    <Status level="implemented" /> Six tools, zero dependencies. Lets any assistant check
+    what exists before writing code against it.
+  </Card>
+  <Card title="Developer dashboard" icon="chart-line" href="/dashboard">
+    <Status level="implemented" /> Every identity verified in the browser. Not deployed.
+  </Card>
+</Columns>
+
+## Get listed
+
+If you build something — however small, however rough — it belongs here.
+
+<Steps>
+  <Step title="Open an issue">
+    On [libertynet-dev-portal](https://github.com/LibertyNetHQ/libertynet-dev-portal/issues/new?labels=showcase&title=Showcase%3A+),
+    labelled `showcase`.
+  </Step>
+  <Step title="Tell us four things">
+    What it does in one sentence · which parts of LibertyNet it uses · a link if it is
+    public · **what was harder than it should have been**.
+  </Step>
+  <Step title="That last one is the point">
+    Friction you hit is friction everyone hits, and it usually means a documentation page is
+    unclear rather than that you did something wrong. It is the most valuable thing you can
+    send us.
+  </Step>
+</Steps>
+
+<Note>
+**Work in progress is welcome.** A half-finished agent that revealed a confusing error
+message is more useful to this project than a polished one that went smoothly.
+</Note>
+
+## What will not appear here
+
+- Projects that do not exist, described in the future tense.
+- The maintainers' own work presented as community adoption.
+- Anything implying LibertyNet has capabilities it does not —
+  [see the matrix](/status).
+
+When a real third-party project lands, this warning is replaced by that project, in the same
+commit.
+
+<Card title="Build something first" icon="rocket" href="/quickstart" horizontal>
+  **Quickstart** — first verified call in about fifteen seconds.
+</Card>

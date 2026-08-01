@@ -1,0 +1,105 @@
+name: AI answer report
+
+# E2 — a wrong AI answer becomes a documentation task.
+#
+# When someone reports that an assistant said something false about LibertyNet,
+# the usual cause is not the model. It is that some page permits that reading, and
+# fixing the page fixes every future answer at once — which is a far better return
+# than correcting one conversation.
+#
+# So a report labelled `ai-answer` triggers this: run the golden-question eval,
+# search the corpus for what the assistant would have found, and post the evidence
+# on the issue. A human then writes the fix.
+#
+# It does NOT edit prose automatically. An automation that rewrites the pages its
+# own honesty claims rest on is not a safeguard, it is a laundering step.
+
+on:
+  issues:
+    types: [opened, labeled]
+  workflow_dispatch:
+    inputs:
+      question:
+        description: The question the assistant got wrong
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  investigate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.issue.labels.*.name, 'ai-answer')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run the golden-question eval
+        id: eval
+        run: |
+          set +e
+          node tools/check-ai-answers.mjs > /tmp/eval.txt 2>&1
+          echo "failed=$?" >> "$GITHUB_OUTPUT"
+          cat /tmp/eval.txt
+
+      - name: Find what the assistant would have read
+        id: corpus
+        env:
+          QUESTION: ${{ github.event.inputs.question || github.event.issue.title }}
+        run: |
+          node - <<'JS' > /tmp/corpus.md
+          const { searchDocs, capabilityStatus } = await import("./mcp-server/src/tools.mjs");
+          const q = (process.env.QUESTION || "").replace(/^\[?ai[- ]answer\]?:?\s*/i, "");
+
+          console.log(`### What the tools return for: _${q}_\n`);
+
+          const hits = await searchDocs({ query: q, limit: 5 });
+          if (hits.length === 0) {
+            console.log("**Nothing matched.** That is the finding: a question with no hits is one");
+            console.log("an assistant answers from memory, which is where confident wrongness lives.\n");
+          } else {
+            console.log("| Page | Score |");
+            console.log("|---|---|");
+            for (const h of hits) console.log(`| [${h.slug}](https://docs.libertynet.ai/${h.slug}) | ${Math.round(h.score)} |`);
+            console.log("");
+            console.log(`Top hit excerpt:\n\n> ${hits[0].excerpt.replace(/\n/g, " ").slice(0, 400)}\n`);
+          }
+          JS
+          cat /tmp/corpus.md
+
+      - name: Comment on the issue
+        if: github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## Automated triage"
+            echo
+            cat /tmp/corpus.md
+            echo
+            echo "### Golden-question eval"
+            echo
+            if [ "${{ steps.eval.outputs.failed }}" = "0" ]; then
+              echo "Passing — the corpus already answers the questions it is asked to."
+              echo "If the assistant still got this wrong, the gap is a question the eval does"
+              echo "not yet ask. **Adding it to \`tools/check-ai-answers.mjs\` is the fix**, so"
+              echo "the same wrong answer cannot come back unnoticed."
+            else
+              echo "**Failing.** The corpus does not currently support an honest answer here:"
+              echo
+              echo '```'
+              tail -30 /tmp/eval.txt
+              echo '```'
+            fi
+            echo
+            echo "---"
+            echo "The fix is the page, not the wording. If a page describes a capability as more"
+            echo "finished than it is, we change the badge or the behaviour."
+          } > /tmp/comment.md
+
+          gh issue comment "${{ github.event.issue.number }}" --body-file /tmp/comment.md

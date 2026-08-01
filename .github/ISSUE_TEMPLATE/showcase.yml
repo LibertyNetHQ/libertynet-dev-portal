@@ -1,0 +1,37 @@
+name: Showcase a project
+description: You built something on LibertyNet
+labels: [showcase]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Work in progress is welcome. A half-finished agent that revealed a confusing error
+        is more useful to us than a polished one that went smoothly.
+  - type: input
+    id: what
+    attributes:
+      label: What it does, in one sentence
+    validations: { required: true }
+  - type: input
+    id: link
+    attributes:
+      label: Link (optional — private projects are fine)
+  - type: checkboxes
+    id: uses
+    attributes:
+      label: Which parts it uses
+      options:
+        - label: Discovery
+        - label: Identity verification
+        - label: Operator login
+        - label: Node binding
+        - label: The SDKs
+        - label: The CLI scaffolder
+        - label: The MCP server
+  - type: textarea
+    id: friction
+    attributes:
+      label: What was harder than it should have been
+      description: >-
+        The most valuable field on this form. Friction you hit is friction everyone hits.
+    validations: { required: true }

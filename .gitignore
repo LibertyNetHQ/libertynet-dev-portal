@@ -7,3 +7,5 @@ __pycache__/
 *.egg-info/
 site/dist/
 .DS_Store
+.registry-watch/
+p6-session.jsonl

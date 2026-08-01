@@ -21,6 +21,14 @@ const live = process.argv.includes("--live");
 
 const SUITES = [
   {
+    // Runs first: if the generated artifacts are stale, every downstream check is
+    // testing yesterday's matrix.
+    name: "status sync",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/sync-status.mjs", "--check"],
+  },
+  {
     name: "docs honesty",
     cwd: ROOT,
     cmd: "node",
@@ -31,6 +39,14 @@ const SUITES = [
     cwd: ROOT,
     cmd: "node",
     args: ["tools/check-examples.mjs"],
+  },
+  {
+    // Offline examples only in the required job: the networked ones are exercised
+    // by the `live` CI job, which is allowed to go red because a server blipped.
+    name: "examples (offline)",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["examples/run-all.mjs", "--offline"],
   },
   {
     name: "site renderer",
@@ -85,6 +101,12 @@ const SUITES = [
 ];
 
 const LIVE_SUITES = [
+  {
+    name: "examples (live)",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["examples/run-all.mjs"],
+  },
   {
     name: "sdk/typescript (live)",
     cwd: path.join(ROOT, "sdk/typescript"),

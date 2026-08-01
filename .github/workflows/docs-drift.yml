@@ -121,8 +121,41 @@ jobs:
             echo "so every page, badge and SDK agrees again."
           } > "reports/drift-$(date -u +%Y-%m-%d).md"
 
-          git add reports/
-          git commit -m "docs: live API drift detected $(date -u +%Y-%m-%d)"
+          # Propose the concrete change, not just a description of it. For an
+          # `underclaim` the correct edit is unambiguous — the endpoint is more
+          # live than we said — so apply it and regenerate. `overclaim` is left
+          # alone on purpose: the right fix might be restoring the endpoint
+          # rather than downgrading the claim, and a machine cannot know which.
+          python3 - <<'PY'
+          import json, pathlib
+          drift = json.load(open("/tmp/drift.json"))
+          under = [f for f in drift.get("findings", []) if f["severity"] == "underclaim"]
+          if under:
+              p = pathlib.Path("api-spec/status.json")
+              d = json.loads(p.read_text())
+              changed = []
+              for f in under:
+                  method, path = f["endpoint"].split(" ", 1)
+                  for g in d["groups"]:
+                      for e in g["endpoints"]:
+                          if e["method"] == method and e["path"] == path:
+                              changed.append(f'{e["status"]} -> implemented  {f["endpoint"]}')
+                              e["status"] = "implemented"
+              if changed:
+                  d["verified_at"] = "$(date -u +%Y-%m-%d)"
+                  p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+                  print("applied:", *changed, sep="\n  ")
+          PY
+
+          node tools/sync-status.mjs || true
+
+          git add -A
+          git commit -m "docs: live API drift detected $(date -u +%Y-%m-%d)
+
+          Underclaims (endpoints more live than the matrix said) have been applied
+          and the derived artifacts regenerated. Overclaims are left untouched:
+          the right fix might be restoring the endpoint rather than downgrading
+          the claim, and that is a judgement call."
           git push -u origin "$BRANCH"
 
           gh pr create \

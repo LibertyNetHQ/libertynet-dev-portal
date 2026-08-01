@@ -124,6 +124,7 @@
             "group": "Build with us",
             "pages": [
               "examples",
+              "showcase",
               "dashboard",
               "community",
               "contributing"
