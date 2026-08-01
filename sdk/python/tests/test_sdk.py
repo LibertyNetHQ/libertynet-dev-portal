@@ -395,3 +395,52 @@ class TestLive:
         ln = LibertyNet()
         with pytest.raises(AuthError):
             ln.operator.credits_raw()
+
+
+# ------------------------------------------------------- reachability (B2) --
+
+
+class TestReachability:
+    """Nodes you cannot reach must not be handed to you as if you could.
+
+    Before this, `online()` returned RFC1918 addresses and `node://laptop`
+    labels. Callers dutifully tried them, got timeouts, and reasonably concluded
+    the SDK was broken rather than that the node was not for them.
+    """
+
+    def _client(self, nodes):
+        return client({"/nodes": (200, {"count": len(nodes), "total": len(nodes), "nodes": nodes})})
+
+    def test_excludes_private_endpoints_by_default(self):
+        ln = self._client([good_node(reachability="private")])
+        assert ln.discovery.online() == []
+
+    def test_excludes_unroutable_endpoints_by_default(self):
+        ln = self._client([good_node(endpoint="node://someones-laptop", reachability="unroutable")])
+        assert ln.discovery.online() == []
+
+    def test_includes_public_endpoints(self):
+        ln = self._client([good_node(reachability="public")])
+        assert len(ln.discovery.online()) == 1
+
+    def test_include_unreachable_opts_back_in(self):
+        ln = self._client([good_node(reachability="private")])
+        assert len(ln.discovery.online(include_unreachable=True)) == 1
+
+    def test_absent_reachability_is_unknown_not_excluded(self):
+        # An older registry does not report the field. Hiding the entire network
+        # from anyone pointed at one would be a worse failure than showing an
+        # address that might not answer.
+        node = good_node()
+        node.pop("reachability", None)
+        ln = self._client([node])
+        assert len(ln.discovery.online()) == 1
+
+    def test_callable_requires_a_signature(self):
+        ln = self._client([good_node(reachability="public", signature_present=False, signature=None)])
+        assert len(ln.discovery.online()) == 1
+        assert ln.discovery.callable_nodes() == []
+
+    def test_callable_returns_signed_public_nodes(self):
+        ln = self._client([good_node(reachability="public", signature_present=True, signature="sig")])
+        assert len(ln.discovery.callable_nodes()) == 1

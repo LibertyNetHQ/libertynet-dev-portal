@@ -100,6 +100,19 @@ paths:
       tags: [Discovery]
       security: []
       x-ln-status: implemented
+      parameters:
+        - name: callable
+          in: query
+          required: false
+          schema: { type: string, enum: ['1', 'true'] }
+          description: |
+            Return only nodes that are **publicly reachable and carry a registration
+            signature** — the honest answer to "who can I actually call".
+
+            Most records are neither: of 28 nodes today, 4 advertise RFC1918 addresses and
+            13 advertise `node://someones-laptop` labels. Those are real to their operator
+            and unreachable from anywhere else. Filtering is opt-in so existing consumers
+            keep seeing the complete feed.
       responses:
         '200':
           description: The node table.
@@ -784,6 +797,22 @@ components:
         last_seen: { $ref: '#/components/schemas/Rfc3339Utc' }
         first_seen: { $ref: '#/components/schemas/Rfc3339Utc' }
         signature: { type: [string, 'null'] }
+        reachability:
+          type: string
+          enum: [public, private, unroutable]
+          description: |
+            Computed by the registry at read time, never stored.
+
+            `public` — routable address or hostname; you can try to reach it.
+            `private` — RFC1918 or loopback; real to its operator, useless to you.
+            `unroutable` — a `node://hostname` label with no dialable address.
+
+            Absent on older registry versions. Treat absence as unknown, not as
+            unreachable — hiding the whole network from anyone pointed at an older
+            registry is a worse failure than showing an address that might not answer.
+        signature_present:
+          type: boolean
+          description: Whether the record carries a registration signature at all.
 
     BoundNode:
       type: object

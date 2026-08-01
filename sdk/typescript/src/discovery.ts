@@ -21,6 +21,18 @@ export interface OnlineOptions {
   capabilities?: string[];
   /** Only nodes in this region. */
   region?: string;
+  /**
+   * Include nodes you cannot actually reach. Default `false`.
+   *
+   * Most nodes on the network advertise an RFC1918 address or a
+   * `node://someones-laptop` label — real to their operator, unreachable from
+   * anywhere else. Returning those by default sent people to endpoints that
+   * could never answer, which reads as "the SDK is broken" rather than "that
+   * node is not for you".
+   *
+   * Set `true` if you are on the same network as those nodes, or auditing.
+   */
+  includeUnreachable?: boolean;
 }
 
 export interface AuditResult {
@@ -63,8 +75,28 @@ export class Discovery {
     return (await this.all()).filter((n) => {
       if (n.staleness_ms === null || n.staleness_ms > freshness) return false;
       if (opts.region && n.region !== opts.region) return false;
+
+      // Older registries do not report reachability. Treat an absent value as
+      // "unknown, include it" rather than silently hiding the whole network from
+      // anyone pointed at a registry that has not been updated.
+      if (!opts.includeUnreachable && n.reachability && n.reachability !== "public") {
+        return false;
+      }
       return wanted.every((c) => n.capabilities.includes(c));
     });
+  }
+
+  /**
+   * Nodes you can actually call: verified, fresh, publicly reachable, and
+   * carrying a registration signature.
+   *
+   * This is the honest answer to "who can I send work to right now", and it is
+   * usually a much smaller number than `all()`. If it returns nothing, that is
+   * a true statement about the network rather than a failure on your side.
+   */
+  async callable(opts: OnlineOptions = {}): Promise<VerifiedNode[]> {
+    const nodes = await this.online({ ...opts, includeUnreachable: false });
+    return nodes.filter((n) => n.signature_present !== false && Boolean(n.signature ?? n.signature_present));
   }
 
   /** Verified, fresh nodes advertising a capability. */

@@ -2,8 +2,8 @@
   "$comment": "Machine-readable capability matrix for the LibertyNet developer portal. SINGLE SOURCE OF TRUTH for every 'Implemented / Testing / Planned' badge rendered in the docs, the SDKs and the dashboard. Never hand-edit a badge in an .mdx file — edit this file and re-run `node dev-portal/tools/check-docs-drift.mjs`.",
   "spec": "LIBERTYNET-DEV-PORTAL-AIPM-001 §9",
   "generated_by": "human-authored, endpoint-probed",
-  "verified_at": "2026-07-31",
-  "verified_against": "https://registry.libertynet.ai (live probe, see dev-portal/TEST-EVIDENCE.md §A)",
+  "verified_at": "2026-08-01",
+  "verified_against": "https://registry.libertynet.ai (live probe) + https://libertynet.ai/demo-node (end-to-end loop), see TEST-EVIDENCE.md",
   "levels": {
     "implemented": "Live on a public endpoint today. Anyone can call it right now and get a real answer.",
     "testing": "Code exists and its own test suite passes, but it is NOT reachable on a public endpoint yet.",
@@ -17,12 +17,48 @@
       "base_url": "https://registry.libertynet.ai",
       "auth": "none",
       "endpoints": [
-        { "method": "GET", "path": "/health", "status": "implemented", "note": "Registry liveness + registered node count." },
-        { "method": "GET", "path": "/nodes", "status": "implemented", "note": "Full node table as JSON." },
-        { "method": "GET", "path": "/peers", "status": "implemented", "note": "Plain-text peer list (did pubkey endpoint per line), for shell tooling." },
-        { "method": "GET", "path": "/api/v1/peers", "status": "implemented", "note": "JSON envelope form of /peers." },
-        { "method": "POST", "path": "/api/v1/register", "status": "implemented", "note": "A node announces itself. Signature verification is enforced in grace mode." },
-        { "method": "POST", "path": "/api/v1/heartbeat", "status": "implemented", "note": "A node refreshes last_seen. Drives the `online` flag." }
+        {
+          "method": "GET",
+          "path": "/health",
+          "status": "implemented",
+          "note": "Registry liveness + registered node count."
+        },
+        {
+          "method": "GET",
+          "path": "/nodes",
+          "status": "implemented",
+          "note": "Full node table as JSON. Each record carries computed `reachability` (public|private|unroutable) and `signature_present`. Use `?callable=1` for only publicly-reachable, signed nodes — today that is 1 of 28."
+        },
+        {
+          "method": "GET",
+          "path": "/peers",
+          "status": "implemented",
+          "note": "Plain-text peer list (did pubkey endpoint per line), for shell tooling."
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/peers",
+          "status": "implemented",
+          "note": "JSON envelope form of /peers."
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/register",
+          "status": "implemented",
+          "note": "A node announces itself. Signature verification is enforced in grace mode."
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/heartbeat",
+          "status": "implemented",
+          "note": "A node refreshes last_seen. Drives the `online` flag."
+        },
+        {
+          "method": "GET",
+          "path": "/nodes?callable=1",
+          "status": "implemented",
+          "note": "Only nodes that are publicly reachable AND carry a registration signature. The honest answer to \"who can I actually call\"."
+        }
       ]
     },
     {
@@ -31,14 +67,54 @@
       "base_url": "https://registry.libertynet.ai",
       "auth": "ed25519 signatures; no API key",
       "endpoints": [
-        { "method": "POST", "path": "/v1/bindings/initiate", "status": "implemented", "note": "Node opens a binding session. Returns short_code + binding_token exactly once." },
-        { "method": "POST", "path": "/v1/bindings/resolve", "status": "implemented", "note": "Console redeems the code/token and reads what the node is asking for." },
-        { "method": "POST", "path": "/v1/bindings/authorize", "status": "implemented", "note": "Operator's device key signs an AuthorizationCredential." },
-        { "method": "GET", "path": "/v1/bindings/{binding_session_id}/status", "status": "implemented", "note": "Poll the session state machine." },
-        { "method": "POST", "path": "/v1/bindings/{binding_session_id}/cancel", "status": "implemented", "note": "Abort a non-terminal session." },
-        { "method": "POST", "path": "/v1/node/bindings/pending", "status": "implemented", "note": "Node polls for authorizations awaiting its acceptance. Signed poll." },
-        { "method": "POST", "path": "/v1/node/bindings/{binding_session_id}/accept", "status": "implemented", "note": "Node accepts; registry re-verifies all four signatures before ACTIVE." },
-        { "method": "POST", "path": "/v1/node/bindings/{binding_session_id}/reject", "status": "implemented", "note": "Node refuses the binding." }
+        {
+          "method": "POST",
+          "path": "/v1/bindings/initiate",
+          "status": "implemented",
+          "note": "Node opens a binding session. Returns short_code + binding_token exactly once."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/bindings/resolve",
+          "status": "implemented",
+          "note": "Console redeems the code/token and reads what the node is asking for."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/bindings/authorize",
+          "status": "implemented",
+          "note": "Operator's device key signs an AuthorizationCredential."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/bindings/{binding_session_id}/status",
+          "status": "implemented",
+          "note": "Poll the session state machine."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/bindings/{binding_session_id}/cancel",
+          "status": "implemented",
+          "note": "Abort a non-terminal session."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/node/bindings/pending",
+          "status": "implemented",
+          "note": "Node polls for authorizations awaiting its acceptance. Signed poll."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/node/bindings/{binding_session_id}/accept",
+          "status": "implemented",
+          "note": "Node accepts; registry re-verifies all four signatures before ACTIVE."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/node/bindings/{binding_session_id}/reject",
+          "status": "implemented",
+          "note": "Node refuses the binding."
+        }
       ]
     },
     {
@@ -47,9 +123,24 @@
       "base_url": "https://registry.libertynet.ai",
       "auth": "challenge → device-key signature → bearer session (1h)",
       "endpoints": [
-        { "method": "POST", "path": "/v1/auth/challenge", "status": "implemented", "note": "One-time challenge, 300s TTL." },
-        { "method": "POST", "path": "/v1/auth/device-login", "status": "implemented", "note": "Exchange a signed challenge for a bearer session token." },
-        { "method": "GET", "path": "/v1/operator/me/nodes", "status": "implemented", "note": "Nodes bound to the authenticated operator, with live online/last_seen." }
+        {
+          "method": "POST",
+          "path": "/v1/auth/challenge",
+          "status": "implemented",
+          "note": "One-time challenge, 300s TTL."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/auth/device-login",
+          "status": "implemented",
+          "note": "Exchange a signed challenge for a bearer session token."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/operator/me/nodes",
+          "status": "implemented",
+          "note": "Nodes bound to the authenticated operator, with live online/last_seen."
+        }
       ]
     },
     {
@@ -58,8 +149,18 @@
       "base_url": "https://registry.libertynet.ai",
       "auth": "bearer session",
       "endpoints": [
-        { "method": "GET", "path": "/v1/operator/me/credits", "status": "not_yet_wired", "note": "Endpoint is live and returns 200, but no credits ledger is connected. It returns settled/pending/estimated = 0 and \"source\": \"not_yet_wired\". Do not render these as earnings." },
-        { "method": "GET", "path": "/v1/operator/me/evidence", "status": "not_yet_wired", "note": "Live, returns count 0 and \"source\": \"not_yet_wired\". The read-only Evidence source is not connected." }
+        {
+          "method": "GET",
+          "path": "/v1/operator/me/credits",
+          "status": "not_yet_wired",
+          "note": "Endpoint is live and returns 200, but no credits ledger is connected. It returns settled/pending/estimated = 0 and \"source\": \"not_yet_wired\". Do not render these as earnings."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/operator/me/evidence",
+          "status": "not_yet_wired",
+          "note": "Live, returns count 0 and \"source\": \"not_yet_wired\". The read-only Evidence source is not connected."
+        }
       ]
     },
     {
@@ -68,10 +169,30 @@
       "base_url": null,
       "auth": "on-chain (EIP-712 reporter signatures)",
       "endpoints": [
-        { "method": "CONTRACT", "path": "EvidenceOracle.submitEvidence", "status": "testing", "note": "Solidity contract exists with a passing 23/23 suite (libertynet-oracle/, Phase 1). NOT deployed to any public network — there is no address to call." },
-        { "method": "CONTRACT", "path": "PythPriceAdapter.getPrice", "status": "testing", "note": "Pull-mode Pyth adapter with freshness guard. Same: tested, not deployed." },
-        { "method": "GET", "path": "/v1/oracle/price", "status": "planned", "note": "No HTTP oracle read surface exists yet." },
-        { "method": "POST", "path": "/v1/oracle/report", "status": "planned", "note": "Reporter submission over HTTP is not built. Reporters sign on-chain today." }
+        {
+          "method": "CONTRACT",
+          "path": "EvidenceOracle.submitEvidence",
+          "status": "testing",
+          "note": "Solidity contract exists with a passing 23/23 suite (libertynet-oracle/, Phase 1). NOT deployed to any public network — there is no address to call."
+        },
+        {
+          "method": "CONTRACT",
+          "path": "PythPriceAdapter.getPrice",
+          "status": "testing",
+          "note": "Pull-mode Pyth adapter with freshness guard. Same: tested, not deployed."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/oracle/price",
+          "status": "planned",
+          "note": "No HTTP oracle read surface exists yet."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/oracle/report",
+          "status": "planned",
+          "note": "Reporter submission over HTTP is not built. Reporters sign on-chain today."
+        }
       ]
     },
     {
@@ -80,9 +201,24 @@
       "base_url": null,
       "auth": "n/a",
       "endpoints": [
-        { "method": "POST", "path": "/v1/wallet/create", "status": "planned", "note": "Not built. Key material handling is unreviewed; do not stub it into user code." },
-        { "method": "POST", "path": "/v1/wallet/session-key", "status": "planned", "note": "Not built." },
-        { "method": "POST", "path": "/v1/wallet/transfer", "status": "planned", "note": "Not built. Value transfer is out of Genesis scope." }
+        {
+          "method": "POST",
+          "path": "/v1/wallet/create",
+          "status": "planned",
+          "note": "Not built. Key material handling is unreviewed; do not stub it into user code."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/wallet/session-key",
+          "status": "planned",
+          "note": "Not built."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/wallet/transfer",
+          "status": "planned",
+          "note": "Not built. Value transfer is out of Genesis scope."
+        }
       ]
     },
     {
@@ -91,16 +227,79 @@
       "base_url": null,
       "auth": "n/a",
       "endpoints": [
-        { "method": "POST", "path": "/v1/dex/intent", "status": "planned", "note": "Not built." },
-        { "method": "GET", "path": "/v1/dex/quote", "status": "planned", "note": "Not built." },
-        { "method": "POST", "path": "/v1/dex/solve", "status": "planned", "note": "Not built." },
-        { "method": "GET", "path": "/v1/dex/pools", "status": "planned", "note": "Not built." }
+        {
+          "method": "POST",
+          "path": "/v1/dex/intent",
+          "status": "planned",
+          "note": "Not built."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/dex/quote",
+          "status": "planned",
+          "note": "Not built."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/dex/solve",
+          "status": "planned",
+          "note": "Not built."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/dex/pools",
+          "status": "planned",
+          "note": "Not built."
+        }
+      ]
+    },
+    {
+      "id": "demo",
+      "title": "Canonical demo node",
+      "base_url": "https://libertynet.ai/demo-node",
+      "auth": "none",
+      "note": "A real, publicly reachable LibertyNet node run by the project so the quickstart's discover -> verify -> act loop is true for people outside it. It registers, signs and heartbeats through the same public endpoints any node uses, and deliberately holds nothing of value.",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/health",
+          "status": "implemented",
+          "note": "Liveness, registration state, capabilities."
+        },
+        {
+          "method": "GET",
+          "path": "/identity",
+          "status": "implemented",
+          "note": "DID, public key (base58 and hex), fingerprint."
+        },
+        {
+          "method": "POST",
+          "path": "/echo",
+          "status": "implemented",
+          "note": "Signs a caller-supplied nonce, so the reply is proof of possession rather than a replayable recording."
+        },
+        {
+          "method": "GET",
+          "path": "/verify-instructions",
+          "status": "implemented",
+          "note": "The three verification steps, as data."
+        }
       ]
     }
   ],
   "capability_vocabulary": {
     "$comment": "Node capability strings observed live in the registry today. Used by the CLI scaffolder's capability picker.",
-    "observed": ["inference", "health:ready"],
-    "declared_in_spec": ["compute", "verification", "proof", "solver", "storage", "oracle"]
+    "observed": [
+      "inference",
+      "health:ready"
+    ],
+    "declared_in_spec": [
+      "compute",
+      "verification",
+      "proof",
+      "solver",
+      "storage",
+      "oracle"
+    ]
   }
 }

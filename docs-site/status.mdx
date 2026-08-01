@@ -11,6 +11,14 @@ describe a capability as more finished than this table says it is.
 
 <StatusKey />
 
+<Note>
+**Looking for a node's `status: "active"` field?** Different thing, confusingly similar name.
+That field is on individual node records and it **does not mean online** — a node unplugged
+last week keeps it forever, because nothing ever clears it. Only `last_seen` decays.
+
+See [nodes and discovery](/concepts/nodes-and-discovery#registered--online).
+</Note>
+
 <Info>
 **Where these come from.** The table below is derived from
 [`dev-portal/api-spec/status.json`](https://github.com/LibertyNetHQ/LibertyNet-hq/blob/main/dev-portal/api-spec/status.json),

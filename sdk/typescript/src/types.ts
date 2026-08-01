@@ -14,6 +14,10 @@ export interface NodeRecord {
   last_seen: string | null;
   first_seen: string | null;
   signature: string | null;
+  /** Computed by the registry. Absent on older registry versions. */
+  reachability?: Reachability;
+  /** Whether the record carries a registration signature at all. */
+  signature_present?: boolean;
 }
 
 /**
@@ -137,3 +141,15 @@ export interface BindingRequest {
   nonce: string;
   expires_at: string;
 }
+
+/**
+ * How reachable a node is, computed by the registry at read time.
+ *
+ * `public` — a routable address or hostname. You can try to reach it.
+ * `private` — RFC1918 or loopback. Real to its operator, useless to you.
+ * `unroutable` — a `node://hostname` label with no dialable address.
+ *
+ * Most nodes on the network today are not `public`. That is a fact about the
+ * network's current state, not a bug in your code.
+ */
+export type Reachability = "public" | "private" | "unroutable";

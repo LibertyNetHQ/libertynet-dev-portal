@@ -33,6 +33,12 @@ const SUITES = [
     args: ["tools/check-examples.mjs"],
   },
   {
+    name: "ai answers",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/check-ai-answers.mjs"],
+  },
+  {
     name: "sdk/typescript",
     cwd: path.join(ROOT, "sdk/typescript"),
     cmd: "npm",

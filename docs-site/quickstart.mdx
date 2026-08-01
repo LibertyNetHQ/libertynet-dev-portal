@@ -216,7 +216,106 @@ daemon announces long. They are the same node. String comparison will lie to you
 [DID reference](/reference/dids) has the details.
 </Note>
 
-## 4. Do it in one line instead
+## 4. Call a node, and check that it answered
+
+Verifying an identity proves the DID matches the key. It does **not** prove anyone is home,
+or that whoever answers holds the private key. This step does both.
+
+<Warning>
+**Most nodes on the network cannot be called by you.** Of 28 records right now, 4 advertise
+RFC1918 addresses and 13 advertise `node://someones-laptop` labels — real to their operator,
+unreachable from anywhere else. Ask the registry for the ones that are actually usable:
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+That returns nodes which are **publicly reachable and carry a registration signature**.
+Today that is a small number, and the SDKs default to exactly this set.
+</Warning>
+
+```python act.py
+import json, urllib.request, hashlib, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+# Only nodes you can actually reach.
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+# YOU choose the nonce. That is what makes the reply a proof rather than a recording:
+# a signature over something we prepared earlier could just be replayed at you.
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce, "node echoed a different nonce"
+assert reply["public_key"] == node["public_key"], "responder is not the node we discovered"
+
+print("called   ", node["endpoint"])
+print("signed   ", reply["signed_bytes"])
+print("signature", reply["signature"][:32], "…")
+```
+
+Now verify that signature. Ed25519 needs a library — this is the one step in the quickstart
+that does:
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+# b58decode and key_bytes from step 3
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("the node holds the private key for the identity you verified")
+```
+
+```text Real run
+called    https://libertynet.ai/demo-node
+signed    libertynet-demo-node-response:v1\n3f2a1c…\n1785561148
+signature G7Y9CFkGBac8TamouNgJhz4vt9yPSouAPuMK2Dvi2EWw …
+the node holds the private key for the identity you verified
+```
+
+That is the whole loop: you found a node, checked its identity against arithmetic, called it,
+and confirmed the reply came from the key you checked. No account, no API key, nobody's
+permission.
+
+<Note>
+**About the node you just called.** `did:svrp:n:dbe63a0c` at `https://libertynet.ai/demo-node`
+is a canonical demo node run by the project. It exists so this page is true for people
+outside it, and it deliberately holds nothing of value — its key signs its own registration
+and these demo replies, nothing else.
+
+It is not a special case: it registers, signs and heartbeats through exactly the same public
+endpoints your node would. [Run your own](/guides/service-agent).
+</Note>
+
+<Warning>
+**Never put a private key in a config file, a `.env`, or anywhere in a repository.**
+
+Nothing in this quickstart needs one — discovery and verification are public, and the demo
+node signs with its own key, not yours. When you do eventually hold a key (as an operator),
+read it from your OS keychain or a secret manager at the point of use:
+
+```python
+import keyring
+secret = bytes.fromhex(keyring.get_password("libertynet", "device-key"))
+```
+
+A key in a file is a key in your backups, your shell history and your crash dumps. There is
+no reset flow on this network, because a reset flow is a second and weaker way in.
+</Warning>
+
+## 5. Do it in one line instead
 
 Everything above is what the SDK does for you, with the verification non-optional.
 
@@ -225,27 +324,36 @@ Everything above is what the SDK does for you, with the verification non-optiona
 ```typescript TypeScript
 import { LibertyNet } from "libertynet-sdk";
 
-const ln = new LibertyNet();               // verification is on; you cannot turn it off
-const nodes = await ln.discovery.online(); // fresh, verified nodes only
+const ln = new LibertyNet();                 // verification is on; you cannot turn it off
+const nodes = await ln.discovery.callable(); // verified, fresh, reachable, signed
 
-console.log(nodes.map((n) => `${n.did} ${n.region} ${n.capabilities.join(",")}`));
+console.log(nodes.map((n) => `${n.did} ${n.endpoint} ${n.capabilities.join(",")}`));
 ```
 
 ```python Python
 from libertynet import LibertyNet
 
-ln = LibertyNet()                  # verification is on; you cannot turn it off
-nodes = ln.discovery.online()      # fresh, verified nodes only
+ln = LibertyNet()                      # verification is on; you cannot turn it off
+nodes = ln.discovery.callable_nodes()  # verified, fresh, reachable, signed
 
 for n in nodes:
-    print(n.did, n.region, ",".join(n.capabilities))
+    print(n.did, n.endpoint, ",".join(n.capabilities))
 ```
 
 </CodeGroup>
 
-`online()` rejects any record whose identity does not verify and drops anything not seen recently.
-There is no flag to disable the check — a client that trusts unverified identities is not a client
-we are willing to ship.
+`online()` rejects any record whose identity does not verify, drops anything not seen
+recently, and — since it would otherwise hand you addresses that can never answer — excludes
+nodes you cannot reach. `callable()` additionally requires a registration signature.
+
+There is no flag to disable identity verification. A client that trusts unverified identities
+is not a client we are willing to ship.
+
+<Note>
+Expect small numbers. Right now `callable()` returns **1** of 28 records. That is a true
+statement about the state of the network, not a bug in your code — and printing one address
+that answers is more useful than printing 28 that time out.
+</Note>
 
 See [SDK overview](/sdk/overview) for installation, including how to run it from source today.
 

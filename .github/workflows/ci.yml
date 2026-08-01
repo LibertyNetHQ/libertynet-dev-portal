@@ -39,6 +39,13 @@ jobs:
       - name: Build the docs site
         run: node site/build.mjs
 
+      # Golden questions, including adversarial ones, run against the same tools
+      # and corpus an assistant would use. A wrong answer here is a documentation
+      # bug that would otherwise only surface as a developer writing code for a
+      # feature that does not exist.
+      - name: AI answer quality
+        run: node tools/check-ai-answers.mjs
+
   live:
     name: Live network agreement
     runs-on: ubuntu-latest

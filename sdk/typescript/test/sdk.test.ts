@@ -298,3 +298,54 @@ describe("live network", { skip: !process.env["LN_LIVE"] && "set LN_LIVE=1 to ru
     await assert.rejects(() => ln.operator.creditsRaw(), AuthError);
   });
 });
+
+describe("reachability", () => {
+  // Before this, online() returned RFC1918 addresses and node://laptop labels.
+  // Callers tried them, got timeouts, and reasonably concluded the SDK was
+  // broken rather than that the node was not for them.
+  const node = (over: Record<string, unknown> = {}) => ({ ...GOOD_NODE, ...over });
+  const withNodes = (nodes: unknown[]) =>
+    client({ "/nodes": { body: { count: nodes.length, total: nodes.length, nodes } } });
+
+  test("excludes private endpoints by default", async () => {
+    const { ln } = withNodes([node({ reachability: "private" })]);
+    assert.equal((await ln.discovery.online()).length, 0);
+  });
+
+  test("excludes unroutable node:// labels by default", async () => {
+    const { ln } = withNodes([node({ endpoint: "node://laptop", reachability: "unroutable" })]);
+    assert.equal((await ln.discovery.online()).length, 0);
+  });
+
+  test("includes public endpoints", async () => {
+    const { ln } = withNodes([node({ reachability: "public" })]);
+    assert.equal((await ln.discovery.online()).length, 1);
+  });
+
+  test("includeUnreachable opts back in", async () => {
+    const { ln } = withNodes([node({ reachability: "private" })]);
+    assert.equal((await ln.discovery.online({ includeUnreachable: true })).length, 1);
+  });
+
+  test("an absent field is unknown, not unreachable", async () => {
+    // Older registries do not report it. Hiding the whole network from anyone
+    // pointed at one is a worse failure than showing an address that may not answer.
+    const { ln } = withNodes([node()]);
+    assert.equal((await ln.discovery.online()).length, 1);
+  });
+
+  test("callable() requires a registration signature", async () => {
+    const { ln } = withNodes([
+      node({ reachability: "public", signature: null, signature_present: false }),
+    ]);
+    assert.equal((await ln.discovery.online()).length, 1);
+    assert.equal((await ln.discovery.callable()).length, 0);
+  });
+
+  test("callable() returns signed public nodes", async () => {
+    const { ln } = withNodes([
+      node({ reachability: "public", signature: "sig", signature_present: true }),
+    ]);
+    assert.equal((await ln.discovery.callable()).length, 1);
+  });
+});

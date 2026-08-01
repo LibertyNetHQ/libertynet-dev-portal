@@ -91,27 +91,78 @@ export function _clearCache() {
  * the corpus is ~30 pages, the caller is a language model that can read, and a
  * dependency-free implementation is one that still works in five years.
  */
-export async function searchDocs({ query, limit = 5 }) {
+/**
+ * Words that carry no signal in a documentation query.
+ *
+ * Without this, "ID_BINDING_FAILED what does it mean" scored on "what/does/it/
+ * mean" — which appear on every page — and the error dictionary lost to pages
+ * that merely happened to be long. The rare term is the whole question.
+ */
+const STOPWORDS = new Set(
+  ("a an and are as at be but by can do does for from get give had has how i if in is it its me my " +
+    "of on or so that the them then there these they this to use used using was what when where " +
+    "which who why will with you your").split(" "),
+);
+
+/** Locale directories under docs-site/. Translations, not separate pages. */
+const LOCALE_DIRS = new Set(["zh-CN", "zh-TW", "ja", "ko", "es", "pt", "de", "fr", "ar", "hi"]);
+
+export async function searchDocs({ query, limit = 5, locale = "en" }) {
   if (!query || typeof query !== "string") {
     throw new TypeError("query is required");
   }
 
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const pages = await loadPages();
+  const all = await loadPages();
+
+  // Translations are the same page in another language. Returning both halves of
+  // a pair spends the result budget on a duplicate the caller cannot read, so
+  // search one locale at a time — English unless asked otherwise.
+  const pages =
+    locale === "en"
+      ? all.filter((p) => !LOCALE_DIRS.has(p.slug.split("/")[0]))
+      : all.filter((p) => p.slug.startsWith(`${locale}/`));
+
+  const raw = query.toLowerCase().split(/[\s,.?!]+/).filter(Boolean);
+  // Keep stopwords only if that is all the caller gave us — an empty term list
+  // would return nothing for a query like "how does it work".
+  const meaningful = raw.filter((t) => !STOPWORDS.has(t));
+  const terms = meaningful.length ? meaningful : raw;
+
+  /**
+   * How rare is this term across the corpus? A term on two pages tells you far
+   * more about which page you want than one on thirty, so weight by that.
+   */
+  const rarity = new Map();
+  for (const term of terms) {
+    const appearsIn = pages.filter((p) =>
+      `${p.title}\n${p.description}\n${p.body}`.toLowerCase().includes(term),
+    ).length;
+    // 1 page → ~4×, half the corpus → ~1×, everywhere → ~0.5×
+    rarity.set(term, appearsIn === 0 ? 0 : Math.log(1 + pages.length / appearsIn) + 0.3);
+  }
 
   const scored = pages
     .map((page) => {
-      const haystack = `${page.title}\n${page.description}\n${page.body}`.toLowerCase();
+      const title = page.title.toLowerCase();
+      const description = page.description.toLowerCase();
+      const haystack = `${title}\n${description}\n${page.body}`.toLowerCase();
       let score = 0;
 
       for (const term of terms) {
-        // Title and description matches are worth far more than body matches:
-        // a page *about* the thing beats a page that mentions it in passing.
-        if (page.title.toLowerCase().includes(term)) score += 10;
-        if (page.description.toLowerCase().includes(term)) score += 5;
+        const weight = rarity.get(term) ?? 1;
+
+        // A page *about* the thing beats a page that mentions it in passing.
+        if (title.includes(term)) score += 10 * weight;
+        if (description.includes(term)) score += 5 * weight;
+
+        // A heading is a strong signal that the page answers this specifically —
+        // which is exactly how error codes are written up.
+        if (new RegExp(`^#{1,4}[^\\n]*\\b${escapeRegex(term)}\\b`, "im").test(page.body)) {
+          score += 12 * weight;
+        }
 
         const occurrences = haystack.split(term).length - 1;
-        score += Math.min(occurrences, 8);
+        score += Math.min(occurrences, 8) * weight;
       }
       return { page, score };
     })
@@ -358,4 +409,8 @@ export async function checkEndpoint({ path: endpointPath = "/health" }) {
   } catch (e) {
     return { url, error: String(e), elapsed_ms: Date.now() - started };
   }
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

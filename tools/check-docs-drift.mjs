@@ -227,6 +227,10 @@ const KNOWN_KEYS = [
   "7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg",
   // did:svrp:h:2216a202 — appears in pasted live output on several pages.
   "AhvV3bzyjCSfWyxCboCYuhGhRsC8VMsoGkyRqAD5Yy1H",
+  // did:svrp:n:dbe63a0c — the canonical demo node at libertynet.ai/demo-node.
+  // Public by definition; listing it here is what lets the checker confirm that
+  // every DID the quickstart prints really derives from a key we can name.
+  "6EDfN4n33y7pAsnHumASu3gu2eJyu5syJ3wowxqeQzF9",
 ];
 
 async function checkCryptoValues(pages) {

@@ -62,12 +62,20 @@ class Discovery:
         freshness_s: float = DEFAULT_FRESHNESS_S,
         capabilities: Iterable[str] | None = None,
         region: str | None = None,
+        include_unreachable: bool = False,
     ) -> list[VerifiedNode]:
-        """Verified nodes seen recently.
+        """Verified nodes seen recently and reachable from here.
 
         ``status == "active"`` does NOT mean online — a node that stopped
         heart-beating keeps that string forever. Freshness comes from
         ``last_seen``, the only field that can actually go stale.
+
+        Unreachable nodes are excluded by default. Most nodes on the network
+        advertise an RFC1918 address or a ``node://someones-laptop`` label —
+        real to their operator, unreachable from anywhere else. Returning them
+        sent people to endpoints that could never answer, which reads as "the
+        SDK is broken" rather than "that node is not for you". Pass
+        ``include_unreachable=True`` if you are on their network, or auditing.
         """
         wanted = list(capabilities or [])
         out = []
@@ -76,10 +84,28 @@ class Discovery:
                 continue
             if region is not None and n.region != region:
                 continue
+            # Older registries do not report reachability. Absent means unknown,
+            # and unknown should not hide the whole network.
+            reach = n.raw.get("reachability")
+            if not include_unreachable and reach and reach != "public":
+                continue
             if not all(c in n.capabilities for c in wanted):
                 continue
             out.append(n)
         return out
+
+    def callable_nodes(self, **kwargs: Any) -> list[VerifiedNode]:
+        """Nodes you can actually call: verified, fresh, public, and signed.
+
+        The honest answer to "who can I send work to right now", and usually a
+        much smaller number than :meth:`all`. An empty list is a true statement
+        about the network, not a failure on your side.
+        """
+        kwargs["include_unreachable"] = False
+        return [
+            n for n in self.online(**kwargs)
+            if n.raw.get("signature_present", bool(n.raw.get("signature")))
+        ]
 
     def by_capability(self, capability: str, **kwargs: Any) -> list[VerifiedNode]:
         """Verified, fresh nodes advertising a capability."""
