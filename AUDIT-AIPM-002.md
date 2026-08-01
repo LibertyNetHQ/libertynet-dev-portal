@@ -209,3 +209,126 @@ developers walking the path — is worth doing now that there is a path to walk.
 - **Nothing is published to npm or PyPI.** Unchanged, and deliberate per AIPM-002 §P5.
 - **Discord does not exist**, so 4 links in the docs point at nothing. Still the only
   knowingly-false thing left in the portal.
+
+---
+
+# P3 · P4 · P6 — evidence
+
+Measured 2026-08-01. Same rule as above: run it, do not read it.
+
+## P3 — ten examples, each actually executed
+
+```text
+node examples/run-all.mjs
+
+  ✓ verify-network       2 check(s)
+  ✓ callable-nodes       1 check(s)
+  ✓ full-loop            1 check(s)
+  ✓ challenge-response   1 check(s)
+  ✓ did-toolkit          4 check(s)
+  ✓ health-check         2 check(s)
+  ✓ registry-watch       2 check(s)
+  ✓ identity-gate        3 check(s)
+  ✓ capability-monitor   2 check(s)
+  ✓ mcp-client           1 check(s)
+
+19 check(s) across 10 example(s)
+✓ every example ran and did what it says it does
+```
+
+The runner spawns each example, waits for it, and matches its real output. "It compiled" is
+not the bar — examples rot silently, because nobody re-runs the ones they are not currently
+reading.
+
+**Four checks assert failure**, and those are the ones worth having:
+
+| Example | Must fail |
+|---|---|
+| `did-toolkit` | a crossed DID/key pair exits 1 |
+| `identity-gate` | a forged identity gets 401 |
+| `challenge-response` | a replayed signature does not verify |
+| `capability-monitor` | an unavailable capability exits non-zero |
+
+Proved non-vacuous by sabotaging `did-toolkit`'s comparison so a crossed pair passed:
+
+```text
+✗ did-toolkit: verify did:svrp:n:268d4fe0 df9d4b9f…
+     exit 0 (expected 1) — A crossed DID/key pair MUST fail.
+     output never matched /^INVALID/
+```
+
+### A real gap the safety checker found
+
+`registry-watch` did not verify identities before recording them, so a forged record would
+have been announced as a legitimate `JOINED` event — the tool would have been a megaphone
+for whoever forged it. Fixed: it verifies first and reports rejects loudly.
+
+The checker itself was also wrong — it matched one function name, and failed three examples
+that verify perfectly well by other means. Narrow checks teach people to silence them.
+
+## P4 — the matrix is authoritative, not aspirational
+
+`tools/sync-status.mjs` regenerates four artifacts from `api-spec/status.json`. `--check`
+fails on any hand-edit.
+
+**Acceptance test, run end to end:**
+
+```text
+1. flip GET /v1/operator/me/credits  not_yet_wired → implemented
+2. node tools/sync-status.mjs --check
+     ✗ 4 generated file(s) are stale
+3. node tools/sync-status.mjs
+     OpenAPI      x-ln-status: implemented
+     TS SDK       "GET /v1/operator/me/credits": "implemented"
+     Python SDK   "GET /v1/operator/me/credits": "implemented"
+     docs table   <Status level="implemented" />
+4. restore → all four revert, --check passes
+```
+
+### Three bugs this surfaced
+
+1. **`check-api-sync` ignored `base_url`**, probing the demo node's paths against the
+   registry — three phantom "overclaim" findings for endpoints that were fine.
+2. **No rule for the overclaim that matters most.** Nothing caught "claimed `implemented`
+   but the body says `not_yet_wired`" — the dangerous case, because the endpoint returns
+   200 and looks healthy. Added. It now also names the endpoints sitting behind auth whose
+   data source it *could not* inspect, rather than implying a clean bill of health it did
+   not earn.
+3. **The generated capability map was keyed flat**, and `GET /health` exists on both the
+   registry and the demo node — one silently overwrote the other. Now nested by area. The
+   TypeScript compiler caught it; a flat map in a dynamic language would have shipped.
+
+### Workflows
+
+| | |
+|---|---|
+| `status-sync.yml` | Checks on PR. On main, opens a regeneration PR rather than pushing — the point of this repo is that claims get reviewed. |
+| `ai-answer-report.yml` | An `ai-answer` issue triggers the eval and posts what the assistant would have read. |
+| `docs-drift.yml` | Now applies **underclaims** and regenerates. Overclaims are left alone: the right fix might be restoring the endpoint rather than downgrading the claim. |
+
+**None of them edit prose.** A capability moving to `implemented` needs a human to write
+what it does; a machine inventing that paragraph would manufacture exactly the confidence
+this project exists to avoid.
+
+## P6 — ready except for the person
+
+`p6/` contains the walkthrough, the friction-log template, recording guidance, a
+dependency-free timer, and a Dockerfile for a genuinely clean machine.
+
+The clean machine is not ceremony. On a maintainer's laptop the venv is built, gcloud is
+authenticated and the answers are in shell history — each one silently removes a step a
+stranger hits.
+
+**Deliberately not automated: finding testers.** Three real strangers beat thirty synthetic
+runs, and choosing who represents the audience is a judgement call.
+
+`p6/README.md` states that **an empty friction log means the session failed**, not that the
+portal is perfect — and lists what does *not* count as passing, because "three testers
+finished, two after asking a maintainer" is the easiest way to mark this green dishonestly.
+
+<br>
+
+**Why this was worth waiting for.** Running P6 before P1 would have wasted somebody's
+afternoon: they would have walked `discover → verify`, hit the wall where every node was on
+a private address, and found one enormous blocker and nothing else. The walkthrough now has
+an end.
