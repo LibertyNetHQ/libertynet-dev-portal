@@ -110,6 +110,13 @@ const QUOTED_AS_BROKEN = [
     pattern: /^https:\/\/docs\.libertynet\.ai\/\.md$/,
     why: "the malformed home-page entry llms.txt used to emit; quoted in the fix's write-up",
   },
+  {
+    // Singular. The standard namespace is sitemaps.org, plural, and the
+    // singular host does not resolve — which is exactly why the sitemap was
+    // invalid and exactly why the audit quotes the wrong value verbatim.
+    pattern: /^https?:\/\/www\.sitemap\.org\/schemas\//,
+    why: "the wrong sitemap namespace, quoted in AUDIT-AIPM-002 as the defect that was fixed",
+  },
 ];
 
 // ---------------------------------------------------------------------------
