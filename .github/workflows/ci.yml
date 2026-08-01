@@ -62,6 +62,11 @@ jobs:
       - name: API sync
         run: node tools/check-api-sync.mjs
 
+      # Fetched with no credentials, on purpose: a private repository answers
+      # 404 to strangers and 200 to us, so checking as ourselves proves nothing.
+      - name: External links, as an anonymous reader sees them
+        run: node tools/check-external-links.mjs
+
       # The install instructions on /ai/mcp, executed against the live network:
       # one downloaded file in an empty directory, all six tools called.
       - name: Bundle the MCP server

@@ -12,7 +12,7 @@ import { Status, StatusKey } from '/snippets/status.mdx';
 
 <Info>
 **这些标记从哪来。** 下面的表格由
-[`dev-portal/api-spec/status.json`](https://github.com/LibertyNetHQ/LibertyNet-hq/blob/main/dev-portal/api-spec/status.json)
+[`api-spec/status.json`](https://github.com/LibertyNetHQ/libertynet-dev-portal/blob/main/api-spec/status.json)
 推导——同一份机器可读清单也驱动着两个 SDK 和 OpenAPI 规范。有一个漂移检查器，只要文档里的
 标记与清单不一致就会让构建失败，所以它们不会各自腐烂。
 
@@ -105,7 +105,7 @@ curl -s https://registry.libertynet.ai/nodes | head -c 300
 SDK 里有一个对着真实网络跑的测试，专门断言这一页仍然成立：
 
 ```bash
-cd dev-portal/sdk/python && LN_LIVE=1 python3 -m pytest -q
+cd sdk/python && LN_LIVE=1 python3 -m pytest -q
 ```
 
 只要真实注册表上有任何一个身份验证不通过，它就会失败——那意味着要么网络出了问题，

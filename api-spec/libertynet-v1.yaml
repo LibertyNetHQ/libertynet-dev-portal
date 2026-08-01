@@ -37,7 +37,7 @@ info:
     url: https://docs.libertynet.ai/community
   license:
     name: See repository
-    url: https://github.com/LibertyNetHQ/LibertyNet-hq
+    url: https://github.com/LibertyNetHQ/libertynet-dev-portal
 
 servers:
   - url: https://registry.libertynet.ai

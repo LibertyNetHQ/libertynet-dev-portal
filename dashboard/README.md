@@ -55,7 +55,7 @@ Different jobs, deliberately not merged:
 
 - **`operator-console/`** is the end-user product for node operators: identity creation,
   mnemonic recovery, device binding, multi-account vaults. It manages keys.
-- **`dev-portal/dashboard/`** (this) is the developer view: what my account looks like
+- **`dashboard/`** (this) is the developer view: what my account looks like
   through the public API, what the network looks like, and what is actually wired. It
   manages nothing.
 

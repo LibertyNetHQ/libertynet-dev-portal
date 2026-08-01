@@ -138,7 +138,10 @@ async function runServer(example, cwd) {
 
 const selected = manifest.examples.filter((e) => {
   if (only.length && !only.includes(e.dir)) return false;
-  if (offlineOnly && e.network) return false;
+  // A networked example may declare a reduced run that needs no network. That
+  // part still gets exercised in the required CI job, where the full version
+  // cannot go because a blipping server would fail an unrelated pull request.
+  if (offlineOnly && e.network && !e.offline) return false;
   return true;
 });
 
@@ -161,7 +164,8 @@ for (const example of selected) {
     if (example.server) {
       await runServer(example, path.join(HERE, example.dir));
     } else {
-      for (const step of example.runs) {
+      const steps = offlineOnly && example.offline ? [example.offline] : example.runs;
+      for (const step of steps) {
         const cmd = example.scratch
           ? [step.cmd[0], path.join(HERE, example.dir, step.cmd[1]), ...step.cmd.slice(2)]
           : step.cmd;

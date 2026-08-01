@@ -24,6 +24,7 @@
  */
 
 import { readFile, readdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { LOCALES } from "../site/build/locales.mjs";
@@ -314,7 +315,18 @@ async function checkLinks(pages) {
       if ([...GENERATED].some((g) => target.startsWith(g))) continue;
       if (target.startsWith("snippets/")) continue;
 
-      fail("links", `${rel} links to /${target}, which is not a page`);
+      // Not every valid link is a page. `api-spec/` and `site/public/` are
+      // copied into the site verbatim, so a link to status.json or the MCP
+      // bundle resolves. Check the file is really there rather than
+      // whitelisting the prefix — a link to a deleted asset must still fail.
+      if (
+        existsSync(path.join(ROOT, target)) ||
+        existsSync(path.join(ROOT, "site/public", target))
+      ) {
+        continue;
+      }
+
+      fail("links", `${rel} links to /${target}, which is neither a page nor a served file`);
     }
   }
 

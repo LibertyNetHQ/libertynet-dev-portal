@@ -14,7 +14,6 @@
   "license": "SEE LICENSE IN REPOSITORY",
   "repository": {
     "type": "git",
-    "url": "https://github.com/LibertyNetHQ/LibertyNet-hq",
-    "directory": "dev-portal/create-libertynet-agent"
+    "url": "https://github.com/LibertyNetHQ/libertynet-dev-portal"
   }
 }

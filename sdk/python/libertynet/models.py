@@ -1,4 +1,4 @@
-"""Wire types, mirroring ``dev-portal/api-spec/libertynet-v1.yaml``."""
+"""Wire types, mirroring ``api-spec/libertynet-v1.yaml``."""
 
 from __future__ import annotations
 

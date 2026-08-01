@@ -28,7 +28,7 @@ dev = ["pytest>=8", "cryptography>=42"]
 
 [project.urls]
 Documentation = "https://docs.libertynet.ai"
-Source = "https://github.com/LibertyNetHQ/LibertyNet-hq"
+Source = "https://github.com/LibertyNetHQ/libertynet-dev-portal"
 
 [tool.setuptools.packages.find]
 include = ["libertynet*"]

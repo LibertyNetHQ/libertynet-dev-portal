@@ -25,6 +25,7 @@ it, and examples rot silently because nobody re-runs the ones they are not curre
 | [`identity-gate`](identity-gate) | Where id-binding stops being enough, and what comes next | **no** |
 | [`capability-monitor`](capability-monitor) | "Can anyone do X right now?" beats "how many nodes exist?" | yes |
 | [`mcp-client`](mcp-client) | The AI layer is ordinary software you can script and test | yes |
+| [`describe-to-agent`](describe-to-agent) | A generator grounded in the matrix builds what exists and refuses what does not | yes |
 
 ## The assertions worth having
 
@@ -35,6 +36,7 @@ did-toolkit         a crossed DID/key pair MUST exit 1
 identity-gate       a forged identity MUST get 401
 challenge-response  a replayed signature MUST NOT verify
 capability-monitor  an unavailable capability MUST exit non-zero
+describe-to-agent   a description asking for a wallet MUST scaffold nothing
 ```
 
 A suite that only checked happy paths would let identity verification break without anyone

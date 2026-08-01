@@ -14,16 +14,75 @@ install`** — the generated project has zero dependencies, so `npm start` works
 the files land.
 
 <Note>
-`create-libertynet-agent` is not on npm yet. Until it is published, run it from the
-repository:
+`create-libertynet-agent` is not on npm yet. Until it is published, clone
+[the repository](https://github.com/LibertyNetHQ/libertynet-dev-portal) and run:
 
 ```bash
-node dev-portal/create-libertynet-agent/index.mjs my-agent
+node create-libertynet-agent/index.mjs my-agent
 ```
 
 Identical behaviour. The `npx` form above is what it will be — this note disappears when
 that becomes true, not before.
 </Note>
+
+## Describe it instead
+
+If you would rather say what you want than pick from a menu:
+
+```bash
+npx create-libertynet-agent --describe "watch inference nodes and tell me when one drops off"
+```
+
+```text
+read "watch inference nodes and tell me when one drops off"
+
+  · type "monitor" — the description asks to observe
+  · capabilities inference — named in the description
+
+  → watch-inference-nodes (monitor, inference)
+
+✓ watch-inference-nodes created in 0.01s
+```
+
+It shows its reading before it writes anything, so a wrong guess costs you one glance
+rather than a directory you have to inspect.
+
+**There is no model behind this.** It is a deterministic read of the sentence against a
+fixed vocabulary, because the scaffolder has zero dependencies and has to work offline.
+Picking between four agent types does not need a language model. What it needs is to be
+right about what exists — and that part is not guesswork:
+
+```bash
+npx create-libertynet-agent --describe "an agent that pays other nodes from my wallet"
+```
+
+```text
+✗ No scaffold for wallets.
+  LibertyNet has no wallets. No endpoint in this protocol moves value — not a
+  wallet, not a transfer, not a swap, not staking, not trading. Scaffolding a
+  stub for it would imply one is coming.
+```
+
+Nothing is written and the exit code is `1`. Ask a general-purpose code generator for that
+same agent and you will get one, because the request sounds perfectly reasonable — which
+is the problem.
+
+Between those two extremes sits the case that comes up most: something real that is not
+finished yet.
+
+```bash
+npx create-libertynet-agent --describe "show me my credits balance"
+```
+
+```text
+  ! The description mentions credits & contribution evidence. Those endpoints
+    answer, but their data source is not connected: they return zeros with
+    "source": "not_yet_wired". Never show one of those zeros as a measurement.
+```
+
+The project is still generated — the request is legitimate. The warning is read from
+[`status.json`](/api-spec/status.json) at the moment you run it, not written into the
+scaffolder, so on the day credits are wired it stops appearing on its own.
 
 ## What you get
 
@@ -183,6 +242,7 @@ assistant that cannot answer a question.
 
 | Flag | Effect |
 |---|---|
+| `--describe "…"` | Say what you want in plain English; name, type and capabilities are inferred and checked against the capability matrix. |
 | `--type <id>` | `monitor` · `service` · `solver` · `custom`. Prompted if omitted. |
 | `--caps <a,b,c>` | Capabilities to declare: `inference`, `storage`, `verification`, `proof`, `solver`, `oracle`. |
 | `-y`, `--yes` | Accept defaults, ask nothing. For CI and AI assistants. |

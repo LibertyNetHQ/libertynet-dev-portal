@@ -271,10 +271,29 @@ ${rows.join("\n")}
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// 5. the matrix vendored into the scaffolder
+// ---------------------------------------------------------------------------
+
+/**
+ * `--describe` reads a sentence against the capability matrix, and has to do it
+ * with no network — so the package carries its own copy. A copy is a drift risk
+ * by construction, which is why it is generated here and checked in CI: a
+ * scaffolder telling people credits work because it is holding last month's
+ * matrix is the exact failure this file exists to prevent.
+ */
+async function scaffolderMatrix() {
+  outputs.push({
+    file: path.join(ROOT, "create-libertynet-agent/src/status.json"),
+    content: await readFile(path.join(ROOT, "api-spec/status.json"), "utf8"),
+  });
+}
+
 await openapi();
 await typescript();
 await python();
 await docsTable();
+await scaffolderMatrix();
 
 let stale = 0;
 

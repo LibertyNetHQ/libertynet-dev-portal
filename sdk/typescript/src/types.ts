@@ -1,4 +1,4 @@
-/** Wire types. These mirror `dev-portal/api-spec/libertynet-v1.yaml` exactly. */
+/** Wire types. These mirror `api-spec/libertynet-v1.yaml` exactly. */
 
 /** Publication status of a capability. See {@link https://docs.libertynet.ai/status}. */
 export type CapabilityStatus = "implemented" | "not_yet_wired" | "testing" | "planned";

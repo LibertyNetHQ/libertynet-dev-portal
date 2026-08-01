@@ -55,6 +55,14 @@ const SUITES = [
     args: ["--test", "site/test/mdx.test.mjs"],
   },
   {
+    // Static rules only in the required job — the live fetches belong in the
+    // live job, where a third party's outage cannot fail an unrelated PR.
+    name: "external links",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/check-external-links.mjs", "--offline"],
+  },
+  {
     name: "community links",
     cwd: ROOT,
     cmd: "node",
@@ -118,6 +126,12 @@ const SUITES = [
 ];
 
 const LIVE_SUITES = [
+  {
+    name: "external links (live)",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/check-external-links.mjs"],
+  },
   {
     name: "mcp bundle (live)",
     cwd: ROOT,

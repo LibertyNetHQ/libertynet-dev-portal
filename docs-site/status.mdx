@@ -21,7 +21,7 @@ See [nodes and discovery](/concepts/nodes-and-discovery#registered--online).
 
 <Info>
 **Where these come from.** The table below is derived from
-[`dev-portal/api-spec/status.json`](https://github.com/LibertyNetHQ/LibertyNet-hq/blob/main/dev-portal/api-spec/status.json),
+[`api-spec/status.json`](https://github.com/LibertyNetHQ/libertynet-dev-portal/blob/main/api-spec/status.json),
 the single machine-readable source that also drives the SDKs and the OpenAPI spec. A
 drift checker fails the build if a badge in the docs disagrees with it, so these
 cannot rot independently.
@@ -98,7 +98,7 @@ missing is a deployment.
 
 | Component | Status | Notes |
 |---|---|---|
-| `EvidenceOracle` | <Status level="testing" /> | Solidity, 23/23 tests pass ([`libertynet-oracle/`](https://github.com/LibertyNetHQ/LibertyNet-hq/tree/main/libertynet-oracle)). Not deployed to any public network. |
+| `EvidenceOracle` | <Status level="testing" /> | Solidity, 23/23 tests pass (`libertynet-oracle/`, in the private LibertyNet-hq repository). Not deployed to any public network. |
 | `PythPriceAdapter` | <Status level="testing" /> | Pull-mode adapter with freshness guard. Not deployed. |
 | `GET /v1/oracle/price` | <Status level="planned" /> | No HTTP read surface exists. |
 | `POST /v1/oracle/report` | <Status level="planned" /> | No HTTP submission surface exists. |
@@ -145,7 +145,7 @@ curl -s https://registry.libertynet.ai/v1/operator/me/credits
 The SDK ships a live test that asserts this page is still true:
 
 ```bash
-cd dev-portal/sdk/typescript && npm run test:live
+cd sdk/typescript && npm run test:live
 ```
 
 It fails if any identity on the live registry stops verifying — which would mean either

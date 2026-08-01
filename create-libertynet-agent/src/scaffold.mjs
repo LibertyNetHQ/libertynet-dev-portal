@@ -30,6 +30,7 @@ export function parseArgs(argv) {
     name: null,
     type: null,
     capabilities: null,
+    describe: null,
     yes: false,
     help: false,
     version: false,
@@ -45,6 +46,8 @@ export function parseArgs(argv) {
     else if (arg === "--force") opts.force = true;
     else if (arg === "--type") opts.type = argv[++i];
     else if (arg?.startsWith("--type=")) opts.type = arg.slice(7);
+    else if (arg === "--describe") opts.describe = argv[++i];
+    else if (arg?.startsWith("--describe=")) opts.describe = arg.slice(11);
     else if (arg === "--caps") opts.capabilities = splitCaps(argv[++i]);
     else if (arg?.startsWith("--caps=")) opts.capabilities = splitCaps(arg.slice(7));
     else if (arg?.startsWith("-")) throw new UsageError(`Unknown option: ${arg}`);
@@ -160,6 +163,8 @@ export function helpText() {
     npx create-libertynet-agent <name> [options]
 
   OPTIONS
+    --describe "..."   Say what you want in plain English; the rest is inferred
+                       and checked against the capability matrix.
     --type <id>        Agent type. Prompted if omitted.
     --caps <a,b,c>     Comma-separated capabilities to declare.
     -y, --yes          Accept defaults, ask nothing. For CI and AI assistants.
@@ -177,6 +182,8 @@ ${caps}
     npx create-libertynet-agent my-agent
     npx create-libertynet-agent watcher --type monitor -y
     npx create-libertynet-agent infer-svc --type service --caps inference -y
+    npx create-libertynet-agent --describe "watch inference nodes and tell me
+      when one drops off" -y
 
   The generated project has zero dependencies and runs against the live network
   immediately — no install, no signup, no API key.

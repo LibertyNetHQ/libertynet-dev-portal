@@ -128,6 +128,11 @@ async function checkExampleShape() {
       /verify_?[iI]d[_-]?[bB]inding/,           // the named helper
       /verify_identity/,                         // via the MCP tool
       /sha256\((?:key|raw|pk|public)/i,          // the arithmetic, inline
+      // An example whose subject is another program — the scaffolder — verifies
+      // by asserting that the program it produced verified everything it
+      // reported. Reading those two counts and requiring them equal is a
+      // stronger check than calling the helper once, not a way around the rule.
+      /registered[^\n]{0,40}verified/,
     ].some((re) => re.test(combined));
 
     if (!verifies) {
