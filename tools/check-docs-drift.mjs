@@ -24,7 +24,7 @@
  */
 
 import { readFile, readdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { LOCALES } from "../site/build/locales.mjs";
@@ -344,6 +344,49 @@ async function checkLinks(pages) {
 }
 
 // ---------------------------------------------------------------------------
+// 6d. A translated capability page may not list fewer endpoints
+//
+// The Chinese status page listed 11 of 22 endpoints. Not wrong about any of
+// them — it summarised where the English page enumerated ("all 8 endpoints are
+// live") — but on a capability page the enumeration *is* the content, and a
+// reader looking up whether POST /v1/bindings/resolve works could not find out.
+//
+// Prose may be shorter in another language. The list of what exists may not.
+// ---------------------------------------------------------------------------
+
+/** Endpoints named in a page, normalised so `{id}` and `{binding_session_id}` match. */
+function endpointsIn(text) {
+  return new Set(
+    [...text.matchAll(/`(GET|POST|PUT|PATCH|DELETE) ([^`]+)`/g)].map(
+      (m) => `${m[1]} ${m[2].replace(/\{[^}]*\}/g, "{}").trim()}`,
+    ),
+  );
+}
+
+async function checkCapabilityParity() {
+  const english = await readFile(path.join(DOCS, "status.mdx"), "utf8");
+  const expected = endpointsIn(english);
+  let checked = 0;
+
+  for (const locale of LOCALES.map((l) => l.code)) {
+    const file = path.join(DOCS, locale, "status.mdx");
+    if (!existsSync(file)) continue;   // untranslated falls back to English
+
+    checked++;
+    const missing = [...expected].filter((e) => !endpointsIn(readFileSync(file, "utf8")).has(e));
+    if (missing.length) {
+      fail(
+        "capability-parity",
+        `docs-site/${locale}/status.mdx omits ${missing.length} endpoint(s) the English ` +
+          `page lists: ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? "…" : ""}`,
+      );
+    }
+  }
+
+  notes.push(`capability parity: ${expected.size} endpoints × ${checked} translated status page(s)`);
+}
+
+// ---------------------------------------------------------------------------
 // 6c. Counts stated in prose
 //
 // "23 endpoints you can call today" is a claim about the matrix written as a
@@ -537,6 +580,7 @@ await checkCryptoValues(pages);
 await checkLinks(pages);
 await checkSiteFeatures();
 await checkStatedCounts(status, pages);
+await checkCapabilityParity();
 await checkNavigation(pages);
 
 // ---------------------------------------------------------------------------

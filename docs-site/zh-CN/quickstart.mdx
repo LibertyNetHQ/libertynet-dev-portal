@@ -21,6 +21,11 @@ import { Status } from '/snippets/status.mdx';
 curl -s https://registry.libertynet.ai/health
 ```
 
+```typescript TypeScript
+const res = await fetch("https://registry.libertynet.ai/health");
+console.log(await res.json());
+```
+
 ```python Python
 import json, urllib.request
 with urllib.request.urlopen("https://registry.libertynet.ai/health") as r:
@@ -38,9 +43,27 @@ with urllib.request.urlopen("https://registry.libertynet.ai/health") as r:
 
 ## 2. 看看网络上都有谁
 
-```bash
+<CodeGroup>
+
+```bash curl
 curl -s https://registry.libertynet.ai/nodes | head -c 400
 ```
+
+```typescript TypeScript
+const { count, nodes } = await (await fetch("https://registry.libertynet.ai/nodes")).json();
+console.log(`${count} 个节点`);
+console.log(nodes[0]);
+```
+
+```python Python
+import json, urllib.request
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes") as r:
+    data = json.load(r)
+print(f"{data['count']} 个节点")
+print(data["nodes"][0])
+```
+
+</CodeGroup>
 
 ```json 返回（一个节点）
 {
@@ -71,6 +94,60 @@ LibertyNet 的 DID 是**自证的**：标识符由公钥推导而来。给你一
 你只用一个 SHA-256 就能确认这对关系——不查目录，不问证书机构，也不必相信刚收到的这个响应。
 
 存成 `verify.py` 跑一下。**不用装任何包。**
+
+```typescript TypeScript
+import { createHash } from "node:crypto";
+
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function b58decode(s) {
+  let n = 0n;
+  for (const c of s) {
+    const i = B58.indexOf(c);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  let hex = n.toString(16);
+  if (hex.length % 2) hex = "0" + hex;
+  // base58 会丢掉前导零字节，每个前导 '1' 补回一个
+  let lead = 0;
+  for (const c of s) { if (c === "1") lead++; else break; }
+  return Buffer.concat([Buffer.alloc(lead), Buffer.from(hex, "hex")]);
+}
+
+// /nodes 给的公钥是 hex，/peers 给的是 base58。同一把钥匙，两种写法。
+function keyBytes(pk) {
+  return /^[0-9a-f]{64}$/.test(pk) ? Buffer.from(pk, "hex") : b58decode(pk);
+}
+
+/** 这个 DID 真的能从这把公钥推导出来吗？ */
+function verifyIdBinding(did, publicKey) {
+  const key = keyBytes(publicKey);
+  if (!key || key.length !== 32) return false;
+
+  const digest = createHash("sha256").update(key).digest("hex");
+  const body = did.replace(/^did:svrp:(?:[a-z]:)?/, "");
+
+  if (body.length === 64) return body === key.toString("hex"); // 全 hex 形式
+  if (body.length === 8) return body === digest.slice(0, 8);   // 短形式
+  if (body.length === 10) return body === digest.slice(0, 10); // 撞名回退形式
+  return false;
+}
+
+const { nodes } = await (await fetch("https://registry.libertynet.ai/nodes")).json();
+
+let verified = 0;
+for (const n of nodes) {
+  if (verifyIdBinding(n.did, n.public_key)) verified++;
+  else console.log("REJECT", n.did);
+}
+console.log(`${verified}/${nodes.length} 个身份验证通过`);
+
+const fresh = nodes.filter(
+  (n) => n.last_seen && Date.now() - Date.parse(n.last_seen) < 10 * 60 * 1000,
+);
+console.log(`最近 10 分钟内出现过的有 ${fresh.length} 个`);
+```
 
 ```python verify.py
 import hashlib, json, re, urllib.request
@@ -190,9 +267,34 @@ print("ok")
 
 跑通了，就说明这个节点确实持有你刚才验证过的那个身份的私钥。
 
+<Warning>
+**永远不要把私钥放进配置文件、`.env`、或者仓库里的任何地方。**
+
+这份快速上手全程都不需要私钥——发现和验证都是公开的，demo 节点用的是它自己的密钥，
+不是你的。等到你真的持有密钥（作为运营者）时，请在用到的那一刻从操作系统钥匙串或
+密钥管理器里读：
+
+```python
+import keyring
+secret = bytes.fromhex(keyring.get_password("libertynet", "device-key"))
+```
+
+放进文件里的密钥，同时也在你的备份里、shell 历史里、崩溃转储里。这个网络**没有重置
+流程**——因为重置流程本身就是第二条、而且更弱的入口。
+</Warning>
+
 ## 5. 或者用 SDK 一行搞定
 
 上面这些就是 SDK 替你做的事，而且验证不可关闭。
+
+```typescript TypeScript
+import { LibertyNet } from "libertynet-sdk";
+
+const ln = new LibertyNet();                 // 验证默认开启，且关不掉
+const nodes = await ln.discovery.callable(); // 已验证、新鲜、可达、带签名
+
+console.log(nodes.map((n) => `${n.did} ${n.endpoint} ${n.capabilities.join(",")}`));
+```
 
 ```python
 from libertynet import LibertyNet

@@ -42,7 +42,18 @@ import { Status, StatusKey } from '/snippets/status.mdx';
 
 ## 节点↔运营者绑定 <Status level="implemented" />
 
-完整的双签名握手，在绑定生效前四个签名会被原子性地重新验证一遍。8 个端点全部在线。
+完整的双签名握手，在绑定生效前四个签名会被原子性地重新验证一遍。
+
+| 端点 | 状态 |
+|---|---|
+| `POST /v1/bindings/initiate` | <Status level="implemented" /> |
+| `POST /v1/bindings/resolve` | <Status level="implemented" /> |
+| `POST /v1/bindings/authorize` | <Status level="implemented" /> |
+| `GET /v1/bindings/{id}/status` | <Status level="implemented" /> |
+| `POST /v1/bindings/{id}/cancel` | <Status level="implemented" /> |
+| `POST /v1/node/bindings/pending` | <Status level="implemented" /> |
+| `POST /v1/node/bindings/{id}/accept` | <Status level="implemented" /> |
+| `POST /v1/node/bindings/{id}/reject` | <Status level="implemented" /> |
 
 ## Credits 与 Evidence <Status level="not_yet_wired" />
 
@@ -59,6 +70,11 @@ import { Status, StatusKey } from '/snippets/status.mdx';
 会抛异常，而不是把一个可能被当成余额显示的零交给你。想展示时请用 `creditsRaw()`。
 </Warning>
 
+| 端点 | 状态 |
+|---|---|
+| `GET /v1/operator/me/credits` | <Status level="not_yet_wired" /> |
+| `GET /v1/operator/me/evidence` | <Status level="not_yet_wired" /> |
+
 **Credits 是测试单位。** 不是现金，不可兑换，不代表对未来价值的任何主张。
 
 ## 预言机 <Status level="testing" />
@@ -70,6 +86,7 @@ import { Status, StatusKey } from '/snippets/status.mdx';
 | `EvidenceOracle` | <Status level="testing" /> | Solidity，23/23 测试通过。**未部署**到任何公开网络。 |
 | `PythPriceAdapter` | <Status level="testing" /> | 同上：测试通过，未部署。 |
 | `GET /v1/oracle/price` | <Status level="planned" /> | 没有 HTTP 读取接口。 |
+| `POST /v1/oracle/report` | <Status level="planned" /> | 没有 HTTP 上报接口。 |
 
 <Note>
 "测试通过"和"已部署"是两个不同的说法，把它们混为一谈是文档变成假话最容易的路径之一。

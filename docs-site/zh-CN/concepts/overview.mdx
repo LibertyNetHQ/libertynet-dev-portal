@@ -123,3 +123,35 @@ sha256(publicKey).slice(0, 8) === "268d4fe0"   // → 这个声称成立
 <Card title="继续" icon="arrow-right" href="/zh/concepts/identity" horizontal>
   **身份** — 两种 DID 编码、为什么字符串比较会骗你、以及那个不能重排的验证顺序。
 </Card>
+
+## 每个 LibertyNet 程序的形状
+
+<Steps>
+  <Step title="发现">
+    问注册表都有谁在线。公开，一个 GET，不需要认证。
+  </Step>
+  <Step title="验证">
+    信任任何东西之前，自己先验身份。在 SDK 里这一步没有开关可关。
+  </Step>
+  <Step title="行动">
+    调用一个节点；或者把节点绑给运营者，让它在你设的限额内干活。
+  </Step>
+</Steps>
+
+## 接下来读什么
+
+<Columns cols={2}>
+  <Card title="深入身份" icon="fingerprint" href="/zh-CN/concepts/identity">
+    两种 DID 编码、为什么字符串比较会骗你、以及验证顺序。
+  </Card>
+  <Card title="深入发现" icon="tower-broadcast" href="/zh-CN/concepts/nodes-and-discovery">
+    注册、心跳、能力，以及"在线"到底是什么意思。
+  </Card>
+  <Card title="深入绑定" icon="link" href="/zh-CN/concepts/binding">
+    四个签名、状态机，以及为什么绑定码不可枚举。
+  </Card>
+  <Card title="动手做点东西" icon="rocket" href="/zh-CN/quickstart">
+    五分钟，对着真实网络完成一次已验证的调用。
+  </Card>
+</Columns>
+

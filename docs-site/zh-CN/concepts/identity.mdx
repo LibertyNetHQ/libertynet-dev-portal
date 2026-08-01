@@ -15,6 +15,41 @@ did:svrp:n:268d4fe0
 
 没人签发它。它是**算出来的**。所以你不问任何人就能核对。
 
+## 推导与验证
+
+<CodeGroup>
+
+```typescript TypeScript
+import { verifyIdBinding, didFromPublicKey, fingerprint } from "libertynet-sdk";
+
+// 从公钥推导身份
+didFromPublicKey("7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg", "n");
+// → "did:svrp:n:268d4fe0"
+
+// 校验一个声称的配对
+verifyIdBinding("did:svrp:n:268d4fe0", "7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg");
+// → true
+
+// 人眼可比对的形式，用于念出来或在屏幕上核对
+fingerprint("7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg");
+// → "268d:4fe0:b6ef:c390"
+```
+
+```python Python
+from libertynet import verify_id_binding, did_from_public_key, fingerprint
+
+did_from_public_key("7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg", "n")
+# → "did:svrp:n:268d4fe0"
+
+verify_id_binding("did:svrp:n:268d4fe0", "7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg")
+# → True
+
+fingerprint("7441yUYc1qmWVkAAUrPapKC13MXusEqDvvQJ1Pw5NNfg")
+# → "268d:4fe0:b6ef:c390"
+```
+
+</CodeGroup>
+
 ## 两种编码，同一个身份
 
 这是最容易让人白花一下午的细节。
@@ -70,6 +105,26 @@ SDK 两种编码都接受，并在哈希前归一化。
 [为什么](/concepts/overview#为什么第-1-步不能省)
 </Warning>
 
+### 为什么第 1 步不能跳过
+
+假设攻击者想冒充 `did:svrp:n:268d4fe0`。
+
+他造不出那个节点私钥的签名——私钥不在他手上。但他**可以**自己生成一对密钥，
+用它签任何东西，然后发给你：
+
+```json
+{
+  "claimed_identity": "did:svrp:n:268d4fe0",
+  "public_key": "<攻击者自己的公钥>",
+  "signature": "<用攻击者密钥做的、完全有效的签名>"
+}
+```
+
+如果你拿他给的公钥去验这个签名，**它会通过**。签名是真的——只不过真的是他的。
+
+第 1 步就是拦这个的：`SHA-256(攻击者公钥)[0:4]` 不等于 `268d4fe0`，
+身份声明在签名被考虑之前就已经失败了。省掉这一步是**验证绕过**，不是优化。
+
 ## 身份 ≠ 认证
 
 值得说清楚：
@@ -98,3 +153,14 @@ SDK 两种编码都接受，并在哈希前归一化。
 <Card title="自己验证一遍" icon="terminal" href="/zh/quickstart" horizontal>
   快速开始里有十行不依赖任何包的代码，对着真实网络验证全部身份。
 </Card>
+
+## 延伸阅读
+
+<Columns cols={2}>
+  <Card title="DID 参考" icon="book" href="/reference/dids">
+    所有形式、所有字段、所有边界情况，一张表说清。
+  </Card>
+  <Card title="自己验一遍" icon="terminal" href="/quickstart#3-自己验证一个身份">
+    十行代码，零依赖，对着真实网络跑。
+  </Card>
+</Columns>

@@ -67,14 +67,22 @@ key = bytes.fromhex(pk) if re.fullmatch(r"[0-9a-f]{64}", pk) else b58decode(pk)
 
 ## 会话
 
-### `NO_SESSION` · `SESSION_EXPIRED`
+### `NO_SESSION`
 
-**HTTP 401。** 没有 bearer 头，或者会话超过了一小时。
+**HTTP 401。** 没有 bearer 头——你还没登录，或者登录信息没带上。
+
+SDK 在**发请求之前**就抛这个错，所以你在调用处就能拿到它，而不是等一个来回之后。
+
+**解决。** 先 `auth.login()` 或 `auth.use_session()`。
+
+---
+
+### `SESSION_EXPIRED`
+
+**HTTP 401。** 会话超过了一小时。
 
 **解决。** 重新登录。会话**故意做得短且不可续期**——永不过期的令牌是值得偷的令牌。
 捕获这个错误然后重新认证，不要试图延长它。
-
-SDK 在**发请求之前**就抛 `NO_SESSION`，所以你在调用处就能拿到它，而不是等一个来回之后。
 
 ---
 
@@ -112,7 +120,7 @@ SDK 在**发请求之前**就抛 `NO_SESSION`，所以你在调用处就能拿�
 
 ---
 
-### `TTL_TOO_LONG` · `ALREADY_EXPIRED` · `BAD_STATE`
+### `TTL_TOO_LONG` · `ALREADY_EXPIRED`
 
 **HTTP 400 / 409。**
 
@@ -120,7 +128,16 @@ SDK 在**发请求之前**就抛 `NO_SESSION`，所以你在调用处就能拿�
 |---|---|---|
 | `TTL_TOO_LONG` | 会话窗口超过 600 秒或 ≤ 0 | 用 RFC3339 UTC（`Z` 后缀、秒精度），窗口保持在 10 分钟内 |
 | `ALREADY_EXPIRED` | `expires_at` 已是过去 | **检查机器时钟**——偏差几秒就会让本地看起来正确的时间戳在远端被拒 |
-| `BAD_STATE` | 会话已处于终态 | 终态永不改变。开一个新会话，不要试图复活它 |
+
+---
+
+### `BAD_STATE`
+
+**HTTP 409。** 会话不在能做这个操作的状态上——通常是已经进了终态。
+
+**解决。** 先读 `state`。终态（`ACTIVE`、`EXPIRED`、`REJECTED_BY_OPERATOR`、
+`REJECTED_BY_NODE`、`CANCELLED`）是最终的，进去就不会再动。开一个新会话，
+不要试图复活它。
 
 ---
 
@@ -157,6 +174,66 @@ SDK 在**发请求之前**就抛 `NO_SESSION`，所以你在调用处就能拿�
 
 SDK 已经对**瞬时**失败（429、5xx、网络错误）做了指数退避加抖动的重试，
 并且**绝不重试 4xx**——重放一个被拒的签名，只会更贵地被再拒一次。
+
+---
+
+### `DC_ID_BINDING` · `DC_BAD_SIGNATURE` · `DC_EXPIRED`
+
+**HTTP 401。** 出问题的是 DeviceCredential 本身——**在你的登录签名被考虑之前**就已经失败了。
+先看这三个码，否则你会去调一个根本没被验到的签名。
+
+| 码 | 含义 | 怎么修 |
+|---|---|---|
+| `DC_ID_BINDING` | `operator_did` 不是从 `operator_root_public_key` 推导出来的。 | 凭证本身是坏的或伪造的，重新签发。 |
+| `DC_BAD_SIGNATURE` | 不是被根密钥正确签名的。 | 用正确的根密钥重新签发。 |
+| `DC_EXPIRED` | 超出有效期。 | 签一张新的。注册表只容忍 ±5 秒时钟偏差，再多不行。 |
+
+<Warning>
+凭证有九个字段全部参与签名：`credential_id` · `operator_did` ·
+`operator_root_public_key` · `device_id` · `device_public_key` · `permissions` ·
+`issued_at` · `expires_at` · `revocation_id`。少签任何一个都会得到
+`DC_BAD_SIGNATURE`，而报错**不会告诉你少了哪个**。
+
+`permissions` 排序后逗号连接；没有权限时签空字符串。顺序也是签名的一部分。
+</Warning>
+
+---
+
+### `ID_BINDING_REQUIRED`
+
+**HTTP 401。** 给的根本不是 `did:svrp` 身份。
+
+**怎么修。** 用自证的 `did:svrp:` 标识符。这里不接受其它 DID 方法，因为它们没法离线验证——
+而离线可验证正是这套身份的全部意义。
+
+---
+
+### `SESSION_EXISTS`
+
+**HTTP 409。** 这个 `binding_session_id` 已经用过了。
+
+**怎么修。** 每次会话生成一个全新的唯一 id。不要复用，也不要从主机名之类稳定的东西推导——
+那等于每次都用同一个。
+
+---
+
+### `ALREADY_ACTIVE`
+
+**HTTP 409。** 绑定其实**已经成功了**。
+
+**怎么修。** 什么都不用做。这是"成功来了两次"，不是失败——按幂等处理即可。
+
+---
+
+### `MISSING_DEPENDENCY`
+
+签名需要 `cryptography`，SDK 核心刻意不依赖它。
+
+```bash
+pip install 'libertynet[signing]'
+```
+
+发现和身份验证什么都不需要装——查一个公开网络上有谁，本来就不该先装东西。
 
 ---
 
