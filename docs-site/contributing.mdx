@@ -19,6 +19,19 @@ the zeros.
 Every other rule here is a preference. This one is the point of the project.
 </Warning>
 
+## Start here
+
+<Columns cols={2}>
+  <Card title="Good first issues" icon="seedling" href="https://github.com/LibertyNetHQ/libertynet-dev-portal/labels/good%20first%20issue">
+    Real work, scoped so that **one locale, one question or one example is a complete
+    contribution**. Nothing on that list is busywork invented to have a list.
+  </Card>
+  <Card title="Report a wrong AI answer" icon="robot" href="https://github.com/LibertyNetHQ/libertynet-dev-portal/issues/new?labels=ai-answer">
+    Filing one triggers an automated triage that shows what the assistant would have read.
+    A wrong answer is usually a documentation bug.
+  </Card>
+</Columns>
+
 ## Layout
 
 ```text
@@ -39,10 +52,18 @@ dev-portal/
 ## Run everything
 
 ```bash
-cd dev-portal && node tools/check-all.mjs
+node tools/check-all.mjs
 ```
 
-This runs every suite plus the honesty checks. It must pass before a PR merges.
+Twelve suites: the status generator, four honesty checks, the site renderer, every example
+(really executed), the golden-question eval, both SDKs, the scaffolder and the MCP server.
+It must pass before a PR merges.
+
+```bash
+node tools/check-all.mjs --live   # adds the live-network checks
+node examples/run-all.mjs         # every example, including the networked ones
+node tools/sync-status.mjs        # regenerate after editing the capability matrix
+```
 
 <AccordionGroup>
   <Accordion title="Individually">
@@ -73,13 +94,20 @@ This runs every suite plus the honesty checks. It must pass before a PR merges.
     A badge changes in the same commit as the behaviour, never before it.
   </Step>
   <Step title="Edit api-spec/status.json">
-    The single source. Do not hand-edit a badge in an `.mdx` file — it will be caught.
+    The single source, and now genuinely authoritative rather than merely agreed-with.
   </Step>
-  <Step title="Run the drift checker">
+  <Step title="Regenerate">
     ```bash
-    node tools/check-docs-drift.mjs
+    node tools/sync-status.mjs
     ```
-    It fails if any page, SDK or spec disagrees with the matrix.
+    This rewrites the OpenAPI `x-ln-status` values, both SDK capability maps and the docs
+    table. CI runs `--check` and fails if you hand-edit any of them — the same discipline as
+    `gofmt -l`.
+  </Step>
+  <Step title="Write the prose yourself">
+    Deliberately **not** generated. A capability moving to `implemented` needs a human to
+    say what it does; a machine inventing that paragraph would manufacture exactly the
+    confidence this project exists to avoid.
   </Step>
 </Steps>
 
@@ -89,10 +117,19 @@ The bar: **it must run, it must be honest, and it must teach one thing well.**
 
 ```bash
 mkdir examples/my-example
-# write it
-node examples/my-example/example.mjs        # must actually work
+# write it, then declare it in examples/manifest.json:
+#   the command to run, and what its output must contain
+node examples/run-all.mjs my-example        # must actually run and match
 node tools/check-examples.mjs               # must pass
 ```
+
+The manifest is what makes "done" unambiguous. The runner spawns your example, waits for it
+and matches its real output — "it compiled" is not the bar, because examples rot silently.
+
+**Assert the failures too.** The most valuable checks in the suite are the ones that require
+things to go wrong correctly: a crossed DID/key pair must exit 1, a forged identity must get
+401, a replayed signature must not verify. A suite that only checks happy paths would let
+identity verification break without anyone noticing.
 
 Checked automatically:
 
