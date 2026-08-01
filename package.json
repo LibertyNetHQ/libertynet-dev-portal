@@ -1,0 +1,12 @@
+{
+  "name": "libertynet-dev-portal",
+  "private": true,
+  "type": "module",
+  "description": "Root manifest for the portal's own tooling. The site, the SDKs and the MCP server each stay dependency-free; this exists so the browser smoke test has a browser.",
+  "scripts": {
+    "smoke": "node site/test/smoke.browser.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

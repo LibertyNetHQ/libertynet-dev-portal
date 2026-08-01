@@ -18,7 +18,9 @@
     "copied": "Copié",
     "home": "Accueil",
     "copyForAI": "Copier pour l'IA",
-    "copyForAITitle": "Copier cette page en markdown, prête à coller dans un assistant"
+    "copyForAITitle": "Copier cette page en markdown, prête à coller dans un assistant",
+    "untranslatedSuffix": " (en anglais)",
+    "languageHint": "Langues. Une option marquée (en anglais) n'a pas encore de traduction de cette page et affichera l'original anglais."
   },
   "status": {
     "implemented": "Implémenté",
@@ -44,7 +46,8 @@
     "helpTranslate": "Aider à traduire cette page",
     "viewOriginal": "Voir l'original en anglais",
     "staleTitle": "En retard sur l'original anglais",
-    "staleBody": "Il manque {n} section(s) à cette traduction par rapport à la page anglaise. Ce qui est ici est exact ; ce qui manque, manque. L'original anglais est la version complète."
+    "staleBody": "Il manque {n} section(s) à cette traduction par rapport à la page anglaise. Ce qui est ici est exact ; ce qui manque, manque. L'original anglais est la version complète.",
+    "statusLink": "État des traductions"
   },
   "safety": {
     "creditsTestUnit": "Les Credits sont une unité de test. Ce n'est pas de l'argent, ce n'est pas échangeable et cela ne constitue aucun droit sur une valeur future.",

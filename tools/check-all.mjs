@@ -38,6 +38,15 @@ const SUITES = [
     args: ["site/build.mjs"],
   },
   {
+    // The coverage figures are counted from disk, so a new English page lowers
+    // every percentage. Hand-maintained, that number starts true and quietly
+    // stops being true the first time anyone adds a page.
+    name: "translation coverage",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/sync-translations.mjs", "--check"],
+  },
+  {
     name: "docs honesty",
     cwd: ROOT,
     cmd: "node",
@@ -62,6 +71,27 @@ const SUITES = [
     cwd: ROOT,
     cmd: "node",
     args: ["--test", "site/test/mdx.test.mjs"],
+  },
+  {
+    // Drives a real browser. Every other suite here asserts about files, HTML
+    // and HTTP status — which is how a syntax error that killed all of site.js
+    // shipped to production with twenty suites green.
+    //
+    // Skipped rather than failed when Playwright is absent: a contributor
+    // without the browser downloaded should still be able to run everything
+    // else, and CI installs it explicitly.
+    name: "browser smoke",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["site/test/smoke.browser.mjs"],
+    skipIf: async () => {
+      try {
+        await import("playwright");
+        return false;
+      } catch {
+        return "playwright not installed (npm install)";
+      }
+    },
   },
   {
     name: "published artifacts",
@@ -238,6 +268,15 @@ const results = [];
 console.log(`\nRunning ${suites.length} suites${live ? " (including live network)" : ""}…\n`);
 
 for (const suite of suites) {
+  if (suite.skipIf) {
+    const why = await suite.skipIf();
+    if (why) {
+      console.log(`  ⊘ ${suite.name.padEnd(28)} skipped — ${why}`);
+      results.push({ ...suite, skipped: true });
+      continue;
+    }
+  }
+
   if (suite.needs && !existsSync(path.join(suite.cwd, suite.needs))) {
     console.log(`  ⊘ ${suite.name.padEnd(28)} skipped — run \`npm install\` in ${path.relative(ROOT, suite.cwd)}`);
     results.push({ ...suite, skipped: true });

@@ -142,13 +142,22 @@ function tocHtml(headings, strings) {
 }
 
 function languageSwitcher(slug, locale, pages, strings) {
+  // Options for languages that have no translation of *this* page say so, in
+  // words, in the reader's current language.
+  //
+  // The marker used to be a bare "·", which is information only to whoever
+  // wrote it. Naming the fallback outright — "Deutsch (auf Englisch)" — means
+  // the reader knows what they will get before they choose, and the control
+  // needs no legend to explain itself.
   const options = LOCALES.map((l) => {
     const has = Boolean(pages.get(slug)?.sources?.[l.code]);
-    return `<option value="${l.code}"${l.code === locale ? " selected" : ""}>${escapeHtml(l.label)}${has ? "" : " ·"}</option>`;
+    const label = escapeHtml(l.label) + (has ? "" : escapeHtml(strings.nav.untranslatedSuffix));
+    return `<option value="${l.code}"${l.code === locale ? " selected" : ""}>${label}</option>`;
   }).join("");
 
   return (
     `<select class="control" data-lang-switch aria-label="${escapeHtml(strings.nav.language)}" ` +
+    `title="${escapeHtml(strings.nav.languageHint)}" ` +
     `data-slug="${escapeHtml(slug)}">${options}</select>`
   );
 }
@@ -191,7 +200,12 @@ function shell({ slug, locale, meta, body, headings, nav, pages, strings, prev, 
   const notice = !translated
     ? `<div class="i18n-notice"><strong>${escapeHtml(strings.translation.missingTitle)}</strong>` +
       `${escapeHtml(strings.translation.missingBody.replace("{language}", l.label))} ` +
-      `<a href="${contribute}">${escapeHtml(strings.translation.helpTranslate)}</a></div>`
+      `<a href="${contribute}">${escapeHtml(strings.translation.helpTranslate)}</a> · ` +
+      // Link the overall picture from the individual notice. Read one at a
+      // time these notices look like exceptions; for nine of the ten languages
+      // they are the normal case, and the reader deserves to find that out
+      // here rather than by opening page after page.
+      `<a href="${href("translations", locale)}">${escapeHtml(strings.translation.statusLink)}</a></div>`
     : behind > 0
       ? `<div class="i18n-notice"><strong>${escapeHtml(strings.translation.staleTitle)}</strong>` +
         `${escapeHtml(strings.translation.staleBody.replace("{n}", String(behind)))} ` +
@@ -431,6 +445,28 @@ async function build() {
 
   // Static assets
   await cp(path.join(HERE, "build/theme.css"), path.join(OUT, "theme.css"));
+
+  // Parse the client script before writing it.
+  //
+  // site.js is assembled inside a template literal, which means an escape
+  // sequence written for the *output* is silently interpreted by the *build*
+  // instead. That shipped: a `\n` became a real newline inside a string
+  // literal, and since a browser abandons a whole script file on a parse
+  // error, the language switcher, the theme toggle, the search box and the
+  // copy button were all dead on every page — while every test here passed,
+  // because nothing ever asked whether the file it generated was JavaScript.
+  //
+  // `new Function` compiles without executing, which is exactly the question.
+  try {
+    new Function(CLIENT_JS);
+  } catch (err) {
+    throw new Error(
+      `site.js is not valid JavaScript: ${err.message}\n` +
+        `  The usual cause is an escape sequence in CLIENT_JS that the outer ` +
+        `template literal consumed — write \\\\n where the output needs \\n.`,
+    );
+  }
+
   await writeFile(path.join(OUT, "site.js"), CLIENT_JS);
 
   const favicon = path.join(DOCS, "favicon.svg");
@@ -771,7 +807,17 @@ const CLIENT_JS = `/* Docs site behaviour. No dependencies, no framework, no tra
            cannot cite it, and cannot tell the reader where to look. */
         .then(function (md) {
           return navigator.clipboard.writeText(
-            "Source: " + location.origin + location.pathname + "\n\n" + md
+            // Double-escaped on purpose. This file is emitted from a template
+            // literal, so a newline escape written the ordinary way is consumed
+            // by the build and becomes a real line break inside the generated
+            // string literal — a syntax error that takes the whole of site.js
+            // down with it, and every interactive feature on the site with that.
+            // Doubling the backslash is what survives into the output.
+            //
+            // (Said carefully rather than shown: the first version of this very
+            // comment spelled the escape out literally and reintroduced the bug
+            // it was explaining.)
+            "Source: " + location.origin + location.pathname + "\\n\\n" + md
           );
         })
         .then(function () {

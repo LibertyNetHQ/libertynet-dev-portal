@@ -18,7 +18,9 @@
     "copied": "已複製",
     "home": "首頁",
     "copyForAI": "複製給 AI",
-    "copyForAITitle": "把本頁複製成 markdown，可直接貼給 AI 助手"
+    "copyForAITitle": "把本頁複製成 markdown，可直接貼給 AI 助手",
+    "untranslatedSuffix": "（英文）",
+    "languageHint": "語言。標註（英文）的選項表示本頁尚無該語言譯文，會顯示英文原文。"
   },
   "status": {
     "implemented": "已實作",
@@ -44,7 +46,8 @@
     "helpTranslate": "幫忙翻譯這一頁",
     "viewOriginal": "檢視英文原文",
     "staleTitle": "落後於英文原文",
-    "staleBody": "這份翻譯比英文頁面少了 {n} 個章節。已翻譯的內容是準確的，但缺的就是缺了。英文原文是完整版本。"
+    "staleBody": "這份翻譯比英文頁面少了 {n} 個章節。已翻譯的內容是準確的，但缺的就是缺了。英文原文是完整版本。",
+    "statusLink": "翻譯進度"
   },
   "safety": {
     "creditsTestUnit": "Credits 是測試單位。不是現金，不可兌換，不代表對未來價值的任何主張。",

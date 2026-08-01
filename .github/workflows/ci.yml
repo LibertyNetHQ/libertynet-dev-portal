@@ -27,6 +27,14 @@ jobs:
         working-directory: sdk/typescript
         run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
+      # Playwright's browser is not in the base image, and check-all skips the
+      # browser suite when it is missing — which would quietly turn the one
+      # test that drives a real page into a no-op, in the one place it matters.
+      - name: Install Playwright and Chromium
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
       - name: Install pytest
         run: python -m pip install --quiet pytest
 
@@ -46,8 +54,18 @@ jobs:
       # Runs the docs honesty checker, the example safety checker, both SDK
       # suites, the scaffolder, the MCP server and a TypeScript strict typecheck.
       # Hermetic — no network — so it cannot go red because a server blipped.
+      # The grep is on the same run's output, not a second run: a skipped
+      # browser suite means the one test that drives a real page proved
+      # nothing, and a green result that tested less than it claims is the
+      # failure mode this whole suite exists to prevent.
       - name: Full suite
-        run: node tools/check-all.mjs
+        run: |
+          set -o pipefail
+          node tools/check-all.mjs 2>&1 | tee /tmp/suite.log
+          if grep -q "browser smoke.*skipped" /tmp/suite.log; then
+            echo "::error::browser smoke was skipped — Playwright is missing in CI"
+            exit 1
+          fi
 
       # Golden questions, including adversarial ones, run against the same tools
       # and corpus an assistant would use. A wrong answer here is a documentation

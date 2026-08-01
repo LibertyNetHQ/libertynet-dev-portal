@@ -18,7 +18,9 @@
     "copied": "복사됨",
     "home": "홈",
     "copyForAI": "AI용 복사",
-    "copyForAITitle": "이 페이지를 markdown으로 복사해 어시스턴트에 붙여넣을 수 있습니다"
+    "copyForAITitle": "이 페이지를 markdown으로 복사해 어시스턴트에 붙여넣을 수 있습니다",
+    "untranslatedSuffix": "(영어)",
+    "languageHint": "언어. (영어)로 표시된 항목은 이 페이지의 번역이 아직 없어 영어 원문이 표시됩니다."
   },
   "status": {
     "implemented": "구현됨",
@@ -44,7 +46,8 @@
     "helpTranslate": "이 페이지 번역 돕기",
     "viewOriginal": "영어 원문 보기",
     "staleTitle": "영문 원문보다 뒤처져 있습니다",
-    "staleBody": "이 번역에는 영문 페이지에 있는 섹션 {n}개가 빠져 있습니다. 번역된 내용은 정확하지만, 빠진 것은 빠진 것입니다. 완전한 버전은 영문 원문입니다."
+    "staleBody": "이 번역에는 영문 페이지에 있는 섹션 {n}개가 빠져 있습니다. 번역된 내용은 정확하지만, 빠진 것은 빠진 것입니다. 완전한 버전은 영문 원문입니다.",
+    "statusLink": "번역 현황"
   },
   "safety": {
     "creditsTestUnit": "Credits는 테스트 단위입니다. 현금이 아니고, 환금할 수 없으며, 미래 가치에 대한 청구권도 아닙니다.",

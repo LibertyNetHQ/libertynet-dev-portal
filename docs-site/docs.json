@@ -112,6 +112,7 @@
             "group": "Reference",
             "pages": [
               "download",
+              "translations",
               "reference/errors",
               "reference/dids",
               "reference/changelog"

@@ -18,7 +18,9 @@
     "copied": "Kopiert",
     "home": "Start",
     "copyForAI": "Für KI kopieren",
-    "copyForAITitle": "Diese Seite als Markdown kopieren, bereit zum Einfügen in einen Assistenten"
+    "copyForAITitle": "Diese Seite als Markdown kopieren, bereit zum Einfügen in einen Assistenten",
+    "untranslatedSuffix": " (auf Englisch)",
+    "languageHint": "Sprachen. Eine mit (auf Englisch) markierte Option hat für diese Seite noch keine Übersetzung und zeigt das englische Original."
   },
   "status": {
     "implemented": "Implementiert",
@@ -44,7 +46,8 @@
     "helpTranslate": "Bei der Übersetzung helfen",
     "viewOriginal": "Englisches Original ansehen",
     "staleTitle": "Hinter dem englischen Original",
-    "staleBody": "Dieser Übersetzung fehlen {n} Abschnitt(e), die die englische Seite hat. Was hier steht, stimmt; was fehlt, fehlt. Das englische Original ist die vollständige Fassung."
+    "staleBody": "Dieser Übersetzung fehlen {n} Abschnitt(e), die die englische Seite hat. Was hier steht, stimmt; was fehlt, fehlt. Das englische Original ist die vollständige Fassung.",
+    "statusLink": "Übersetzungsstand"
   },
   "safety": {
     "creditsTestUnit": "Credits sind eine Testeinheit. Kein Geld, nicht einlösbar und kein Anspruch auf künftigen Wert.",

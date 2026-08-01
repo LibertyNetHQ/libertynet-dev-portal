@@ -19,7 +19,9 @@
     "copied": "Copied",
     "home": "Home",
     "copyForAI": "Copy for AI",
-    "copyForAITitle": "Copy this page as markdown, ready to paste into an assistant"
+    "copyForAITitle": "Copy this page as markdown, ready to paste into an assistant",
+    "untranslatedSuffix": " (English)",
+    "languageHint": "Languages. An option marked (English) has no translation for this page yet, so it shows the English original."
   },
   "status": {
     "implemented": "Implemented",
@@ -45,7 +47,8 @@
     "helpTranslate": "Help translate this page",
     "viewOriginal": "View the English original",
     "staleTitle": "Behind the English original",
-    "staleBody": "This translation is missing {n} section(s) that the English page has. What is here is accurate; what is missing is missing. The English original is the complete version."
+    "staleBody": "This translation is missing {n} section(s) that the English page has. What is here is accurate; what is missing is missing. The English original is the complete version.",
+    "statusLink": "Translation status"
   },
   "safety": {
     "creditsTestUnit": "Credits are a test unit. Not cash, not redeemable, not a claim on future value.",
