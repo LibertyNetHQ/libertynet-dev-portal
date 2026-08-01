@@ -20,8 +20,78 @@ Measured 2026-08-01 against production.
 | C4 | Links to the source repository | 🔴 **all 404 for strangers** | 🟢 fixed + fetched anonymously | [C4](#c4) |
 | C5 | Translations described as complete | 🔴 **all 10 behind** | 🟢 step written + "behind" state | [C5](#c5) |
 
-**Six claims were false.** Every one is fixed, and every one now has a check that fails if
+| D1 | OpenAPI `DeviceCredential` schema | 🔴 **could not produce a working credential** | 🟢 nine fields + `x-ln-canonical`, checked live | [D1](#d1) |
+| D2 | `install.sh` fail-closed | 🔴 **fixed on the server only** | 🟢 repo synced + 16 behaviour assertions | [D2](#d2) |
+| D3 | zh-CN capability page | 🔴 **listed 11 of 22 endpoints** | 🟢 21/21 + parity check | [D3](#d3) |
+| D4 | sitemap.xml | 🔴 **invalid XML namespace** | 🟢 fixed, deployed | [D4](#d4) |
+
+**Ten claims were false.** Every one is fixed, and every one now has a check that fails if
 it regresses — see `GO-NO-GO.md` for the measured §6 verdict.
+
+---
+
+## Round 3 — what measuring rather than reading found {#d1}
+
+Round 2 was still largely a careful read. Round 3 probed the running system, and
+everything below was invisible to reading.
+
+### D1 — the published credential schema could not produce a working credential {#d1}
+
+The OpenAPI file listed seven fields; the registry signs nine. Measured by dropping
+one field at a time against the live registry — excluding `device_id`,
+`revocation_id` or `permissions` from the signed bytes each returns
+`401 DC_BAD_SIGNATURE`. A developer following the documentation exactly produced a
+credential that cannot verify, against an error naming no field.
+
+The canonical byte layout was documented **nowhere at all** — not in the spec, not
+in the guide. Which is exactly why nothing caught it: neither SDK could issue a
+credential, both only accepted pre-built ones, so no code here had ever built one
+from the published schema. The documentation was free to say anything.
+
+`tools/check-credential-schema.mjs` now reads `x-ln-canonical` at run time, signs
+those fields in that order, and requires the live registry to accept the result.
+Reverting the spec to seven fields makes it fail.
+
+**Also found, not fixed:** omitting a required field returns **502**, not a
+validation error — an unhandled exception on an unauthenticated endpoint. Private
+repo, so it goes to David.
+
+### D2 — the installer fix had only reached the server {#d2}
+
+`libertynet.ai/install.sh` was fail-closed and correct. `scripts/install.sh` in the
+repository still had:
+
+```bash
+else
+    warn "未找到 SHA256 校验文件，跳过完整性校验"
+fi
+```
+
+An attacker never needed to forge a digest — making `<asset>.sha256` return 404 was
+enough to skip verification entirely. And the next deploy from source would have
+reinstated it. Nothing compared the two, so the divergence was invisible.
+
+Synced, with 16 behaviour assertions and one that asserts live and repo are
+byte-identical. Restoring the old installer turns the 404 case red: exit 0, binary
+installed anyway.
+
+### D3 — the Chinese capability page listed half the endpoints {#d3}
+
+11 of 22. The whole binding group, credits, evidence and the oracle report endpoint
+were absent — a reader looking up `POST /v1/bindings/resolve` could not find out
+whether it works. The page summarised where the English enumerated, which is fine
+prose instinct and wrong on a capability page, where the enumeration is the content.
+
+Check 6d now refuses a translated status page that lists fewer endpoints than the
+English one. Prose may be shorter in another language; the list of what exists
+may not.
+
+### D4 — the sitemap was not a sitemap {#d4}
+
+`xmlns="http://www.sitemap.org/schemas/sitemap/0.9"` — singular. The standard is
+`sitemaps.org`, plural, and the singular host does not resolve at all, so no crawler
+would have accepted the document. Found by widening the anonymous link check from
+49 files to 178.
 
 ---
 

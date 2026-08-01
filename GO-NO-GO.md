@@ -29,14 +29,47 @@ for this report.
 |---|---|---|---|
 | 1 | External clean machine completes `discover → verify → act`, real signature verification | ✅ **PASS** | `docker run --rm libertynet-p6` — nothing LibertyNet installed. Fetched `/quickstart.md` (12,570 b), `/health` → 28 nodes, `?callable=1` → 1 node, id-binding recomputed to `dbe63a0c`, called `https://libertynet.ai/demo-node` with a self-chosen nonce `7dbe435d7b47dcd6`, **Ed25519 signature verified**. |
 | 2 | AI answer eval green and in CI | ✅ **PASS** | 16 golden questions (9 adversarial), 70 assertions, all pass. Wired into `.github/workflows/ci.yml`. |
-| 3 | 8–10 examples green in CI | ✅ **PASS** | **11 examples**, 20 checks, live: all green. Four assert *failure* (a crossed DID must exit 1; a forged identity must get 401; a replayed signature must not verify; a wallet request must scaffold nothing). |
+| 3 | 8–10 examples green in CI | ✅ **PASS** | **12 examples**, 21 checks, live: all green. Five assert *failure* (a crossed DID must exit 1; a forged identity must get 401; a replayed signature must not verify; a wallet request must scaffold nothing; a credential missing a signed field must be rejected). |
 | 4 | Change one status → the whole site follows; inconsistency fails the build | ✅ **PASS** | Flipped `GET /nodes` to `planned`. CI reported **6 stale artifacts**; one command regenerated all six; the docs badge, both SDKs, the OpenAPI `x-ln-status`, the API reference page, the scaffolder's vendored matrix and `ai-context.txt` (23 → 22 callable) all followed. The prose-count check caught the now-wrong sentence "23 endpoints you can call today". The live check then flagged the **under-claim** — `claimed: planned, observed: HTTP 200`. Restored. |
-| 5 | Honesty badges 100% consistent with live behaviour | ✅ **PASS** | `audit-implemented`: **36 verified, 0 false**; 80 `implemented` badges, **0 without a verifier**. `check-api-sync`: docs and live API agree. |
+| 5 | Honesty badges 100% consistent with live behaviour | ✅ **PASS** | `audit-implemented`: **38 verified, 0 false**; **104** `implemented` badges, **0 without a verifier**. `check-api-sync`: docs and live API agree. |
 | 6 | 3+ real developers independently complete the loop | ⬜ **NOT DONE** | Requires real people. Kit is ready; see below. |
 
 ---
 
-## What changed this round
+## Round 3 — hardening after the GO
+
+Six items, all measured. The state check first: the baseline (audit, anonymous
+link check, 20 suites) was already green, so nothing was redone.
+
+| # | Item | Result |
+|---|---|---|
+| 1 | DeviceCredential schema | ✅ The published schema listed **7 fields where the registry signs 9**. Proved by dropping one field at a time against the live registry: excluding `device_id`, `revocation_id` or `permissions` from the signed bytes each returns `401 DC_BAD_SIGNATURE`. The canonical layout was documented **nowhere**, which is why neither SDK could issue a credential. Fixed in OpenAPI (`x-ln-canonical`), both SDKs (`issueDeviceCredential` / `issue_device_credential` + validators), the login guide, and `examples/device-credential`. |
+| 2 | Anonymous link rule | ✅ Now a **required CI job** rather than an advisory one — a rule that cannot fail a PR is a preference. Scope widened 49 → 178 files. Found and fixed a wrong sitemap XML namespace (`sitemap.org` vs `sitemaps.org` — the document was not a sitemap to any crawler) and a private-repo link in the audit doc. |
+| 3 | zh-CN pages | ✅ The capability page listed **11 of 22 endpoints**; the error dictionary was missing **6 codes** including all three DeviceCredential ones; the quickstart had **no TypeScript at all** and was missing the private-key warning. All restored. No translated page in any of the ten locales is structurally behind English now. |
+| 4 | `install.sh` fail-closed | ✅ The fix was already live — but **only on the server**. The repository still had the fail-open branch, so the next deploy from source would have reinstated it. Synced, plus 16 behaviour assertions covering four ways to break the checksum file. |
+| 5 | Keyless signing | ✅ Already built and already run — every artifact including `SHA256SUMS` carries a Sigstore bundle. Verified independently as a stranger. What was missing was any mention on the portal; `/download` now carries the command, the OIDC identity to pin, and what the signature does not prove. |
+| 6 | Clean-machine chain | ✅ download → cosign verify → discover → verify → act, in a container with nothing installed. `Verified OK`, id-binding `dbe63a0c`, self-chosen nonce, signature verifies. |
+
+### Three findings worth naming
+
+**A fix that only reached the server.** The installer's fail-closed check was
+live and correct; the repository was still fail-open. Nothing compared them, so
+the divergence was invisible. There is now an assertion that live and repo are
+byte-identical — the divergence is the vulnerability, not just its symptom.
+
+**A schema nobody could have followed.** Every credential in this repository was
+written by hand against the registry's own source, which a reader cannot see. No
+code here had ever built one from the published documentation, so the
+documentation was free to be wrong, and was. The check now builds a credential
+strictly from `x-ln-canonical` and requires the live registry to accept it.
+
+**A registry-side bug, reported not fixed.** Omitting `device_id`,
+`revocation_id`, `credential_id` or `expires_at` from a login request returns
+**502**, not a validation error — an unhandled exception on an unauthenticated
+endpoint. The registry is in the private repo, so this goes to David. The docs
+and both SDKs now warn and validate client-side first.
+
+## What changed in round 2
 
 **C2 — MCP one-click install.** The server worked; nobody could install it, because
 the docs said "clone the repository and paste an absolute path" against a path that
@@ -91,7 +124,9 @@ which is three more than were telling the truth before.
 | Registry strict mode | Not done | David. Registration signature checking is in grace mode; the docs say so. |
 | Discord | `planned`, 4 links annotated, not deleted | David registering the server. |
 | zh-CN page parity | 7 pages abridged (0.3–0.4 of the English body) | Translation work. Spot-checked that they retain the load-bearing safety content — credits disclaimer, signature ≠ identity, `not_yet_wired`. |
-| OpenAPI `DeviceCredential` schema | Defect found, not fixed here | The schema omits `device_id` and `revocation_id`, both of which the registry includes in the signed canonical bytes — following the spec exactly produces a credential that cannot verify. The spec is upstream in the private repo. |
+| OpenAPI `DeviceCredential` schema | **Fixed this round.** All nine signed fields are now required and `x-ln-canonical` publishes the signing order; a credential built strictly from the published schema is accepted by the live registry on every CI run. | — |
+| Registry returns 502 on a malformed credential | Found, **not** fixed | An unhandled exception on an unauthenticated endpoint. The registry lives in the private repo — David. Client-side validation added in both SDKs meanwhile. |
+| `ln-node` release line unsigned | Stated plainly on `/download` | cosign can only sign from a public repo; that build repo is private. SHA256 fail-closed today. |
 
 ---
 
