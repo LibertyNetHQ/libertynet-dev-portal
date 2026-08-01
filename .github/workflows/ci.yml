@@ -30,14 +30,23 @@ jobs:
       - name: Install pytest
         run: python -m pip install --quiet pytest
 
+      # Build BEFORE the suite, not after. `site/test/artifacts.test.mjs` and the
+      # mcp-server / copy-for-ai / llms-txt claims read `site/dist` and
+      # `site/public` on purpose — the claim is about what gets served, not about
+      # what a function returns in isolation. With the build running afterwards
+      # those suites read a directory that does not exist yet, so CI was red on
+      # main for reasons that had nothing to do with the change under test.
+      - name: Build the docs site
+        run: node site/build.mjs
+
+      - name: Bundle the MCP server
+        run: node tools/bundle-mcp.mjs
+
       # Runs the docs honesty checker, the example safety checker, both SDK
       # suites, the scaffolder, the MCP server and a TypeScript strict typecheck.
       # Hermetic — no network — so it cannot go red because a server blipped.
       - name: Full suite
         run: node tools/check-all.mjs
-
-      - name: Build the docs site
-        run: node site/build.mjs
 
       # Golden questions, including adversarial ones, run against the same tools
       # and corpus an assistant would use. A wrong answer here is a documentation
@@ -63,6 +72,17 @@ jobs:
         run: node tools/check-api-sync.mjs
 
       # Fetched with no credentials, on purpose: a private repository answers
+      # The audit measures claims against what is *served* (copy-for-ai, llms.txt,
+      # the MCP bundle), so the build and the bundle have to exist before it runs
+      # — otherwise it reports "false claim" for a file CI simply had not made yet.
+      - name: Build the docs site
+        run: node site/build.mjs
+
+      # The install instructions on /ai/mcp, executed against the live network:
+      # one downloaded file in an empty directory, all six tools called.
+      - name: Bundle the MCP server
+        run: node tools/bundle-mcp.mjs
+
       # 404 to strangers and 200 to us, so checking as ourselves proves nothing.
       # Every `implemented` claim, measured against the running system —
       # including a full operator login with a freshly generated identity, so
@@ -72,11 +92,6 @@ jobs:
 
       - name: External links, as an anonymous reader sees them
         run: node tools/check-external-links.mjs
-
-      # The install instructions on /ai/mcp, executed against the live network:
-      # one downloaded file in an empty directory, all six tools called.
-      - name: Bundle the MCP server
-        run: node tools/bundle-mcp.mjs
 
       - name: MCP bundle, clean environment, live network
         run: node mcp-server/test/bundle.e2e.mjs
