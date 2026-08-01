@@ -322,6 +322,66 @@ async function checkLinks(pages) {
 }
 
 // ---------------------------------------------------------------------------
+// 6b. Claims the docs make about the site's own UI
+//
+// Added after the docs shipped "Every page has a Copy for AI button" marked
+// implemented, when nothing in the generator emitted such a button. A claim
+// about an endpoint is checked against status.json; a claim about the site
+// itself had nothing checking it at all. Each entry pins a promise to the
+// marker that has to exist for the promise to be true.
+// ---------------------------------------------------------------------------
+
+const SITE_FEATURES = [
+  {
+    what: "Copy for AI button on every page",
+    claimedIn: "ai/assistant.mdx",
+    // Any phrasing of the promise; matched case-insensitively.
+    claim: /copy(?:ies|ing)?\b[^.]{0,60}\bas (?:clean )?markdown|copy for ai/i,
+    marker: /data-copy-page=/,
+    markerIn: "site/build.mjs",
+  },
+  {
+    what: "markdown twin served next to every page",
+    claimedIn: "ai/assistant.mdx",
+    claim: /\.md\b[^.]{0,80}\b(?:twin|same (?:url|path)|append)/i,
+    marker: /\.md["'`]?\s*[,)\]]|writeFile\([^)]*\.md/,
+    markerIn: "site/build.mjs",
+  },
+];
+
+async function checkSiteFeatures() {
+  const builder = await readFile(path.join(ROOT, "site/build.mjs"), "utf8");
+  const sources = { "site/build.mjs": builder };
+  let checked = 0;
+
+  for (const feat of SITE_FEATURES) {
+    const page = path.join(DOCS, feat.claimedIn);
+    let text;
+    try {
+      text = await readFile(page, "utf8");
+    } catch {
+      fail("site-features", `${feat.claimedIn} is gone — update SITE_FEATURES`);
+      continue;
+    }
+
+    // Only enforce while the page still makes the promise. Deleting the claim
+    // is a legitimate way to resolve this check; quietly keeping it is not.
+    if (!feat.claim.test(text)) continue;
+    checked++;
+
+    if (!feat.marker.test(sources[feat.markerIn])) {
+      fail(
+        "site-features",
+        `${feat.claimedIn} promises "${feat.what}", but ${feat.markerIn} ` +
+          `never emits it. Either build it or drop the claim.`,
+      );
+    }
+  }
+
+  notes.push(`site features: ${checked} self-claim(s) backed by the generator`);
+}
+
+// ---------------------------------------------------------------------------
 // 6. docs.json ↔ files on disk
 // ---------------------------------------------------------------------------
 
@@ -387,6 +447,7 @@ await checkNoOverclaims(status, pages);
 await checkValueMovement(pages);
 await checkCryptoValues(pages);
 await checkLinks(pages);
+await checkSiteFeatures();
 await checkNavigation(pages);
 
 // ---------------------------------------------------------------------------

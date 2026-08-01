@@ -18,7 +18,9 @@
     "editPage": "تحرير هذه الصفحة",
     "copyPage": "نسخ الصفحة",
     "copied": "تم النسخ",
-    "home": "الرئيسية"
+    "home": "الرئيسية",
+    "copyForAI": "نسخ للذكاء الاصطناعي",
+    "copyForAITitle": "انسخ هذه الصفحة بصيغة markdown جاهزة للصقها في مساعد"
   },
   "status": {
     "implemented": "مُنفَّذ",

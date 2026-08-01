@@ -227,7 +227,11 @@ ${alternates}
   <main>
     ${notice}
     <article${articleDir(locale, translated)}>
-      <h1>${escapeHtml(meta.title)}</h1>
+      <div class="page-head">
+        <h1>${escapeHtml(meta.title)}</h1>
+        <button class="control copy-page" data-copy-page="${escapeHtml(slug === "index" ? "index" : slug)}.md"
+                title="${escapeHtml(strings.nav.copyForAITitle)}">${escapeHtml(strings.nav.copyForAI)}</button>
+      </div>
       ${meta.description ? `<p class="lead">${escapeHtml(meta.description)}</p>` : ""}
       ${body}
     </article>
@@ -370,10 +374,22 @@ async function build() {
       await writeFile(outPath, page);
       written++;
 
-      // Markdown twin, for `curl page.md` and for AI clients.
+      // Markdown twin, for `curl page.md`, the Copy-for-AI button and any client
+      // that would rather read prose than HTML. MDX `import`/`export` lines are
+      // stripped: they are build machinery, and leaving them in spends an
+      // assistant's attention on syntax that is not part of the answer.
+      const markdown = [
+        `# ${source.meta.title}`,
+        source.meta.description ? `\n> ${source.meta.description}` : "",
+        `\n${source.body.replace(/^\s*(import|export)\s.*$/gm, "").replace(/\n{3,}/g, "\n\n")}`,
+      ]
+        .filter(Boolean)
+        .join("\n")
+        .trim();
+
       const mdPath = path.join(OUT, localePrefix(locale), `${slug}.md`);
       await mkdir(path.dirname(mdPath), { recursive: true });
-      await writeFile(mdPath, `# ${source.meta.title}\n\n${source.body}`);
+      await writeFile(mdPath, markdown + "\n");
 
       searchIndex[locale].push({
         s: slug,
@@ -474,6 +490,7 @@ const CLIENT_JS = `/* Docs site behaviour. No dependencies, no framework, no tra
   "use strict";
 
   var doc = document.documentElement;
+  var locales = ["zh-CN","zh-TW","ja","ko","es","pt","de","fr","ar","hi"];
 
   function setCookie(name, value) {
     document.cookie = name + "=" + encodeURIComponent(value) + ";path=/;max-age=31536000;samesite=lax";
@@ -507,6 +524,39 @@ const CLIENT_JS = `/* Docs site behaviour. No dependencies, no framework, no tra
   if (menuBtn && side) {
     menuBtn.addEventListener("click", function () {
       side.setAttribute("data-open", side.getAttribute("data-open") === "true" ? "false" : "true");
+    });
+  }
+
+  /* copy the whole page as markdown, for pasting into an assistant -------- */
+  var pageBtn = document.querySelector("[data-copy-page]");
+  if (pageBtn) {
+    pageBtn.addEventListener("click", function () {
+      var prefix = locales.indexOf(location.pathname.split("/")[1]) !== -1
+        ? "/" + location.pathname.split("/")[1]
+        : "";
+      var url = prefix + "/" + pageBtn.getAttribute("data-copy-page");
+      var old = pageBtn.textContent;
+
+      fetch(url)
+        .then(function (r) {
+          if (!r.ok) throw new Error("no markdown twin");
+          return r.text();
+        })
+        /* Prepend the source URL: an assistant given a page with no address
+           cannot cite it, and cannot tell the reader where to look. */
+        .then(function (md) {
+          return navigator.clipboard.writeText(
+            "Source: " + location.origin + location.pathname + "\n\n" + md
+          );
+        })
+        .then(function () {
+          pageBtn.textContent = "✓";
+          setTimeout(function () { pageBtn.textContent = old; }, 1400);
+        })
+        .catch(function () {
+          pageBtn.textContent = "✗";
+          setTimeout(function () { pageBtn.textContent = old; }, 1400);
+        });
     });
   }
 
@@ -564,7 +614,6 @@ const CLIENT_JS = `/* Docs site behaviour. No dependencies, no framework, no tra
 
   var index = null;
   var prefix = doc.getAttribute("lang") && location.pathname.split("/")[1];
-  var locales = ["zh-CN","zh-TW","ja","ko","es","pt","de","fr","ar","hi"];
   var base = locales.indexOf(prefix) !== -1 ? "/" + prefix : "";
 
   function load() {

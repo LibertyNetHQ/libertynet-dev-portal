@@ -592,3 +592,10 @@ footer.site a:hover { color: var(--accent); }
    to the wrong end of every English sentence. */
 .fallback-ltr { text-align: start; }
 html[dir="rtl"] .fallback-ltr :is(th, td) { padding: 11px 14px 11px 0; }
+
+/* "Copy for AI" sits with the title rather than in the toolbar: it is about the
+   page you are reading, not about the site. */
+.page-head { display: flex; align-items: flex-start; gap: 16px; }
+.page-head h1 { flex: 1; min-width: 0; }
+.copy-page { flex: none; margin-top: 0.7em; font-size: 12px; white-space: nowrap; }
+@media (max-width: 640px) { .copy-page { display: none; } }

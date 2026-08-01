@@ -16,7 +16,9 @@
     "editPage": "编辑此页",
     "copyPage": "复制页面",
     "copied": "已复制",
-    "home": "首页"
+    "home": "首页",
+    "copyForAI": "复制给 AI",
+    "copyForAITitle": "把本页复制成 markdown，可直接贴给 AI 助手"
   },
   "status": {
     "implemented": "已实现",

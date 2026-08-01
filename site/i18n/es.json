@@ -16,7 +16,9 @@
     "editPage": "Editar esta página",
     "copyPage": "Copiar página",
     "copied": "Copiado",
-    "home": "Inicio"
+    "home": "Inicio",
+    "copyForAI": "Copiar para IA",
+    "copyForAITitle": "Copia esta página como markdown, lista para pegar en un asistente"
   },
   "status": {
     "implemented": "Implementado",

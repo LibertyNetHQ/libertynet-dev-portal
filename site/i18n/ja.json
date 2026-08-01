@@ -16,7 +16,9 @@
     "editPage": "このページを編集",
     "copyPage": "ページをコピー",
     "copied": "コピーしました",
-    "home": "ホーム"
+    "home": "ホーム",
+    "copyForAI": "AI 用にコピー",
+    "copyForAITitle": "このページを markdown としてコピーし、アシスタントに貼り付けられます"
   },
   "status": {
     "implemented": "実装済み",

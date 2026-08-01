@@ -16,7 +16,9 @@
     "editPage": "編輯此頁",
     "copyPage": "複製頁面",
     "copied": "已複製",
-    "home": "首頁"
+    "home": "首頁",
+    "copyForAI": "複製給 AI",
+    "copyForAITitle": "把本頁複製成 markdown，可直接貼給 AI 助手"
   },
   "status": {
     "implemented": "已實作",
