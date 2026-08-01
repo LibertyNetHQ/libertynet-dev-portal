@@ -22,57 +22,97 @@ mistakes rather than around exposing an API.
 
 ## Install
 
-Not on npm yet — run it from the repository. It has **zero dependencies**.
+One file, **zero dependencies**, no clone and no package manager. Node 20+ is the
+only requirement.
+
+```bash
+mkdir -p ~/.libertynet && \
+  curl -fsSL https://docs.libertynet.ai/mcp/libertynet-mcp.mjs \
+    -o ~/.libertynet/libertynet-mcp.mjs
+```
+
+Then point your client at it.
 
 <Tabs>
+  <Tab title="Claude Code">
+    ```bash
+    claude mcp add libertynet -- node ~/.libertynet/libertynet-mcp.mjs
+    ```
+
+    Check it connected:
+
+    ```bash
+    claude mcp list
+    ```
+  </Tab>
+
   <Tab title="Claude Desktop">
-    `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or
-    `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+    Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
+    or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
     ```json
     {
       "mcpServers": {
         "libertynet": {
           "command": "node",
-          "args": ["/absolute/path/to/dev-portal/mcp-server/src/server.mjs"]
+          "args": ["/Users/YOU/.libertynet/libertynet-mcp.mjs"]
         }
       }
     }
     ```
 
-    Restart Claude Desktop. The tools appear in the tools menu.
-  </Tab>
-
-  <Tab title="Claude Code">
-    ```bash
-    claude mcp add libertynet -- node /absolute/path/to/dev-portal/mcp-server/src/server.mjs
-    ```
+    Claude Desktop does not expand `~`, so write the path out in full. Restart
+    the app; the tools appear in the tools menu.
   </Tab>
 
   <Tab title="Cursor">
-    `.cursor/mcp.json` in your project:
+    `.cursor/mcp.json` in your project, or `~/.cursor/mcp.json` for every project:
 
     ```json
     {
       "mcpServers": {
         "libertynet": {
           "command": "node",
-          "args": ["/absolute/path/to/dev-portal/mcp-server/src/server.mjs"]
+          "args": ["/Users/YOU/.libertynet/libertynet-mcp.mjs"]
         }
       }
     }
     ```
+
+    Cursor does not expand `~` either. Settings → MCP shows the server and its
+    six tools once it connects.
   </Tab>
 
   <Tab title="Verify by hand">
+    No client needed — the protocol is JSON-RPC over stdin:
+
     ```bash
     printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
-      | node dev-portal/mcp-server/src/server.mjs
+      | node ~/.libertynet/libertynet-mcp.mjs
     ```
 
-    You should get one JSON line listing six tools.
+    One JSON line listing six tools, and `libertynet-mcp 0.1.0 ready (6 tools)`
+    on stderr. If you get JSON, every client on this page will work.
   </Tab>
 </Tabs>
+
+<Note>
+**What is in the file.** The documentation is a snapshot taken when the bundle was
+built. The capability matrix is not: `libertynet_capability_status` fetches the
+live `status.json` on first use and only falls back to the snapshot if it cannot
+reach this site — and when it falls back it says so in `matrix_source`. A stale
+answer about what works is the one error this project will not ship silently.
+
+Re-download the file to refresh the documentation snapshot.
+</Note>
+
+<Note>
+Prefer running from source, or want to modify it? Clone
+[the repository](https://github.com/LibertyNetHQ/libertynet-dev-portal) and use
+`mcp-server/src/server.mjs` as the path instead. Same six tools, reading the
+working copy on disk. `npx libertynet-mcp-server` is <Status level="planned" /> —
+nothing is on npm yet.
+</Note>
 
 ## The tools
 
@@ -196,12 +236,18 @@ sharper.
 ## Tests
 
 ```bash
-cd dev-portal/mcp-server && npm test   # 29 tests
+cd mcp-server && npm test              # tools + protocol
+node mcp-server/test/bundle.e2e.mjs    # the published bundle, clean environment
 ```
 
-Covering the tools as functions **and** the real JSON-RPC protocol as a subprocess —
-including that stdout carries only protocol traffic. A stray `console.log` there would
-corrupt the stream for every client, and only a subprocess test catches it.
+The first covers the tools as functions **and** the real JSON-RPC protocol as a
+subprocess — including that stdout carries only protocol traffic. A stray `console.log`
+there would corrupt the stream for every client, and only a subprocess test catches it.
+
+The second is the claim on this page, tested literally: it copies the downloadable
+bundle into an empty temp directory, runs it from there, and calls all six tools over
+JSON-RPC. Copying is the point — run in place, a bundle that had quietly kept reading
+`docs-site/` off disk would pass. Both run in CI on every push.
 
 <Card title="Other AI integrations" icon="robot" href="/ai/context" horizontal>
   `llms.txt`, page-level context export, and what to feed an assistant that has no MCP.

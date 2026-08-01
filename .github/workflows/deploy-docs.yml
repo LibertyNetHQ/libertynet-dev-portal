@@ -28,6 +28,11 @@ jobs:
         with:
           node-version: "22"
 
+      # The docs tell people to curl this file; it has to exist before the
+      # site that advertises it is built.
+      - name: Bundle the MCP server
+        run: node tools/bundle-mcp.mjs
+
       - name: Build
         run: node site/build.mjs
 

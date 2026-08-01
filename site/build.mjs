@@ -428,6 +428,17 @@ async function build() {
   const spec = path.join(ROOT, "api-spec");
   if (existsSync(spec)) await cp(spec, path.join(OUT, "api-spec"), { recursive: true });
 
+  // Generated downloads — currently the single-file MCP bundle, which the docs
+  // tell people to curl. Built by `node tools/bundle-mcp.mjs`; if it is missing
+  // the build says so loudly rather than shipping a page whose install command
+  // 404s, which is the same class of lie as an unbacked status badge.
+  const publicDir = path.join(HERE, "public");
+  if (existsSync(publicDir)) {
+    await cp(publicDir, OUT, { recursive: true });
+  } else {
+    console.warn("  ! site/public missing — run `node tools/bundle-mcp.mjs` before deploying");
+  }
+
   const elapsed = ((Date.now() - started) / 1000).toFixed(2);
   console.log(`\n✓ built ${written} pages across ${LOCALES.length} locales in ${elapsed}s`);
   console.log(`  ${pages.size} unique slugs → ${OUT}`);

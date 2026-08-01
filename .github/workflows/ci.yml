@@ -61,3 +61,11 @@ jobs:
       # Does what the docs claim still match what the API does?
       - name: API sync
         run: node tools/check-api-sync.mjs
+
+      # The install instructions on /ai/mcp, executed against the live network:
+      # one downloaded file in an empty directory, all six tools called.
+      - name: Bundle the MCP server
+        run: node tools/bundle-mcp.mjs
+
+      - name: MCP bundle, clean environment, live network
+        run: node mcp-server/test/bundle.e2e.mjs

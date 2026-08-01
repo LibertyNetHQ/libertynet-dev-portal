@@ -98,9 +98,32 @@ const SUITES = [
     cmd: "npm",
     args: ["test", "--silent"],
   },
+  {
+    // Rebuilds the downloadable single-file server. Runs before the bundle
+    // acceptance below so that check always exercises the current sources
+    // rather than whatever happened to be committed.
+    name: "mcp bundle build",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/bundle-mcp.mjs"],
+  },
+  {
+    // The install instructions on /ai/mcp, executed: one file in an empty
+    // directory, six tools over real JSON-RPC.
+    name: "mcp bundle (clean env)",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["mcp-server/test/bundle.e2e.mjs", "--offline"],
+  },
 ];
 
 const LIVE_SUITES = [
+  {
+    name: "mcp bundle (live)",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["mcp-server/test/bundle.e2e.mjs"],
+  },
   {
     name: "examples (live)",
     cwd: ROOT,
