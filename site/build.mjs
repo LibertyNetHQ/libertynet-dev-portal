@@ -375,17 +375,8 @@ async function build() {
       written++;
 
       // Markdown twin, for `curl page.md`, the Copy-for-AI button and any client
-      // that would rather read prose than HTML. MDX `import`/`export` lines are
-      // stripped: they are build machinery, and leaving them in spends an
-      // assistant's attention on syntax that is not part of the answer.
-      const markdown = [
-        `# ${source.meta.title}`,
-        source.meta.description ? `\n> ${source.meta.description}` : "",
-        `\n${source.body.replace(/^\s*(import|export)\s.*$/gm, "").replace(/\n{3,}/g, "\n\n")}`,
-      ]
-        .filter(Boolean)
-        .join("\n")
-        .trim();
+      // that would rather read prose than HTML.
+      const markdown = toMarkdown(source, strings[locale]);
 
       const mdPath = path.join(OUT, localePrefix(locale), `${slug}.md`);
       await mkdir(path.dirname(mdPath), { recursive: true });
@@ -418,7 +409,11 @@ async function build() {
 
   // Machine-readable surfaces
   await writeFile(path.join(OUT, "llms.txt"), llmsTxt(pages, strings[DEFAULT_LOCALE]));
-  await writeFile(path.join(OUT, "llms-full.txt"), await llmsFull(pages));
+  await writeFile(
+    path.join(OUT, "ai-context.txt"),
+    aiContext(JSON.parse(await readFile(path.join(ROOT, "api-spec/status.json"), "utf8"))),
+  );
+  await writeFile(path.join(OUT, "llms-full.txt"), await llmsFull(pages, strings[DEFAULT_LOCALE]));
   await writeFile(path.join(OUT, "sitemap.xml"), sitemap(pages));
   await writeFile(
     path.join(OUT, "robots.txt"),
@@ -453,6 +448,87 @@ async function build() {
   return { written, pages: pages.size };
 }
 
+/**
+ * MDX → markdown, for the `.md` twin of every page.
+ *
+ * Stripping `import` lines was not enough. The twins still carried raw JSX —
+ * `<Status level="implemented" />`, `<Note>`, `<Card>`, `<Steps>` — 253 of the
+ * 319 files had some. It parses, so nothing broke; it is simply the wrong thing
+ * to hand a reader who asked for the prose. Worse, `<Status level="planned" />`
+ * dropped into a sentence reads like decoration, when it is the single most
+ * important word on the line.
+ *
+ * So components are not deleted, they are translated into the plainest markdown
+ * that keeps their meaning: a status becomes bold text, a callout becomes a
+ * blockquote with its kind named, a card becomes a link. Everything an
+ * assistant needs, nothing it has to decode.
+ */
+function toMarkdown(source, strings) {
+  const status = strings?.status ?? {};
+  const callout = strings?.callout ?? {};
+
+  const body = source.body
+    // Build machinery.
+    .replace(/^\s*(import|export)\s.*$/gm, "")
+
+    // A status is the load-bearing word in the sentence it sits in. Bold, and
+    // localised, so the twin says the same thing the page says.
+    .replace(/<Status\s+level="([a-z_]+)"\s*\/>/g, (_, level) => `**${status[level] ?? level}**`)
+    .replace(/<StatusKey\s*\/>/g, "")
+
+    // Callouts: keep the kind, because "Warning" and "Tip" are not the same
+    // claim, and quote the whole body. Matching the pair and quoting every line
+    // is the point — quoting only the opening line leaves the reader unable to
+    // see where a safety warning stops, which for this project's callouts is
+    // the difference between "Credits are not money" and a stray sentence.
+    .replace(
+      /<(Note|Tip|Info|Warning|Danger|Check)>\n?([\s\S]*?)\n?<\/\1>/g,
+      (_, kind, inner) => {
+        const label = callout[kind.toLowerCase()] ?? kind;
+        const quoted = inner
+          .trim()
+          .split("\n")
+          .map((line) => (line.trim() ? `> ${line}` : ">"))
+          .join("\n");
+        return `\n> **${label}**\n>\n${quoted}\n`;
+      },
+    )
+
+    // A card is a link with a title.
+    .replace(/<Card\s+title="([^"]*)"[^>]*href="([^"]*)"[^>]*>/g, "\n**[$1]($2)**\n")
+    .replace(/<Card\s+title="([^"]*)"[^>]*>/g, "\n**$1**\n")
+    .replace(/<\/Card>/g, "")
+
+    // An accordion is a heading over its content; hiding it in the HTML does
+    // not make it less relevant to someone reading the text.
+    .replace(/<Accordion\s+title="([^"]*)"[^>]*>/g, "\n**$1**\n")
+    .replace(/<\/Accordion>/g, "")
+
+    // A step is an ordered item; a tab is a labelled variant.
+    .replace(/<Step\s+title="([^"]*)"[^>]*>/g, "\n**$1**\n")
+    .replace(/<\/Step>/g, "")
+    .replace(/<Tab\s+title="([^"]*)"[^>]*>/g, "\n**$1**\n")
+    .replace(/<\/Tab>/g, "")
+
+    // Pure layout. Nothing survives that a reader would miss.
+    .replace(/<\/?(Steps|Tabs|CodeGroup|Columns|AccordionGroup|Frame|Update)(\s[^>]*)?>/g, "")
+
+    // Self-closing anything we did not name.
+    .replace(/<[A-Z]\w*[^>]*\/>/g, "")
+
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n");
+
+  return [
+    `# ${source.meta.title}`,
+    source.meta.description ? `\n> ${source.meta.description}` : "",
+    `\n${body}`,
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
 function llmsTxt(pages, s) {
   let out = `# LibertyNet Developer Documentation\n\n> ${s.meta.tagline}\n\n`;
   out += `Honesty contract: every capability carries one of four statuses — implemented, `;
@@ -463,17 +539,123 @@ function llmsTxt(pages, s) {
   for (const [slug, entry] of pages) {
     const meta = entry.metas.en?.meta;
     if (!meta) continue;
-    out += `- [${meta.title}](${SITE_URL}${href(slug, "en")}.md): ${meta.description ?? ""}\n`;
+    // The home page's href is "" — appending ".md" to that produced
+    // `https://docs.libertynet.ai/.md`, which is not a URL at all. The twin on
+    // disk is `/index.md`, and the one page every reader starts from was the
+    // one entry in this file that went nowhere.
+    out += `- [${meta.title}](${SITE_URL}${mdHref(slug)}): ${meta.description ?? ""}\n`;
   }
+
+  // A model that reads only prose will confidently describe endpoints from the
+  // page it happened to land on. These are the sources that settle it.
+  out += `\n## Machine-readable sources\n\n`;
+  out += `- [${SITE_URL}/api-spec/status.json](${SITE_URL}/api-spec/status.json): the capability matrix. Every badge on this site, both SDKs and the MCP server derive from this one file. Read it before asserting that anything works.\n`;
+  out += `- [${SITE_URL}/api-spec/libertynet-v1.yaml](${SITE_URL}/api-spec/libertynet-v1.yaml): OpenAPI 3.1. Every operation carries \`x-ln-status\` from the same matrix.\n`;
+  out += `- [${SITE_URL}/llms-full.txt](${SITE_URL}/llms-full.txt): every page above, concatenated, for a single fetch.\n`;
+  out += `- [${SITE_URL}/mcp/libertynet-mcp.mjs](${SITE_URL}/mcp/libertynet-mcp.mjs): a zero-dependency MCP server. Six tools, including one that verifies a DID against its key arithmetically instead of by eye.\n`;
+  out += `- \`https://registry.libertynet.ai/nodes\`: the live network. Answering "how many nodes are online" from any other source will be wrong.\n`;
+
+  out += `\nEvery page above is also available as HTML at the same URL without \`.md\`.\n`;
   return out;
 }
 
-async function llmsFull(pages) {
+/**
+ * A paste-ready primer for an assistant with no MCP and no tools.
+ *
+ * The advice "give your model context" is useless without the context itself,
+ * and the honest version of it cannot be written by hand: a primer listing what
+ * is implemented is a claim about the system, and a hand-written claim is one
+ * that starts drifting the moment the matrix changes. So the capability table
+ * here is generated from `status.json` at build time, exactly like every badge
+ * on the site.
+ *
+ * Deliberately short. This is meant to be pasted into a chat window, and a
+ * primer nobody pastes protects nobody.
+ */
+function aiContext(status) {
+  const line = (e) => `  ${e.status.padEnd(14)} ${(e.method ?? "GET").padEnd(5)} ${e.path}`;
+
+  const implemented = [];
+  const unwired = [];
+  const unbuilt = [];
+
+  for (const g of status.groups) {
+    for (const e of g.endpoints) {
+      const row = line(e);
+      if (e.status === "implemented") implemented.push(row);
+      else if (e.status === "not_yet_wired") unwired.push(row);
+      else unbuilt.push(row);
+    }
+  }
+
+  return `LibertyNet — context for an AI assistant.
+Generated from ${SITE_URL}/api-spec/status.json on ${status.verified_at}.
+Paste this before asking about LibertyNet, or fetch the sources at the bottom.
+
+WHAT THIS IS
+LibertyNet is a peer-to-peer network of nodes with self-certifying identities.
+Discovery is public: no API key, no signup, no account. Most of the intended
+surface is NOT built, and the four statuses below are the whole truth about it.
+
+THE STATUSES
+  implemented    live on a public endpoint; you can call it right now
+  not_yet_wired  the endpoint answers 200, but nothing is behind it; it returns
+                 zeros and says "source": "not_yet_wired". Those zeros mean
+                 "nothing is counting" — NOT "the value is zero"
+  testing        code exists and its tests pass; nothing public serves it
+  planned        designed, not built; there is nothing behind it
+
+CALLABLE TODAY (${implemented.length})
+${implemented.join("\n")}
+
+ANSWERS, BUT THE NUMBERS ARE PLACEHOLDERS (${unwired.length})
+${unwired.join("\n") || "  (none)"}
+
+DO NOT WRITE CODE AGAINST THESE (${unbuilt.length})
+${unbuilt.join("\n") || "  (none)"}
+
+FACTS THAT ARE EASY TO GET WRONG
+· LibertyNet has NO wallet, transfer, swap, staking, DEX or trading. No endpoint
+  moves value. That is scope, not a gap — do not generate code implying otherwise.
+· Credits are a TEST UNIT: not cash, not redeemable, not a claim on future value.
+· A node's "status": "active" does NOT mean online. It never decays. Only
+  last_seen tells you anything about freshness.
+· A valid signature is NOT a valid identity. Verify id-binding FIRST — that the
+  public key hashes to the DID — then the signature, then everything else.
+· A DID appears as short (did:svrp:n:<8hex>) and full (did:svrp:<64hex>) for the
+  same key. Comparing DID strings will split one node into two.
+· Public keys arrive as hex from /nodes and base58 from /peers. Decoding one as
+  the other silently produces garbage.
+· There is no LibertyNet API key. Code that asks a user for one is wrong.
+
+WHEN YOU ARE UNSURE, FETCH RATHER THAN GUESS
+  ${SITE_URL}/api-spec/status.json    the capability matrix (this file's source)
+  ${SITE_URL}/llms.txt                every page, with descriptions
+  ${SITE_URL}/llms-full.txt           every page, in full, one fetch
+  ${SITE_URL}/<page>.md               any single page as markdown
+  https://registry.libertynet.ai/nodes  the live network right now
+
+If you have MCP, use it instead of this file: ${SITE_URL}/ai/mcp
+`;
+}
+
+/** The markdown twin of a page — `/index.md` for home, `/<slug>.md` otherwise. */
+function mdHref(slug) {
+  return slug === "index" ? "/index.md" : `${href(slug, "en")}.md`;
+}
+
+async function llmsFull(pages, strings) {
   let out = `# LibertyNet Developer Documentation (full)\n\n`;
+  out += `> Every page, concatenated. Statuses are load-bearing: **implemented** can be\n`;
+  out += `> called today, **not yet wired** answers with placeholder zeros, **testing** is\n`;
+  out += `> not deployed anywhere public, **planned** has nothing behind it.\n`;
+
   for (const [slug, entry] of pages) {
     const src = entry.metas.en;
     if (!src) continue;
-    out += `\n\n---\n\n# ${src.meta.title}\n\nURL: ${SITE_URL}${href(slug, "en")}\n\n${src.body}`;
+    // The same conversion the twins get. Emitting raw MDX here would hand the
+    // single most-fetched file on the site to a model as JSX soup.
+    out += `\n\n---\n\nURL: ${SITE_URL}${href(slug, "en")}\n\n${toMarkdown(src, strings)}`;
   }
   return out;
 }

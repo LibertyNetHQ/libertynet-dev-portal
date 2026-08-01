@@ -91,6 +91,35 @@ If you are prompting a model about LibertyNet, these are the load-bearing ones:
   other silently produces garbage that fails every check.
 ```
 
+## No MCP? Paste this
+
+One file, about 4 KB, written to be pasted into a chat window before you ask anything:
+
+```bash
+curl -s https://docs.libertynet.ai/ai-context.txt | pbcopy      # macOS
+curl -s https://docs.libertynet.ai/ai-context.txt | xclip -sel c # Linux
+```
+
+<Card title="Read it first" icon="file-lines" href="https://docs.libertynet.ai/ai-context.txt" horizontal>
+  Every capability with its real status, the four statuses explained, the facts that are
+  easy to get wrong, and where to fetch when unsure.
+</Card>
+
+It contains the whole capability table, not a summary of it — **23** endpoints you can call
+today, listed separately from the ones that answer with placeholder zeros and the ones with
+nothing behind them at all.
+
+That table is generated from [`status.json`](/api-spec/status.json) at build time, like
+every badge on this site. A hand-written primer saying "credits are not wired yet" would
+keep saying it on the day credits get wired; this one changes when the matrix changes,
+because it has no independent existence.
+
+<Note>
+Paste it whole rather than summarising it. The parts that look like boilerplate — a valid
+signature is not a valid identity, `active` does not mean online — are the ones assistants
+get wrong, and they are short precisely so that they survive being pasted.
+</Note>
+
 ## Best: give it tools
 
 Static context goes stale; tools do not.

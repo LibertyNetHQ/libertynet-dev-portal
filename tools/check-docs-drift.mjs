@@ -334,6 +334,72 @@ async function checkLinks(pages) {
 }
 
 // ---------------------------------------------------------------------------
+// 6c. Counts stated in prose
+//
+// "23 endpoints you can call today" is a claim about the matrix written as a
+// number, and a number in prose is the easiest kind of claim to leave behind.
+// Badges regenerate; sentences do not. So every count the docs state about the
+// matrix or the spec is recomputed here, the same way check 4 recomputes every
+// cryptographic literal.
+// ---------------------------------------------------------------------------
+
+// Prose wraps. Every pattern below matches against text whose runs of
+// whitespace have been collapsed to single spaces — the first version of this
+// check silently matched nothing on the one claim it was written for, because
+// the sentence happened to break between "call" and "today".
+const COUNT_CLAIMS = [
+  {
+    // "**23** endpoints you can call today"
+    pattern: /\*\*(\d+)\*\* endpoints you can call today/g,
+    label: "endpoints callable today",
+    expected: (status) => countByStatus(status, "implemented"),
+  },
+  {
+    // "OpenAPI 3.1, 19 operations" / "19 operations, each with x-ln-status"
+    pattern: /(\d+) operations, each/g,
+    label: "OpenAPI operations",
+    expected: (_status, spec) => (spec.match(/^\s{4}(get|post|put|patch|delete):/gm) ?? []).length,
+  },
+];
+
+function countByStatus(status, level) {
+  return status.groups.reduce(
+    (n, g) => n + g.endpoints.filter((e) => e.status === level).length,
+    0,
+  );
+}
+
+async function checkStatedCounts(status, pages) {
+  const spec = await readFile(path.join(ROOT, "api-spec/libertynet-v1.yaml"), "utf8");
+  let checked = 0;
+
+  for (const file of pages) {
+    // Collapse wrapping so a claim is matched by what it says, not by where the
+    // author happened to press return.
+    const text = (await readFile(file, "utf8")).replace(/\s+/g, " ");
+    const rel = path.relative(ROOT, file);
+
+    for (const claim of COUNT_CLAIMS) {
+      for (const m of text.matchAll(claim.pattern)) {
+        checked++;
+        const stated = Number(m[1]);
+        const actual = claim.expected(status, spec);
+
+        if (stated !== actual) {
+          fail(
+            "counts",
+            `${rel} says ${stated} ${claim.label}; the source says ${actual}. ` +
+              `Update the sentence, or state no number.`,
+          );
+        }
+      }
+    }
+  }
+
+  notes.push(`counts: ${checked} number(s) in prose recomputed from source`);
+}
+
+// ---------------------------------------------------------------------------
 // 6b. Claims the docs make about the site's own UI
 //
 // Added after the docs shipped "Every page has a Copy for AI button" marked
@@ -460,6 +526,7 @@ await checkValueMovement(pages);
 await checkCryptoValues(pages);
 await checkLinks(pages);
 await checkSiteFeatures();
+await checkStatedCounts(status, pages);
 await checkNavigation(pages);
 
 // ---------------------------------------------------------------------------

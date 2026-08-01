@@ -55,6 +55,21 @@ const SUITES = [
     args: ["--test", "site/test/mdx.test.mjs"],
   },
   {
+    // Builds before asserting, because these checks are about what gets served
+    // — the markdown twins, llms.txt, llms-full.txt and the paste-ready primer
+    // — not about what a function returns in isolation.
+    name: "site build",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["site/build.mjs"],
+  },
+  {
+    name: "published artifacts",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["--test", "site/test/artifacts.test.mjs"],
+  },
+  {
     // Static rules only in the required job — the live fetches belong in the
     // live job, where a third party's outage cannot fail an unrelated PR.
     name: "external links",
