@@ -72,6 +72,16 @@ const TOLERATED = [
  */
 const API_HOSTS = [/^https:\/\/registry\.libertynet\.ai\//];
 
+/**
+ * URL-shaped *identifiers* that are not web pages.
+ *
+ * An OIDC issuer is a name, and the only thing a reader does with it is compare
+ * it character-for-character against what is in a signing certificate. GitHub's
+ * issuer answers 404 to a browser, which is correct and says nothing about the
+ * documentation. Fetching it could only ever produce a false alarm.
+ */
+const IDENTIFIERS = [/^https:\/\/token\.actions\.githubusercontent\.com\/?$/];
+
 async function walk(dir, out = []) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     if (e.isDirectory()) {
@@ -87,12 +97,27 @@ async function walk(dir, out = []) {
 const files = [...(await walk(DOCS)), path.join(ROOT, "README.md")];
 const links = new Map(); // url → [where]
 
+/**
+ * Not every URL-shaped string is a URL.
+ *
+ * `/reference/verifying-downloads` documents a cosign
+ * `--certificate-identity-regexp` whose value is a *regular expression* that
+ * begins `https://github\.com/…`. Backslashes cannot appear in a URL, so
+ * fetching it could only ever fail — and reporting that as a dead link trains
+ * people to ignore this check.
+ *
+ * Deliberately narrow: code blocks are still harvested in full, because a link
+ * inside a snippet a reader is told to run is exactly as broken as one in prose.
+ */
+const isUrlShapedButNotAUrl = (u) => u.includes("\\");
+
 for (const file of files) {
   const text = await readFile(file, "utf8").catch(() => "");
   const rel = path.relative(ROOT, file);
 
   for (const m of text.matchAll(/https?:\/\/[^\s"'`)<>\]]+/g)) {
     const url = m[0].replace(/[.,;:]+$/, "");
+    if (isUrlShapedButNotAUrl(url)) continue;
     if (!links.has(url)) links.set(url, []);
     links.get(url).push(rel);
   }
@@ -112,7 +137,10 @@ notes.push(`${links.size} distinct external links across ${files.length} files`)
 
 if (!OFFLINE) {
   const isApi = (u) => API_HOSTS.some((re) => re.test(u));
-  const urls = [...links.keys()].filter((u) => !u.includes("localhost") && !isApi(u));
+  const isIdentifier = (u) => IDENTIFIERS.some((re) => re.test(u));
+  const urls = [...links.keys()].filter(
+    (u) => !u.includes("localhost") && !isApi(u) && !isIdentifier(u),
+  );
   const apiSkipped = [...links.keys()].filter(isApi).length;
   let checked = 0;
   let tolerated = 0;
