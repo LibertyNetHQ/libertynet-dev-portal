@@ -8,34 +8,51 @@ in eleven languages"*, and it is not true — so here is what is actually transl
 
 {/* BEGIN generated coverage — tools/sync-translations.mjs */}
 
-| Language | Pages translated | Coverage |
-|---|---|---|
-| English | 32 / 32 | source |
-| 简体中文 | 7 / 32 | 22% |
-| 繁體中文 | 1 / 32 | 3% |
-| 日本語 | 1 / 32 | 3% |
-| 한국어 | 1 / 32 | 3% |
-| Español | 1 / 32 | 3% |
-| Português | 1 / 32 | 3% |
-| Deutsch | 1 / 32 | 3% |
-| Français | 1 / 32 | 3% |
-| العربية | 1 / 32 | 3% |
-| हिन्दी | 1 / 32 | 3% |
+| Language | Pages translated | Coverage | What to expect |
+|---|---|---|---|
+| English | 32 / 32 | 100% | **Complete** — this is the source |
+| 简体中文 | 7 / 32 | 22% | In progress |
+| 繁體中文 | 1 / 32 | 3% | Interface only |
+| 日本語 | 1 / 32 | 3% | Interface only |
+| 한국어 | 1 / 32 | 3% | Interface only |
+| Español | 1 / 32 | 3% | Interface only |
+| Português | 1 / 32 | 3% | Interface only |
+| Deutsch | 1 / 32 | 3% | Interface only |
+| Français | 1 / 32 | 3% | Interface only |
+| العربية | 1 / 32 | 3% | Interface only |
+| हिन्दी | 1 / 32 | 3% | Interface only |
 
 {/* END generated coverage */}
 
-**The interface is translated in all eleven.** Navigation, buttons, status labels, callout
-headings, the safety warnings and the error-page furniture are complete everywhere,
-including right-to-left layout for Arabic. What is largely *not* translated is the prose:
-the pages themselves.
+**The interface is translated in all eleven.** Navigation and its section headings,
+buttons, status labels, callout headings, the safety warnings and the error-page furniture,
+plus right-to-left layout for Arabic. What is largely *not* translated is the prose: the
+pages themselves.
+
+<Note>
+That first sentence was not true when this page was written. The sidebar's section
+headings — *Start here*, *Concepts*, *Guides* — came from `docs.json`, which is English,
+and rendered in English in all eleven languages while this page claimed navigation was
+fully translated. An overclaim on the page whose entire job is not overclaiming.
+
+They are translated now, which seemed a better answer than softening the sentence; it was
+eight strings. It is recorded here rather than quietly fixed because a page about honesty
+that edits its own history is worth less than one that does not.
+</Note>
 
 <Warning>
 Nine of the ten non-English languages have exactly one translated page — the quickstart.
-Everything else you open in those languages is the **English original**, with a notice at
-the top of the page saying so.
+That is what **Interface only** means in the table above: the menus, buttons and warnings
+are in your language; the pages are not.
 
-That notice is per page and easy to read as an exception. It is not an exception. It is
-the normal case.
+Everything else you open in those languages is the **English original**, with a notice at
+the top of the page saying so. That notice is per page and easy to read as an exception.
+It is not an exception. It is the normal case.
+
+All eleven stay in the menu regardless. Removing a language because its prose is
+untranslated would take away a translated interface, a right-to-left layout and a
+starting point for anyone who wants to contribute — and would hide the gap rather than
+close it.
 </Warning>
 
 ## Why it is set up this way

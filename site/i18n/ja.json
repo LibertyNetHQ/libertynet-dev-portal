@@ -66,5 +66,15 @@
   "meta": {
     "siteName": "LibertyNet 開発者",
     "tagline": "LibertyNet で開発する。5 分以内に最初の呼び出しを成功させる。"
+  },
+  "navGroups": {
+    "Start here": "はじめに",
+    "Concepts": "コンセプト",
+    "Guides": "ガイド",
+    "SDK": "SDK",
+    "API reference": "API リファレンス",
+    "Reference": "リファレンス",
+    "AI": "AI",
+    "Build with us": "一緒に作る"
   }
 }

@@ -131,13 +131,19 @@ function href(slug, locale) {
 
 const MARK = `<svg class="mark" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round"><path d="M16 5.5 A10.5 10.5 0 0 1 25.7 12" stroke-width="2"/><path d="M16 26.5 A10.5 10.5 0 0 1 6.3 20" stroke-width="2"/><path d="M23.4 8.6 A10.5 10.5 0 0 1 22 23.9" stroke-width="1.4" opacity=".6"/></g><circle cx="16" cy="16" r="3" fill="currentColor"/></svg>`;
 
-function sidebar(nav, slug, locale, pages) {
+function sidebar(nav, slug, locale, pages, strings) {
   let out = "";
   for (const group of nav) {
     const items = group.pages.filter((p) => pages.has(p));
     if (!items.length) continue;
 
-    out += `<div class="side__group"><div class="side__title">${escapeHtml(group.title)}</div>`;
+    // Group titles come from docs.json, which is English. They were rendered
+    // untranslated in every locale while /translations claimed navigation was
+    // fully translated — an overclaim on the page whose entire job is not
+    // overclaiming. Falls back to the English title if a locale lacks one,
+    // rather than rendering an empty heading.
+    const title = strings.navGroups?.[group.title] ?? group.title;
+    out += `<div class="side__group"><div class="side__title">${escapeHtml(title)}</div>`;
     for (const p of items) {
       const meta = pages.get(p);
       out += `<a href="${href(p, locale)}"${p === slug ? ' aria-current="page"' : ""}><bdi>${escapeHtml(meta.navTitle)}</bdi></a>`;
@@ -285,7 +291,7 @@ ${alternates}
 </header>
 
 <div class="layout">
-  <nav class="side" data-side>${sidebar(nav, slug, locale, localeIndex(pages, locale))}</nav>
+  <nav class="side" data-side>${sidebar(nav, slug, locale, localeIndex(pages, locale), strings)}</nav>
   <main>
     ${notice}
     <article${articleDir(locale, translated)}>

@@ -180,7 +180,11 @@ for (const file of files) {
     if (url.includes("localhost") || url.includes("127.0.0.1")) continue;
     // Placeholders and reserved test names. `.test` is reserved by RFC 2606
     // precisely so it never resolves — a test fixture pointing there is correct.
-    if (/example\.(com|org)|\.test(\/|$)|YOUR|<[^>]*>|\$\{|\*/.test(url)) continue;
+    // Placeholders, template interpolation and shell variables. `$a` in
+    // `curl "https://docs.libertynet.ai$a"` is a loop variable, not a path —
+    // fetching it can only 404, and reporting that trains people to ignore
+    // this check.
+    if (/example\.(com|org)|\.test(\/|$)|YOUR|<[^>]*>|\$\{|\$\w|\*/.test(url)) continue;
     if (!links.has(url)) links.set(url, []);
     if (!links.get(url).includes(rel)) links.get(url).push(rel);
   }

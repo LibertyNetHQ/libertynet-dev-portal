@@ -66,5 +66,15 @@
   "meta": {
     "siteName": "LibertyNet für Entwickler",
     "tagline": "Auf LibertyNet bauen. Erster erfolgreicher Aufruf in unter fünf Minuten."
+  },
+  "navGroups": {
+    "Start here": "Hier starten",
+    "Concepts": "Konzepte",
+    "Guides": "Anleitungen",
+    "SDK": "SDK",
+    "API reference": "API-Referenz",
+    "Reference": "Referenz",
+    "AI": "KI",
+    "Build with us": "Mitbauen"
   }
 }

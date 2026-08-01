@@ -67,5 +67,15 @@
   "meta": {
     "siteName": "LibertyNet Developers",
     "tagline": "Build on LibertyNet. First successful call in under five minutes."
+  },
+  "navGroups": {
+    "Start here": "Start here",
+    "Concepts": "Concepts",
+    "Guides": "Guides",
+    "SDK": "SDK",
+    "API reference": "API reference",
+    "Reference": "Reference",
+    "AI": "AI",
+    "Build with us": "Build with us"
   }
 }

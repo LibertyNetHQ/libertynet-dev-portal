@@ -66,13 +66,28 @@ for (const locale of LOCALES) {
   rows.push({ ...locale, count: translated.length, pct });
 }
 
+/**
+ * A word for the state, so the number does not have to be interpreted.
+ *
+ * "3%" is precise and tells a reader nothing about what to expect when they
+ * click. "Interface only" does: the menus are translated, the pages are not.
+ */
+function stateOf(pct) {
+  if (pct >= 100) return "**Complete**";
+  if (pct >= 50) return "Mostly translated";
+  if (pct > 3) return "In progress";
+  return "Interface only";
+}
+
 const table = [
   BEGIN,
   "",
-  "| Language | Pages translated | Coverage |",
-  "|---|---|---|",
-  `| English | ${total} / ${total} | source |`,
-  ...rows.map((r) => `| ${r.label} | ${r.count} / ${total} | ${r.pct}% |`),
+  "| Language | Pages translated | Coverage | What to expect |",
+  "|---|---|---|---|",
+  `| English | ${total} / ${total} | 100% | **Complete** — this is the source |`,
+  ...rows.map(
+    (r) => `| ${r.label} | ${r.count} / ${total} | ${r.pct}% | ${stateOf(r.pct)} |`,
+  ),
   "",
   END,
 ].join("\n");

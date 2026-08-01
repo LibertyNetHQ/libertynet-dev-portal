@@ -66,5 +66,15 @@
   "meta": {
     "siteName": "LibertyNet 개발자",
     "tagline": "LibertyNet에서 개발하세요. 5분 안에 첫 호출 성공."
+  },
+  "navGroups": {
+    "Start here": "여기서 시작",
+    "Concepts": "핵심 개념",
+    "Guides": "가이드",
+    "SDK": "SDK",
+    "API reference": "API 레퍼런스",
+    "Reference": "레퍼런스",
+    "AI": "AI",
+    "Build with us": "함께 만들기"
   }
 }

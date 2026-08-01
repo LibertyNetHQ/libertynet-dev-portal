@@ -103,16 +103,27 @@ node tools/check-docs-drift.mjs
 node tools/check-examples.mjs
 ```
 
+## Live
+
+- **The documentation site is live at [docs.libertynet.ai](https://docs.libertynet.ai)**,
+  self-hosted behind the same Caddy that already serves `libertynet.ai` and
+  `registry.libertynet.ai`. `./site/deploy.sh` builds, ships and then **verifies against
+  the real public URL with a real browser** — if the interactive checks fail it rolls back
+  to the previous release rather than leaving a broken build up. A scheduled probe repeats
+  those checks against production every 15 minutes and opens an issue when they fail.
+- **The MCP server is one file**: `curl -fsSL https://docs.libertynet.ai/mcp/libertynet-mcp.mjs`,
+  no clone and no npm. See [/ai/mcp](https://docs.libertynet.ai/ai/mcp).
+- **Release artifacts are cosign-signed** (keyless, Sigstore + GitHub OIDC). What that
+  proves and what it does not is set out at [/download](https://docs.libertynet.ai/download).
+
 ## Not yet done
 
 Stated here rather than left for someone to discover:
 
-- **Nothing is deployed.** The docs site, the dashboard and the MCP server all build, but
-  choosing hosts and domains is the project owner's call, not a side effect of a docs PR.
-- **Nothing is published.** `libertynet-sdk`, `libertynet` and `create-libertynet-agent`
-  are not on npm or PyPI. Every page that shows an install command says so.
-- **Mintlify is not connected.** The site is configured for the free tier and
-  `docs.libertynet.ai`, but nobody has linked the repository or pointed the DNS.
+- **Nothing is published to a package registry.** `libertynet-sdk`, `libertynet` and
+  `create-libertynet-agent` are not on npm or PyPI. Every page that shows an install
+  command says so, and the MCP server is distributed as a single downloadable file
+  instead.
 - **Discord does not exist yet.** `discord.gg/libertynet` is referenced throughout and needs
   to be created.
 - **Contributor rewards are an interface, not a policy.** No rates, amounts or eligibility

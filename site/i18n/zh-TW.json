@@ -66,5 +66,15 @@
   "meta": {
     "siteName": "LibertyNet 開發者",
     "tagline": "在 LibertyNet 上開發。5 分鐘內完成第一次成功呼叫。"
+  },
+  "navGroups": {
+    "Start here": "從這裡開始",
+    "Concepts": "核心概念",
+    "Guides": "指南",
+    "SDK": "SDK",
+    "API reference": "API 參考",
+    "Reference": "參考資料",
+    "AI": "AI",
+    "Build with us": "一起共建"
   }
 }

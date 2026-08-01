@@ -66,5 +66,15 @@
   "meta": {
     "siteName": "LibertyNet डेवलपर",
     "tagline": "LibertyNet पर बनाएँ। पाँच मिनट से कम में पहली सफल कॉल।"
+  },
+  "navGroups": {
+    "Start here": "यहाँ से शुरू करें",
+    "Concepts": "अवधारणाएँ",
+    "Guides": "मार्गदर्शिकाएँ",
+    "SDK": "SDK",
+    "API reference": "API संदर्भ",
+    "Reference": "संदर्भ",
+    "AI": "AI",
+    "Build with us": "हमारे साथ बनाएँ"
   }
 }

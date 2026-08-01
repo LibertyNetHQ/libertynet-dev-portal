@@ -68,5 +68,15 @@
   "meta": {
     "siteName": "LibertyNet للمطوّرين",
     "tagline": "ابنِ على LibertyNet. أول استدعاء ناجح في أقل من خمس دقائق."
+  },
+  "navGroups": {
+    "Start here": "ابدأ من هنا",
+    "Concepts": "المفاهيم",
+    "Guides": "الأدلة",
+    "SDK": "SDK",
+    "API reference": "مرجع الواجهة البرمجية",
+    "Reference": "المراجع",
+    "AI": "الذكاء الاصطناعي",
+    "Build with us": "ابنِ معنا"
   }
 }
