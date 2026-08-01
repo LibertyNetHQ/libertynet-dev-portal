@@ -39,6 +39,8 @@ set -e
 sudo rm -rf ${REMOTE_ROOT}.new
 sudo mkdir -p ${REMOTE_ROOT}.new
 sudo tar xzf /tmp/docs-dist.tgz -C ${REMOTE_ROOT}.new
+sudo rm -rf ${REMOTE_ROOT}.prev
+if [ -d ${REMOTE_ROOT} ]; then sudo cp -a ${REMOTE_ROOT} ${REMOTE_ROOT}.prev; fi
 sudo rm -rf ${REMOTE_ROOT}.old
 if [ -d ${REMOTE_ROOT} ]; then sudo mv ${REMOTE_ROOT} ${REMOTE_ROOT}.old; fi
 sudo mv ${REMOTE_ROOT}.new ${REMOTE_ROOT}
@@ -49,27 +51,56 @@ echo \"  \$(sudo find ${REMOTE_ROOT} -type f | wc -l) files, \$(sudo du -sh ${RE
 
 rm -f "$TARBALL"
 
-cyan "› verifying"
-# Served through Caddy itself with a Host header rather than a throwaway HTTP
-# server: it exercises the real vhost, and it avoids pkill — which, matching on a
-# command line, cheerfully killed its own SSH session the first time round.
-gcloud compute ssh "$INSTANCE" --zone "$ZONE" --quiet --command "
-for p in / /quickstart /ar/quickstart /ja/quickstart /llms.txt /sitemap.xml; do
-  code=\$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: docs.libertynet.ai' http://localhost\$p)
-  # 308 is Caddy redirecting to HTTPS, which is the correct answer over plain HTTP.
-  printf '  %-24s %s\n' \"\$p\" \"\$code\"
-done
-echo
-echo \"  on disk: \$(sudo find ${REMOTE_ROOT} -type f | wc -l) files\"
-"
+cyan "› verifying (against the real https:// URL)"
 
-cyan "✓ deployed"
+# The gate that matters.
+#
+# Everything before this point proves files reached a disk. It does not prove
+# the site works, and the difference is not academic: a syntax error in site.js
+# once killed every interactive feature in production while twenty suites
+# stayed green, because all of them asserted about files, HTML and HTTP status
+# and none of them asked a browser to run the page.
+#
+# So the deploy is not finished until Chromium has driven the deployed site at
+# its real public URL. If that fails, the previous release goes back — a broken
+# build does not get to stay up while somebody investigates.
+rollback() {
+  printf '\033[38;5;203m%s\033[39m\n' "✗ post-deploy checks FAILED — rolling back"
+  gcloud compute ssh "$INSTANCE" --zone "$ZONE" --quiet --command "
+    set -e
+    if [ -d ${REMOTE_ROOT}.prev ]; then
+      sudo rm -rf ${REMOTE_ROOT}.bad
+      sudo mv ${REMOTE_ROOT} ${REMOTE_ROOT}.bad
+      sudo mv ${REMOTE_ROOT}.prev ${REMOTE_ROOT}
+      echo '  restored the previous release'
+    else
+      echo '  NO PREVIOUS RELEASE TO RESTORE — the site is left as deployed'
+      exit 1
+    fi
+  "
+  printf '\033[38;5;203m%s\033[39m\n' "  rolled back; the bad build is at ${REMOTE_ROOT}.bad on ${INSTANCE}"
+  exit 1
+}
+
+# Caddy holds HTML for 300s. Ask for the fresh copy so the gate reads what was
+# just deployed rather than what was cached a minute ago.
+sleep 3
+
+if ! LN_SMOKE_BASE="https://docs.libertynet.ai" node "$HERE/test/smoke.browser.mjs"; then
+  rollback
+fi
+
+# A page whose HTML points at an asset that is not there renders unstyled and
+# inert, and no console error necessarily says so.
+cyan "› asset references resolve"
+ASSETS="$(curl -s https://docs.libertynet.ai/quickstart | grep -oE '(src|href)="/(site|theme)\.[^"]*"' | sed 's/.*="//;s/"$//' | sort -u)"
+for a in $ASSETS; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "https://docs.libertynet.ai$a")"
+  cc="$(curl -sI "https://docs.libertynet.ai$a" | grep -i cache-control | tr -d '\r' | cut -d' ' -f2-)"
+  printf '  %-28s %s  %s\n' "$a" "$code" "$cc"
+  [ "$code" = "200" ] || rollback
+done
+
+cyan "✓ deployed and verified live"
 echo
-echo "  Live at https://docs.libertynet.ai once DNS resolves."
-echo "  Until then Caddy cannot obtain a certificate, because ACME needs the"
-echo "  name to point here first. Nothing else is missing:"
-echo
-echo "    A  docs  →  34.21.237.177   (Namecheap, libertynet.ai zone)"
-echo
-echo "  Caddy issues the certificate automatically within about a minute of"
-echo "  that record propagating. No further deploy is needed."
+echo "  https://docs.libertynet.ai"

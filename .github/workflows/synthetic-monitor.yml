@@ -1,0 +1,156 @@
+name: synthetic-monitor
+
+# Drives the real production site with a real browser, every 15 minutes.
+#
+# The deploy gate catches a bad release at deploy time. This catches everything
+# else: a Caddy config edit, a certificate that lapsed, node-1 filling its disk,
+# a stale asset that only some path serves, or a "quick fix" applied on the box
+# and never checked. All of those break the site without any deploy happening,
+# so nothing else here would notice.
+#
+# Alerting is a GitHub issue rather than a webhook, deliberately: it needs no
+# secret, it cannot silently stop working when a token rotates, and it carries
+# the failure output with it. Repository notification settings turn it into
+# email or Slack for whoever wants it.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: synthetic-monitor
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Production is actually working
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright and Chromium
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      # The same script the deploy gate runs, pointed at production. One
+      # implementation, so monitoring cannot drift from what deployment checks.
+      - name: Smoke the live site
+        id: smoke
+        run: |
+          set -o pipefail
+          LN_SMOKE_BASE=https://docs.libertynet.ai \
+            node site/test/smoke.browser.mjs 2>&1 | tee /tmp/smoke.log
+
+      # Assets are content-hashed and served immutable, so a page pointing at a
+      # missing hash is silent: no console error, just an unstyled inert page.
+      - name: Assets referenced by the live HTML resolve
+        if: always()
+        run: |
+          set -euo pipefail
+          html="$(curl -fsS https://docs.libertynet.ai/quickstart)"
+          refs="$(printf '%s' "$html" | grep -oE '(src|href)="/(site|theme)\.[^"]*"' | sed 's/.*="//;s/"$//' | sort -u)"
+          [ -n "$refs" ] || { echo "no asset references found in the live HTML"; exit 1; }
+          for a in $refs; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "https://docs.libertynet.ai$a")"
+            echo "  $a -> $code"
+            [ "$code" = "200" ] || exit 1
+          done | tee -a /tmp/smoke.log
+
+      - name: Certificate has more than 10 days left
+        if: always()
+        run: |
+          set -euo pipefail
+          end="$(echo | openssl s_client -servername docs.libertynet.ai \
+                  -connect docs.libertynet.ai:443 2>/dev/null \
+                | openssl x509 -noout -enddate | cut -d= -f2)"
+          left=$(( ( $(date -d "$end" +%s) - $(date +%s) ) / 86400 ))
+          echo "  certificate expires in ${left} days ($end)" | tee -a /tmp/smoke.log
+          [ "$left" -gt 10 ]
+
+      # One open issue, reused. A monitor that opens a new issue every 15
+      # minutes trains everyone to mute it, which is worse than no monitor.
+      - name: Raise the alarm
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            let log = "(no output captured)";
+            try { log = fs.readFileSync("/tmp/smoke.log", "utf8").slice(-6000); } catch {}
+
+            const title = "🔴 docs.libertynet.ai is failing its synthetic checks";
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `The scheduled browser probe against **https://docs.libertynet.ai** failed at ${new Date().toISOString()}.`,
+              ``,
+              `This runs the same script the deploy gate runs, so a failure here means production is broken *now*, regardless of what any test suite says.`,
+              ``,
+              `[Full run](${run})`,
+              ``,
+              "```",
+              log,
+              "```",
+            ].join("\n");
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "synthetic-monitor",
+            });
+
+            if (existing.data.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body,
+              });
+              core.notice(`commented on existing alert #${existing.data[0].number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["synthetic-monitor"],
+              });
+              core.notice(`opened alert #${created.data.number}`);
+            }
+
+      # Closing on recovery is what makes the open issue mean something.
+      - name: Stand down
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "synthetic-monitor",
+            });
+            for (const issue of open.data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Recovered — the synthetic probe passed at ${new Date().toISOString()}.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: "closed",
+              });
+              core.notice(`closed alert #${issue.number}`);
+            }

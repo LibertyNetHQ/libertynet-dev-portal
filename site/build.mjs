@@ -22,6 +22,7 @@
 
 import { readFile, readdir, mkdir, writeFile, cp, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { DEFAULT_LOCALE, LOCALES, byCode } from "./build/locales.mjs";
@@ -35,6 +36,22 @@ const OUT = path.join(HERE, "dist");
 const SITE_URL = "https://docs.libertynet.ai";
 
 const warnings = [];
+
+/**
+ * Content-hashed asset URLs, filled in before any page is rendered.
+ *
+ * `/site.js` and `/theme.css` used to be served from stable URLs with
+ * `max-age=3600`. That meant a visitor who loaded a broken build kept it for up
+ * to an hour *after* the server was fixed — fresh HTML, stale script — so a
+ * server-side check and a real returning user could honestly disagree about
+ * whether the site worked. Every measurement was correct; they were measuring
+ * different things.
+ *
+ * With the hash in the filename a new build is a new URL, so a cached copy can
+ * never be reused for changed content, and the file can then be cached hard
+ * rather than for a nervous hour.
+ */
+const assets = { js: "/site.js", css: "/theme.css" };
 
 // ---------------------------------------------------------------------------
 // sources
@@ -239,7 +256,7 @@ ${alternates}
 <meta property="og:url" content="${canonical}">
 <meta name="twitter:card" content="summary">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="${assets.css}">
 <script>
 /* Applied before first paint: no theme flash, no direction flash.
    Dark is the default rather than "system": the pure-black ground is the brand,
@@ -303,7 +320,7 @@ ${alternates}
   </div>
 </footer>
 
-<script src="/site.js" defer></script>
+<script src="${assets.js}" defer></script>
 </body>
 </html>`;
 }
@@ -345,6 +362,44 @@ async function build() {
   for (const l of LOCALES) {
     strings[l.code] = JSON.parse(await readFile(path.join(HERE, `i18n/${l.code}.json`), "utf8"));
   }
+
+  // Hash the assets before anything renders — every page's <script> and <link>
+  // is written from `assets`, so this has to be settled first.
+  //
+  // Parse the client script before writing it. site.js is assembled inside a
+  // template literal, which means an escape sequence written for the *output*
+  // is silently interpreted by the *build* instead. That shipped once: a `\n`
+  // became a real newline inside a string literal, and since a browser abandons
+  // a whole script file on a parse error, the language switcher, the theme
+  // toggle, the search box and the copy button were all dead on every page —
+  // while every test passed, because nothing asked whether the generated file
+  // was JavaScript. `new Function` compiles without executing, which is exactly
+  // the question.
+  try {
+    new Function(CLIENT_JS);
+  } catch (err) {
+    throw new Error(
+      `site.js is not valid JavaScript: ${err.message}\n` +
+        `  The usual cause is an escape sequence in CLIENT_JS that the outer ` +
+        `template literal consumed.`,
+    );
+  }
+
+  const cssSource = await readFile(path.join(HERE, "build/theme.css"), "utf8");
+  const cssHash = createHash("sha256").update(cssSource).digest("hex").slice(0, 10);
+  const jsHash = createHash("sha256").update(CLIENT_JS).digest("hex").slice(0, 10);
+
+  assets.css = `/theme.${cssHash}.css`;
+  assets.js = `/site.${jsHash}.js`;
+
+  await writeFile(path.join(OUT, `theme.${cssHash}.css`), cssSource);
+  await writeFile(path.join(OUT, `site.${jsHash}.js`), CLIENT_JS);
+
+  // The unhashed names stay as copies. An HTML page cached by a browser before
+  // this change still asks for /site.js and /theme.css, and a 404 there would
+  // break exactly the readers this change exists to protect.
+  await writeFile(path.join(OUT, "theme.css"), cssSource);
+  await writeFile(path.join(OUT, "site.js"), CLIENT_JS);
 
   const nav = await loadNavigation();
   const sources = await collectPages();
@@ -443,31 +498,8 @@ async function build() {
     );
   }
 
-  // Static assets
-  await cp(path.join(HERE, "build/theme.css"), path.join(OUT, "theme.css"));
+  // Static assets were hashed and written at the top of build().
 
-  // Parse the client script before writing it.
-  //
-  // site.js is assembled inside a template literal, which means an escape
-  // sequence written for the *output* is silently interpreted by the *build*
-  // instead. That shipped: a `\n` became a real newline inside a string
-  // literal, and since a browser abandons a whole script file on a parse
-  // error, the language switcher, the theme toggle, the search box and the
-  // copy button were all dead on every page — while every test here passed,
-  // because nothing ever asked whether the file it generated was JavaScript.
-  //
-  // `new Function` compiles without executing, which is exactly the question.
-  try {
-    new Function(CLIENT_JS);
-  } catch (err) {
-    throw new Error(
-      `site.js is not valid JavaScript: ${err.message}\n` +
-        `  The usual cause is an escape sequence in CLIENT_JS that the outer ` +
-        `template literal consumed — write \\\\n where the output needs \\n.`,
-    );
-  }
-
-  await writeFile(path.join(OUT, "site.js"), CLIENT_JS);
 
   const favicon = path.join(DOCS, "favicon.svg");
   if (existsSync(favicon)) await cp(favicon, path.join(OUT, "favicon.svg"));
