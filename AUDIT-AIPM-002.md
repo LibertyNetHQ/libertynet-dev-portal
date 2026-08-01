@@ -319,6 +319,27 @@ The clean machine is not ceremony. On a maintainer's laptop the venv is built, g
 authenticated and the answers are in shell history — each one silently removes a step a
 stranger hits.
 
+The image was built and smoke-tested:
+
+```text
+READY  libertynet-p6:latest  557MB
+
+v22.23.2
+Python 3.11.2
+registry reachable: 200
+user: tester
+home: WELCOME.txt timer.mjs
+libertynet code present? 0        ← correctly clean
+
+$ node timer.mjs start "step 1 - first call"
+$ curl -s https://registry.libertynet.ai/health
+{"status": "ok", "service": "libertynet-registry-standalone", "count": 28}
+✓ step 1 - first call  (1s)
+```
+
+The base `node:22-bookworm-slim` genuinely lacks `python3` and `curl`, so the apt layer is
+doing real work rather than being cargo-culted — checked rather than assumed.
+
 **Deliberately not automated: finding testers.** Three real strangers beat thirty synthetic
 runs, and choosing who represents the audience is a judgement call.
 
