@@ -117,12 +117,23 @@ const QUOTED_AS_BROKEN = [
 /**
  * URL-shaped *identifiers* that are not web pages.
  *
- * An OIDC issuer is a name, and the only thing a reader does with it is compare
- * it character-for-character against what is in a signing certificate. GitHub's
- * issuer answers 404 to a browser, which is correct and says nothing about the
- * documentation. Fetching it could only ever produce a false alarm.
+ * Both of these come from /download, and neither is something a reader clicks:
+ *
+ *   · An OIDC issuer is a name. The only thing anyone does with it is compare it
+ *     character-for-character against a signing certificate. GitHub's issuer
+ *     answers 404 to a browser, which is correct.
+ *   · A certificate's signer identity (SAN) is likewise a name that happens to
+ *     be URL-shaped — `…/.github/workflows/sign-release.yml@refs/…` addresses a
+ *     workflow *run identity*, not a page, and GitHub serves nothing at it.
+ *
+ * Getting these wrong is worse than noise: the fix a reader would infer is to
+ * "correct" the value, and the value is exactly what has to be pinned verbatim
+ * for the signature check to mean anything.
  */
-const IDENTIFIERS = [/^https:\/\/token\.actions\.githubusercontent\.com\/?$/];
+const IDENTIFIERS = [
+  /^https:\/\/token\.actions\.githubusercontent\.com\/?$/,
+  /^https:\/\/github\.com\/[^/]+\/[^/]+\/\.github\/workflows\/[^/]+\.yml@/,
+];
 
 async function walk(dir, out = []) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
