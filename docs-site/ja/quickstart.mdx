@@ -123,7 +123,65 @@ print(f"{verified}/{len(nodes)} 件の身元を検証しました")
 **なぜ DID の表記が 2 つあるのか。** 同じ鍵が、短縮形 `did:svrp:n:<8桁hex>`（公開鍵の SHA-256 を切り詰めたもの）と完全形 `did:svrp:<64桁hex>`（公開鍵そのもの）の 2 通りで現れます。バインディングには短縮形が保存され、稼働中のデーモンは完全形を announce します。**同じノードです。** ここで文字列比較をすると 1 つのノードが 2 つに割れます。
 </Note>
 
-## 4. SDK なら 1 行
+## 4. ノードを呼び出し、本当に応答したか確かめる
+
+身元の検証で分かるのは DID と公開鍵が一致することだけです。誰かが応答できる状態にあることも、応答した相手が秘密鍵を持っていることも**証明しません**。この手順はその両方を確かめます。
+
+<Warning>
+**ネットワーク上のほとんどのノードは、あなたからは呼び出せません。**
+
+多くの登録はプライベート IP や運用者にしか意味のないローカル名を広告しています。本人には本物でも、外からは到達できません。実際に使えるものをレジストリに直接尋ねてください:
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+返ってくるのは**公開到達可能で登録署名を持つ**ノードだけです。今日その数は多くありませんが、SDK の既定もまさにこの集合です。
+</Warning>
+
+**nonce はあなたが決めます。** これが応答を「録音」ではなく「証明」にします。あらかじめ用意された内容への署名は、そのまま再生できてしまいます。
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+次に署名を検証します。Ed25519 にはライブラリが要ります。クイックスタートで何かをインストールするのはここだけです:
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+これが通れば、そのノードは先ほど検証した身元の秘密鍵を実際に保持しています。
+
+## 5. SDK なら 1 行
 
 上でやったことは、SDK が代わりにやってくれることです。しかも検証は無効化できません。
 

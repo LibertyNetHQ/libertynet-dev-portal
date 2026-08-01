@@ -272,7 +272,117 @@ ${rows.join("\n")}
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// 5. the matrix vendored into the scaffolder
+// 5. the API reference page
+// ---------------------------------------------------------------------------
+
+/**
+ * `/api-reference` — the page the site has been linking to and not serving.
+ *
+ * The home page, the changelog and the footer all pointed at it; it was going
+ * to be rendered by Mintlify from the OpenAPI file, and when the portal moved
+ * to a self-hosted build nothing replaced it. Three links to a 404, on the
+ * pages a first-time visitor sees first.
+ *
+ * Generated rather than written, for the usual reason: a hand-maintained list
+ * of endpoints is a second source of truth, and the second one is always the
+ * one that goes stale. Summaries come from the OpenAPI file, statuses and notes
+ * from the matrix, so the page cannot disagree with either.
+ */
+async function apiReference() {
+  const yaml = await readFile(path.join(ROOT, "api-spec/libertynet-v1.yaml"), "utf8");
+
+  // Targeted line scan rather than a YAML parser: the file is 40KB of
+  // hand-written spec, and the two fields needed here are unambiguous at
+  // fixed indentation. A parser would be more code and more ways to be wrong.
+  const summaries = new Map();
+  let currentPath = null;
+  let currentMethod = null;
+
+  for (const line of yaml.split("\n")) {
+    const p = /^ {2}(\/\S*):\s*$/.exec(line);
+    if (p) {
+      currentPath = p[1];
+      currentMethod = null;
+      continue;
+    }
+    const m = /^ {4}(get|post|put|delete|patch):\s*$/.exec(line);
+    if (m) {
+      currentMethod = m[1].toUpperCase();
+      continue;
+    }
+    const s = /^ {6}summary:\s*(.+?)\s*$/.exec(line);
+    if (s && currentPath && currentMethod) {
+      summaries.set(`${currentMethod} ${currentPath}`, s[1].replace(/^["']|["']$/g, ""));
+    }
+  }
+
+  const sections = [];
+
+  for (const group of status.groups) {
+    const http = group.endpoints.filter((e) => e.method !== "LINK");
+    if (!http.length) continue;
+
+    sections.push(`\n## ${group.title}\n`);
+    sections.push(
+      `**Base URL** \`${group.base_url ?? "https://registry.libertynet.ai"}\` · ` +
+        `**Auth** ${group.auth ?? "none"}\n`,
+    );
+
+    for (const e of group.endpoints) {
+      if (e.method === "LINK") continue;
+
+      const key = `${e.method} ${e.path}`;
+      const summary = summaries.get(key);
+
+      sections.push(`### \`${key}\` <Status level="${e.status}" />\n`);
+      if (summary) sections.push(`${summary}\n`);
+      if (e.note) sections.push(`${e.note}\n`);
+
+      // Only offer a command for something that will answer. Printing a curl
+      // line for a planned endpoint invites someone to run it and conclude the
+      // network is broken.
+      if (e.status === "implemented" && e.method === "GET" && !/\{/.test(e.path)) {
+        const base = group.base_url ?? "https://registry.libertynet.ai";
+        sections.push("```bash\ncurl -s " + base + e.path + "\n```\n");
+      }
+    }
+  }
+
+  const content = `---
+title: "API reference"
+description: "Every endpoint, its real status, and where the full schema lives. Generated from the capability matrix."
+---
+
+{/* ${BANNER("api-spec/status.json + api-spec/libertynet-v1.yaml").replace(/\n/g, " ")} */}
+
+import { Status } from '/snippets/status.mdx';
+
+The full OpenAPI 3.1 document is at
+[\`/api-spec/libertynet-v1.yaml\`](/api-spec/libertynet-v1.yaml) — schemas, examples and
+all. This page is the index, with each operation carrying the same status as every
+other surface in this project.
+
+<Warning>
+A status here is not decoration. **Implemented** can be called right now.
+**Not yet wired** answers with placeholder zeros that must never be shown as
+measurements. **Testing** is not deployed anywhere public. **Planned** has nothing
+behind it — code written against it cannot work.
+</Warning>
+${sections.join("\n")}
+## Machine-readable
+
+| File | What it is |
+|---|---|
+| [\`/api-spec/status.json\`](/api-spec/status.json) | The capability matrix. Source for every status on this page. |
+| [\`/api-spec/libertynet-v1.yaml\`](/api-spec/libertynet-v1.yaml) | OpenAPI 3.1, with \`x-ln-status\` on each operation. |
+| [\`/ai-context.txt\`](/ai-context.txt) | The same information as a paste-ready primer for an assistant. |
+`;
+
+  outputs.push({ file: path.join(ROOT, "docs-site/api-reference.mdx"), content });
+}
+
+// ---------------------------------------------------------------------------
+// 6. the matrix vendored into the scaffolder
 // ---------------------------------------------------------------------------
 
 /**
@@ -293,6 +403,7 @@ await openapi();
 await typescript();
 await python();
 await docsTable();
+await apiReference();
 await scaffolderMatrix();
 
 let stale = 0;

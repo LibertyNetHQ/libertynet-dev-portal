@@ -153,7 +153,24 @@ function languageSwitcher(slug, locale, pages, strings) {
   );
 }
 
-function shell({ slug, locale, meta, body, headings, nav, pages, strings, prev, next, translated }) {
+/**
+ * How many top-level sections the English page has that this translation does
+ * not.
+ *
+ * Counting `##` headings rather than diffing prose: a translation is allowed to
+ * be shorter — languages differ, and a good translator cuts padding — but it is
+ * not allowed to be missing a step. Comparing structure catches "the English
+ * page grew a section" while staying quiet about ordinary length differences.
+ */
+function sectionsBehind(english, translation) {
+  if (!english || english === translation) return 0;
+  // Both levels. The error dictionary lists each code as an h3, so counting
+  // only h2 said "complete" about a page missing seven error codes.
+  const count = (src) => (src.body.match(/^#{2,3}\s+\S/gm) ?? []).length;
+  return Math.max(0, count(english) - count(translation));
+}
+
+function shell({ slug, locale, meta, body, headings, nav, pages, strings, prev, next, translated, behind = 0 }) {
   const l = byCode[locale];
   const prefix = localePrefix(locale);
   const canonical = `${SITE_URL}${href(slug, locale)}`;
@@ -162,11 +179,25 @@ function shell({ slug, locale, meta, body, headings, nav, pages, strings, prev, 
     (x) => `<link rel="alternate" hreflang="${x.intl}" href="${SITE_URL}${href(slug, x.code)}">`,
   ).join("") + `<link rel="alternate" hreflang="x-default" href="${SITE_URL}${href(slug, DEFAULT_LOCALE)}">`;
 
-  const notice = translated
-    ? ""
-    : `<div class="i18n-notice"><strong>${escapeHtml(strings.translation.missingTitle)}</strong>` +
+  const contribute = "https://github.com/LibertyNetHQ/libertynet-dev-portal/tree/main/docs-site";
+
+  // Three states, not two. A page can be untranslated, translated, or — the
+  // case this site had no word for — translated a while ago and since left
+  // behind by the English original.
+  //
+  // Every one of the ten quickstart translations was missing the step that
+  // proves the loop closes, added to the English page in a later pass. They
+  // rendered as finished translations, because "has a file" was the only test.
+  const notice = !translated
+    ? `<div class="i18n-notice"><strong>${escapeHtml(strings.translation.missingTitle)}</strong>` +
       `${escapeHtml(strings.translation.missingBody.replace("{language}", l.label))} ` +
-      `<a href="https://github.com/LibertyNetHQ/libertynet-dev-portal/tree/main/docs-site">${escapeHtml(strings.translation.helpTranslate)}</a></div>`;
+      `<a href="${contribute}">${escapeHtml(strings.translation.helpTranslate)}</a></div>`
+    : behind > 0
+      ? `<div class="i18n-notice"><strong>${escapeHtml(strings.translation.staleTitle)}</strong>` +
+        `${escapeHtml(strings.translation.staleBody.replace("{n}", String(behind)))} ` +
+        `<a href="${href(slug, DEFAULT_LOCALE)}">${escapeHtml(strings.translation.viewOriginal)}</a> · ` +
+        `<a href="${contribute}">${escapeHtml(strings.translation.helpTranslate)}</a></div>`
+      : "";
 
   const pager =
     prev || next
@@ -363,6 +394,7 @@ async function build() {
         prev,
         next,
         translated,
+        behind: translated ? sectionsBehind(entry.metas[DEFAULT_LOCALE], source) : 0,
       });
 
       const outPath =

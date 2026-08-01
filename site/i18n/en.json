@@ -43,7 +43,9 @@
     "missingTitle": "Not translated yet",
     "missingBody": "This page has not been translated into {language} yet, so you are reading the English original. The translation is not missing because it is unimportant — it just has not been written. Contributions welcome.",
     "helpTranslate": "Help translate this page",
-    "viewOriginal": "View the English original"
+    "viewOriginal": "View the English original",
+    "staleTitle": "Behind the English original",
+    "staleBody": "This translation is missing {n} section(s) that the English page has. What is here is accurate; what is missing is missing. The English original is the complete version."
   },
   "safety": {
     "creditsTestUnit": "Credits are a test unit. Not cash, not redeemable, not a claim on future value.",

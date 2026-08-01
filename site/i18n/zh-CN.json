@@ -42,7 +42,9 @@
     "missingTitle": "尚未翻译",
     "missingBody": "本页还没有翻译成{language}，所以你看到的是英文原文。不是因为它不重要——只是还没有人写。欢迎贡献翻译。",
     "helpTranslate": "帮忙翻译这一页",
-    "viewOriginal": "查看英文原文"
+    "viewOriginal": "查看英文原文",
+    "staleTitle": "落后于英文原文",
+    "staleBody": "这份翻译比英文页面少了 {n} 个章节。已翻译的内容是准确的，但缺的就是缺了。英文原文是完整版本。"
   },
   "safety": {
     "creditsTestUnit": "Credits 是测试单位。不是现金，不可兑换，不代表对未来价值的任何主张。",

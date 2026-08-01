@@ -123,7 +123,65 @@ print(f"{verified}/{len(nodes)}개 신원 검증 완료")
 **DID 표기가 왜 두 가지인가.** 같은 키가 축약형 `did:svrp:n:<8자리hex>`(공개키 SHA-256의 앞부분)과 전체형 `did:svrp:<64자리hex>`(공개키 자체)로 나타납니다. 바인딩에는 축약형이 저장되고, 실행 중인 데몬은 전체형을 알립니다. **같은 노드입니다.** 여기서 문자열 비교를 하면 노드 하나가 둘로 쪼개집니다.
 </Note>
 
-## 4. SDK로는 한 줄
+## 4. 노드를 호출하고, 실제로 응답했는지 확인하기
+
+신원 검증은 DID와 공개키가 일치한다는 것만 증명합니다. 누군가 응답할 수 있는 상태인지도, 응답한 쪽이 개인키를 가졌는지도 **증명하지 않습니다**. 이 단계는 둘 다 확인합니다.
+
+<Warning>
+**네트워크의 대부분 노드는 당신이 호출할 수 없습니다.**
+
+많은 레코드가 사설 IP나 운영자에게만 의미 있는 로컬 이름을 광고합니다. 본인에게는 진짜지만 외부에서는 닿을 수 없습니다. 실제로 사용할 수 있는 것을 레지스트리에 직접 물어보세요:
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+**공개적으로 도달 가능하고 등록 서명을 가진** 노드만 반환됩니다. 오늘 그 수는 적지만, SDK의 기본값도 정확히 이 집합입니다.
+</Warning>
+
+**nonce는 당신이 정합니다.** 그래야 응답이 '녹음'이 아니라 '증명'이 됩니다. 미리 준비된 내용에 대한 서명은 그대로 재생될 수 있습니다.
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+이제 그 서명을 검증합니다. Ed25519에는 라이브러리가 필요합니다 — 퀵스타트에서 무언가를 설치하는 유일한 단계입니다:
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+통과하면 그 노드는 방금 검증한 신원의 개인키를 실제로 보유하고 있는 것입니다.
+
+## 5. SDK로는 한 줄
 
 위에서 한 일이 SDK가 대신 해주는 일이며, 검증은 끌 수 없습니다.
 

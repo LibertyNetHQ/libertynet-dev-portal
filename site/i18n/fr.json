@@ -42,7 +42,9 @@
     "missingTitle": "Pas encore traduit",
     "missingBody": "Cette page n'a pas encore été traduite en {language}, vous lisez donc l'original en anglais. Elle ne manque pas parce qu'elle serait sans importance — elle n'a simplement pas encore été écrite. Les contributions sont bienvenues.",
     "helpTranslate": "Aider à traduire cette page",
-    "viewOriginal": "Voir l'original en anglais"
+    "viewOriginal": "Voir l'original en anglais",
+    "staleTitle": "En retard sur l'original anglais",
+    "staleBody": "Il manque {n} section(s) à cette traduction par rapport à la page anglaise. Ce qui est ici est exact ; ce qui manque, manque. L'original anglais est la version complète."
   },
   "safety": {
     "creditsTestUnit": "Les Credits sont une unité de test. Ce n'est pas de l'argent, ce n'est pas échangeable et cela ne constitue aucun droit sur une valeur future.",

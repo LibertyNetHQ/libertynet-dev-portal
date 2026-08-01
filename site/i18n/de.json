@@ -42,7 +42,9 @@
     "missingTitle": "Noch nicht übersetzt",
     "missingBody": "Diese Seite wurde noch nicht ins {language} übersetzt, deshalb liest du das englische Original. Sie fehlt nicht, weil sie unwichtig wäre — sie wurde nur noch nicht geschrieben. Beiträge sind willkommen.",
     "helpTranslate": "Bei der Übersetzung helfen",
-    "viewOriginal": "Englisches Original ansehen"
+    "viewOriginal": "Englisches Original ansehen",
+    "staleTitle": "Hinter dem englischen Original",
+    "staleBody": "Dieser Übersetzung fehlen {n} Abschnitt(e), die die englische Seite hat. Was hier steht, stimmt; was fehlt, fehlt. Das englische Original ist die vollständige Fassung."
   },
   "safety": {
     "creditsTestUnit": "Credits sind eine Testeinheit. Kein Geld, nicht einlösbar und kein Anspruch auf künftigen Wert.",

@@ -112,7 +112,65 @@ print(f"{verified}/{len(nodes)} 個身分通過驗證")
 **為什麼有兩種 DID 編碼？** 同一把金鑰會以短形式 `did:svrp:n:<8位hex>`（公鑰 SHA-256 的截斷）和全形式 `did:svrp:<64位hex>`（公鑰本身）兩種樣子出現。綁定裡存短的，執行中的守護行程報全的。**它們是同一個節點。** 在這裡做字串比較會騙你。
 </Note>
 
-## 4. 或者用 SDK 一行搞定
+## 4. 呼叫一個節點，並確認它真的回應了
+
+驗證身分只能證明 DID 與公鑰對得上。它**不能**證明有人在線，也不能證明回應你的那一方真的持有私鑰。這一步兩件事都做到。
+
+<Warning>
+**網路上大多數節點你根本呼叫不了。**
+
+很多紀錄登記的是內網位址或只對營運者有意義的本地標籤——對他們是真的，從別處根本連不上。直接向註冊表要真正可用的那批：
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+它只回傳**公網可達且帶註冊簽章**的節點。今天這個數字很小，SDK 預設就用這一批。
+</Warning>
+
+**nonce 由你決定。** 這正是讓回應成為「證明」而不是「錄音」的關鍵：對早就準備好的內容的簽章，可以直接重放給你。
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+現在驗證這個簽章。Ed25519 需要一個函式庫——這是快速上手裡唯一需要安裝東西的一步：
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+跑通了，就代表這個節點確實持有你剛才驗證過的那個身分的私鑰。
+
+## 5. 或者用 SDK 一行搞定
 
 上面這些就是 SDK 替你做的事，而且驗證無法關閉。
 

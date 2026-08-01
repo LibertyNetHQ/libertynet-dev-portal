@@ -112,7 +112,65 @@ print(f"تم التحقّق من {verified} من {len(nodes)} هوية")
 **لماذا صيغتان للمُعرِّف؟** المفتاح نفسه يظهر بصيغة مختصرة `did:svrp:n:<8 hex>` (تجزئة SHA-256 للمفتاح مقتطعة) وبصيغة كاملة `did:svrp:<64 hex>` (المفتاح نفسه). الارتباطات تُخزَّن بالمختصرة، والخادم العامل يُعلن الكاملة. **إنها العقدة ذاتها.** ومقارنة النصوص هنا ستشطر عقدة واحدة إلى عقدتين.
 </Note>
 
-## ٤. أو افعلها بسطر واحد
+## ٤. استدعِ عقدة، وتأكّد أنها ردّت فعلًا
+
+التحقّق من الهوية يثبت أن الـ DID يطابق المفتاح فقط. وهو **لا** يثبت أن أحدًا موجود، ولا أن من يردّ يملك المفتاح الخاص. هذه الخطوة تتحقّق من الأمرين معًا.
+
+<Warning>
+**معظم العقد على الشبكة لا تستطيع استدعاءها.**
+
+كثير من السجلات تعلن عناوين داخلية أو أسماء محلية لا تعني شيئًا إلا لمشغّلها — حقيقية بالنسبة له، وغير قابلة للوصول من الخارج. اطلب من السجل ما هو صالح فعلًا:
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+يُعيد فقط العقد **القابلة للوصول علنًا والحاملة لتوقيع تسجيل**. عددها اليوم قليل، وهذه بالضبط هي المجموعة الافتراضية في الـ SDK.
+</Warning>
+
+**أنت من يختار الـ nonce.** هذا ما يجعل الرد برهانًا لا تسجيلًا: التوقيع على شيء مُعدّ سلفًا يمكن ببساطة إعادة تشغيله عليك.
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+تحقّق الآن من ذلك التوقيع. يحتاج Ed25519 إلى مكتبة — وهي الخطوة الوحيدة في البداية السريعة التي تثبّت شيئًا:
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+إذا نجح ذلك، فإن تلك العقدة تملك حقًّا المفتاح الخاص للهوية التي تحقّقت منها للتو.
+
+## ٥. أو افعلها بسطر واحد
 
 كل ما سبق هو ما تفعله حزمة التطوير نيابةً عنك، والتحقّق فيها غير اختياري.
 

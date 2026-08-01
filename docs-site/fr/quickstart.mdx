@@ -112,7 +112,65 @@ Vous venez de contrôler cryptographiquement chaque identité du réseau sans de
 **Pourquoi deux encodages de DID ?** La même clé apparaît en forme courte `did:svrp:n:<8hex>` (SHA-256 tronqué de la clé) et en forme complète `did:svrp:<64hex>` (la clé elle-même). Les liaisons stockent la courte ; un démon en fonctionnement annonce la longue. **C'est le même nœud.** Comparer les chaînes ici scinderait un nœud en deux.
 </Note>
 
-## 4. Ou en une ligne
+## 4. Appeler un nœud et vérifier qu'il a répondu
+
+Vérifier une identité prouve que le DID correspond à la clé. Cela ne prouve **pas** que quelqu'un est joignable, ni que celui qui répond détient la clé privée. Cette étape vérifie les deux.
+
+<Warning>
+**La plupart des nœuds du réseau, vous ne pouvez pas les appeler.**
+
+Beaucoup d'enregistrements annoncent des adresses privées ou des étiquettes locales qui n'ont de sens que pour leur opérateur : réelles pour lui, injoignables d'ailleurs. Demandez au registre ceux qui servent vraiment :
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+Il ne renvoie que des nœuds **joignables publiquement et porteurs d'une signature d'enregistrement**. Ils sont peu nombreux aujourd'hui, et c'est exactement l'ensemble que les SDK utilisent par défaut.
+</Warning>
+
+**C'est vous qui choisissez le nonce.** C'est ce qui fait de la réponse une preuve et non un enregistrement : une signature sur quelque chose de préparé à l'avance pourrait simplement vous être rejouée.
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+Vérifiez maintenant cette signature. Ed25519 demande une bibliothèque — la seule étape du quickstart qui installe quelque chose :
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+Si cela passe, ce nœud détient réellement la clé privée de l'identité que vous venez de vérifier.
+
+## 5. Ou en une ligne
 
 Tout ce qui précède est ce que le SDK fait pour vous, la vérification n'étant pas optionnelle.
 

@@ -112,7 +112,65 @@ Você acabou de conferir criptograficamente todas as identidades da rede sem ped
 **Por que duas codificações de DID?** A mesma chave aparece como forma curta `did:svrp:n:<8hex>` (SHA-256 truncado da chave) e como forma completa `did:svrp:<64hex>` (a própria chave). Vínculos guardam a curta; um daemon em execução anuncia a longa. **É o mesmo nó.** Comparar strings aqui divide um nó em dois.
 </Note>
 
-## 4. Ou faça em uma linha
+## 4. Chame um nó e confirme que ele respondeu
+
+Verificar uma identidade prova que o DID corresponde à chave. **Não** prova que há alguém do outro lado, nem que quem responde tem a chave privada. Este passo verifica as duas coisas.
+
+<Warning>
+**A maioria dos nós da rede você não consegue chamar.**
+
+Muitos registros anunciam endereços privados ou rótulos locais que só fazem sentido para o operador: reais para ele, inalcançáveis de fora. Peça ao registro os que realmente servem:
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+Retorna apenas nós **publicamente acessíveis e com assinatura de registro**. Hoje são poucos, e os SDKs usam exatamente esse conjunto por padrão.
+</Warning>
+
+**O nonce é você quem escolhe.** É isso que torna a resposta uma prova e não uma gravação: uma assinatura sobre algo preparado antes poderia simplesmente ser repetida para você.
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+Agora verifique essa assinatura. Ed25519 precisa de uma biblioteca — é o único passo do quickstart que instala algo:
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+Se passar, aquele nó realmente detém a chave privada da identidade que você acabou de verificar.
+
+## 5. Ou faça em uma linha
 
 Tudo acima é o que o SDK faz por você, com a verificação não opcional.
 

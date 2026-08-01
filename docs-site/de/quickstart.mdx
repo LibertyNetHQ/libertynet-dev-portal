@@ -112,7 +112,65 @@ Du hast gerade jede Identität in diesem Netzwerk kryptografisch geprüft, ohne 
 **Warum zwei DID-Kodierungen?** Derselbe Schlüssel erscheint als Kurzform `did:svrp:n:<8hex>` (gekürzter SHA-256 des Schlüssels) und als Vollform `did:svrp:<64hex>` (der Schlüssel selbst). Bindungen speichern die kurze, ein laufender Daemon kündigt die lange an. **Es ist derselbe Knoten.** Ein Stringvergleich zerlegt hier einen Knoten in zwei.
 </Note>
 
-## 4. Oder in einer Zeile
+## 4. Einen Knoten aufrufen und prüfen, dass er geantwortet hat
+
+Eine Identität zu verifizieren beweist, dass DID und Schlüssel zusammenpassen. Es beweist **nicht**, dass jemand erreichbar ist, und auch nicht, dass die antwortende Seite den privaten Schlüssel hat. Dieser Schritt prüft beides.
+
+<Warning>
+**Die meisten Knoten im Netz kannst du gar nicht aufrufen.**
+
+Viele Einträge melden private Adressen oder lokale Namen, die nur für ihren Betreiber etwas bedeuten — für ihn echt, von außen nicht erreichbar. Frag die Registry direkt nach den brauchbaren:
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+Zurück kommen nur Knoten, die **öffentlich erreichbar sind und eine Registrierungssignatur tragen**. Heute sind das wenige, und genau diese Menge ist die Voreinstellung beider SDKs.
+</Warning>
+
+**Die Nonce bestimmst du.** Genau das macht die Antwort zu einem Beweis statt zu einer Aufzeichnung: eine Signatur über etwas vorbereitetes ließe sich einfach abspielen.
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+Jetzt die Signatur prüfen. Ed25519 braucht eine Bibliothek — der einzige Schritt im Quickstart, der etwas installiert:
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+Geht das durch, hält dieser Knoten tatsächlich den privaten Schlüssel der Identität, die du gerade verifiziert hast.
+
+## 5. Oder in einer Zeile
 
 All das Obige übernimmt das SDK für dich — und die Verifikation ist nicht abschaltbar.
 

@@ -132,7 +132,65 @@ print(f"{verified}/{len(nodes)} 个身份通过验证")
 [身份](/concepts/identity)。
 </Note>
 
-## 4. 或者用 SDK 一行搞定
+## 4. 调用一个节点，并确认它真的回应了
+
+验证身份只能证明 DID 与公钥对得上。它**不能**证明有人在线，也不能证明回应你的那一方真的持有私钥。这一步两件事都做到。
+
+<Warning>
+**网络上大多数节点你根本调用不了。**
+
+很多记录登记的是内网地址或只对运营者有意义的本地标签——对他们是真的，从别处根本连不上。直接向注册表要真正可用的那批：
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+它只返回**公网可达且带注册签名**的节点。今天这个数字很小，SDK 默认就用这一批。
+</Warning>
+
+**nonce 由你来定。** 这正是让回应成为「证明」而不是「录音」的关键：对早就准备好的内容的签名，可以直接重放给你。
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+现在验证这个签名。Ed25519 需要一个库——这是快速上手里唯一需要装东西的一步：
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+跑通了，就说明这个节点确实持有你刚才验证过的那个身份的私钥。
+
+## 5. 或者用 SDK 一行搞定
 
 上面这些就是 SDK 替你做的事，而且验证不可关闭。
 

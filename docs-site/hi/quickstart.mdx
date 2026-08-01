@@ -112,7 +112,65 @@ print(f"{len(nodes)} में से {verified} पहचान सत्या
 **DID की दो कूटलिपियाँ क्यों?** वही कुंजी संक्षिप्त रूप `did:svrp:n:<8 hex>` (कुंजी के SHA-256 का छोटा हिस्सा) और पूर्ण रूप `did:svrp:<64 hex>` (कुंजी स्वयं) में दिखती है। बाइंडिंग में संक्षिप्त संग्रहीत होता है, चालू डेमॉन पूर्ण घोषित करता है। **यह एक ही नोड है।** यहाँ स्ट्रिंग तुलना करने पर एक नोड दो में बँट जाएगा।
 </Note>
 
-## 4. या एक ही पंक्ति में
+## 4. किसी नोड को कॉल करें, और जाँचें कि उसने सचमुच जवाब दिया
+
+पहचान सत्यापित करना केवल यह सिद्ध करता है कि DID कुंजी से मेल खाता है। यह **सिद्ध नहीं करता** कि कोई मौजूद है, न ही यह कि जवाब देने वाले के पास निजी कुंजी है। यह चरण दोनों जाँचता है।
+
+<Warning>
+**नेटवर्क के अधिकांश नोड आप कॉल ही नहीं कर सकते।**
+
+कई रिकॉर्ड निजी पते या ऐसे स्थानीय नाम घोषित करते हैं जो केवल उनके ऑपरेटर के लिए अर्थ रखते हैं — उनके लिए असली, बाहर से अगम्य। रजिस्ट्री से सीधे वही माँगें जो सचमुच काम के हैं:
+
+```bash
+curl -s 'https://registry.libertynet.ai/nodes?callable=1'
+```
+
+यह केवल वे नोड लौटाता है जो **सार्वजनिक रूप से पहुँच योग्य हैं और पंजीकरण हस्ताक्षर रखते हैं**। आज इनकी संख्या कम है, और SDK का डिफ़ॉल्ट भी यही समुच्चय है।
+</Warning>
+
+**nonce आप चुनते हैं।** यही उत्तर को रिकॉर्डिंग नहीं, प्रमाण बनाता है: पहले से तैयार किसी चीज़ पर किया गया हस्ताक्षर आप पर दोबारा चलाया जा सकता है।
+
+```python act.py
+import json, urllib.request, secrets
+
+def post(url, data):
+    req = urllib.request.Request(url, data=json.dumps(data).encode(),
+                                 headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+with urllib.request.urlopen("https://registry.libertynet.ai/nodes?callable=1") as r:
+    node = json.load(r)["nodes"][0]
+
+nonce = secrets.token_hex(8)
+reply = post(node["endpoint"] + "/echo", {"nonce": nonce})
+
+assert reply["nonce"] == nonce
+assert reply["public_key"] == node["public_key"]
+
+print("called   ", node["endpoint"])
+print("signature", reply["signature"][:32], "…")
+```
+
+अब उस हस्ताक्षर को सत्यापित करें। Ed25519 के लिए एक लाइब्रेरी चाहिए — क्विकस्टार्ट में यही एकमात्र चरण है जो कुछ इंस्टॉल करता है:
+
+```bash
+pip install cryptography
+```
+
+```python verify_reply.py
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+Ed25519PublicKey.from_public_bytes(key_bytes(reply["public_key"])).verify(
+    b58decode(reply["signature"]),
+    reply["signed_bytes"].encode(),
+)
+print("ok")
+```
+
+यदि यह पास हो जाता है, तो वह नोड सचमुच उस पहचान की निजी कुंजी रखता है जिसे आपने अभी सत्यापित किया।
+
+## 5. या एक ही पंक्ति में
 
 ऊपर जो कुछ किया, वही SDK आपके लिए करता है — और सत्यापन बंद नहीं किया जा सकता।
 
