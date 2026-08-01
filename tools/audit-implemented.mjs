@@ -390,6 +390,97 @@ const FEATURE_CLAIMS = [
     },
   },
   {
+    id: "cosign-signed-releases",
+    match: /Release artifacts — cosign signed|cosign keyless/i,
+    pages: ["download"],
+    how: "cosign verify-blob against the live release, with the documented identity",
+    async verify() {
+      if (OFFLINE) return [null, "network disabled"];
+
+      // Verified the way the page tells a reader to verify — same flags, same
+      // identity regexp. A verifier that dropped --certificate-identity-regexp
+      // would pass on a file signed by anybody, which is the exact mistake the
+      // page warns against.
+      const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+      const { tmpdir } = await import("node:os");
+      const dir = await mkdtemp(path.join(tmpdir(), "ln-cosign-"));
+
+      try {
+        const have = await exitCode("sh", ["-c", "command -v cosign"]);
+        if (have !== 0) return [null, "cosign not installed on this machine"];
+
+        const REPO = "LibertyNetHQ/libertynet-releases";
+        const rel = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+          headers: { "User-Agent": "libertynet-audit" },
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (!rel.ok) return [false, `could not list releases: HTTP ${rel.status}`];
+
+        const { tag_name, assets } = await rel.json();
+        const sums = assets.find((a) => /^SHA256SUMS.*\.txt$/.test(a.name));
+        const bundle = assets.find((a) => a.name === `${sums?.name}.sigstore.json`);
+
+        if (!sums) return [false, `no SHA256SUMS in release ${tag_name}`];
+        if (!bundle) return [false, `SHA256SUMS in ${tag_name} has no Sigstore bundle`];
+
+        for (const a of [sums, bundle]) {
+          const r = await fetch(a.browser_download_url, { signal: AbortSignal.timeout(60_000) });
+          await writeFile(path.join(dir, a.name), Buffer.from(await r.arrayBuffer()));
+        }
+
+        const code = await exitCode(
+          "cosign",
+          [
+            "verify-blob",
+            "--bundle", path.join(dir, bundle.name),
+            "--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
+            "--certificate-identity-regexp",
+            "^https://github\\.com/LibertyNetHQ/libertynet-releases/\\.github/workflows/sign-release\\.yml@refs/",
+            path.join(dir, sums.name),
+          ],
+          dir,
+        );
+
+        return [code === 0, code === 0
+          ? `${sums.name} in ${tag_name} verifies for an anonymous caller`
+          : `cosign verify-blob failed (exit ${code})`];
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  },
+  {
+    id: "installer-fail-closed",
+    match: /via install\.sh — checksum only|fail-closed/i,
+    pages: ["download"],
+    how: "the live installer inspected for the fail-open branch and for escape hatches",
+    async verify() {
+      if (OFFLINE) return [null, "network disabled"];
+
+      const res = await fetch("https://libertynet.ai/install.sh", {
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) return [false, `install.sh returned HTTP ${res.status}`];
+
+      const sh = await res.text();
+      const code = sh.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+
+      const failOpen = /跳过完整性校验|skip.*integrity/i.test(code);
+      const escapes = /LN_SKIP_CHECKSUM|SKIP_VERIFY|--no-verify|NO_CHECKSUM/i.test(code);
+      // Three separate die() paths: unreachable, malformed, mismatched.
+      const dies = (code.match(/die "(?:未找到 SHA256|SHA256 校验)/g) ?? []).length;
+
+      return [
+        !failOpen && !escapes && dies >= 3,
+        failOpen
+          ? "the live installer still has a fail-open branch"
+          : escapes
+            ? "the live installer has a checksum skip flag"
+            : `${dies} fail-closed die() paths, no skip flag, no fail-open branch`,
+      ];
+    },
+  },
+  {
     id: "operator-login-flow",
     match: /Challenge → device-key signature|hold\.|runs against the live network today/i,
     pages: ["index", "guides/operator-login", "guides/discovery-agent"],

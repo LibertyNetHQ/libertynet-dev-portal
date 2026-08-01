@@ -1,0 +1,115 @@
+---
+title: "Download and verify"
+description: "Get the binaries, and check they are the ones we published. Two distribution lines with two different protection levels — stated plainly."
+---
+
+import { Status } from '/snippets/status.mdx';
+
+There are **two** distribution lines, and they are not equally protected. Conflating them
+would be the easiest way to overstate what is guaranteed, so they are separate here.
+
+## Release artifacts — cosign signed <Status level="implemented" />
+
+Everything published to
+[`LibertyNetHQ/libertynet-releases`](https://github.com/LibertyNetHQ/libertynet-releases)
+is signed with **cosign keyless** (Sigstore + GitHub OIDC), including the `SHA256SUMS` file
+itself. No long-lived private key exists: the signing key is generated inside the job,
+exchanged for a ten-minute certificate via the workflow's OIDC identity, and discarded. The
+signature goes into the public Rekor transparency log, where anyone can audit it and we
+cannot remove it.
+
+You need [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) v2+ and
+nothing else — no key to fetch, no account.
+
+```bash
+cosign verify-blob \
+  --bundle "<artifact>.sigstore.json" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  --certificate-identity-regexp '^https://github\.com/LibertyNetHQ/libertynet-releases/\.github/workflows/sign-release\.yml@refs/' \
+  "<artifact>"
+```
+
+`Verified OK` is the whole output on success.
+
+<Warning>
+**The two `--certificate-*` flags are the check.** Without them `cosign verify-blob` will
+happily accept a valid signature from *anyone at all* — Sigstore is public, so an attacker
+can sign their own tampered file just as easily as we sign ours. What makes the signature
+mean something is pinning **who** signed it:
+
+| Must be | Value |
+|---|---|
+| Issuer | `https://token.actions.githubusercontent.com` |
+| Signer identity | `https://github.com/LibertyNetHQ/libertynet-releases/.github/workflows/sign-release.yml@refs/…` |
+
+Copying the command without those flags is the single most likely way to end up trusting
+the wrong file.
+</Warning>
+
+### What this proves, and what it does not
+
+Signing answers exactly one question. It is worth being precise about which one.
+
+**It proves:**
+
+- the file was signed by the `sign-release.yml` workflow in `libertynet-releases`;
+- not one byte has changed since — a man-in-the-middle, a poisoned mirror or a swapped
+  GitHub asset all fail verification;
+- the signing event is in Rekor, publicly auditable and not retractable by us.
+
+**It does not prove:**
+
+- **that the binary was built from any particular source commit.** Build provenance (SLSA)
+  has to be produced in the *private* build repository and is <Status level="planned" />.
+  A release note saying "built from commit `abc1234`" is currently **not externally
+  verifiable** — you would be taking our word for it.
+- that the code is free of bugs, or safe to run. Signing covers origin and integrity, not
+  behaviour.
+- anything about Apple. The macOS `.pkg` is **not** Apple-signed or notarised, so Gatekeeper
+  will still block it and you will still need right-click → Open. An Apple Developer account
+  is <Status level="planned" />.
+
+<Card title="Full verification guide" icon="shield-check" href="https://github.com/LibertyNetHQ/libertynet-releases/blob/main/docs/VERIFYING.md" horizontal>
+  Per-artifact commands, what each `.sig` / `.pem` / `.sigstore.json` file is for, and how to
+  read the certificate yourself.
+</Card>
+
+## `ln-node` via install.sh — checksum only <Status level="implemented" />
+
+```bash
+curl -sSL https://libertynet.ai/install.sh | bash
+```
+
+This installs `ln-node`, whose binaries come from a **different** release line hosted on
+`libertynet.ai`. Its protection today is **SHA256 verification only — no cosign signature**,
+because the signing workflow can only live in a public repository and that build repository
+is private.
+
+<Warning>
+So the honest comparison is:
+
+| Line | Integrity | Origin | Transparency log |
+|---|---|---|---|
+| `libertynet-releases` artifacts | cosign + SHA256 | proven | yes (Rekor) |
+| `ln-node` via `install.sh` | SHA256 only | **not proven** | no |
+
+A checksum served from the same host as the binary proves the download was not corrupted in
+transit. It does **not** protect you from that host being compromised — whoever can replace
+the binary can replace the checksum beside it. cosign signing for this line is
+<Status level="planned" />.
+</Warning>
+
+The installer is nonetheless **fail-closed**: a missing checksum file, a malformed one, or a
+mismatch each abort the install with a non-zero exit and install nothing. There is no flag to
+skip it. That was not always true — it once warned and continued, which meant deleting the
+checksum file was enough to bypass verification entirely.
+
+<Tip>
+Piping a script from the internet into `bash` deserves a second of thought every time. Read
+it first if you like — it is plain shell, and the URL serves the same file the repository
+contains:
+
+```bash
+curl -sSL https://libertynet.ai/install.sh | less
+```
+</Tip>

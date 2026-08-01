@@ -111,6 +111,7 @@
           {
             "group": "Reference",
             "pages": [
+              "download",
               "reference/errors",
               "reference/dids",
               "reference/changelog"
