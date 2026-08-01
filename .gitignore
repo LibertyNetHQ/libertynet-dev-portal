@@ -1,15 +1,18 @@
-
-# Playwright browsers and the root devDependency tree. The site, SDKs and MCP
-# server stay dependency-free; only the browser smoke test needs a browser.
-*.egg-info/
 .DS_Store
-.next/
-.pytest_cache/
-.registry-watch/
+*.egg-info/
 __pycache__/
+.pytest_cache/
+
 dist/
-node_modules/
 out/
-p6-session.jsonl
+.next/
 site/dist/
 site/public/mcp/
+
+# Playwright's browser and the root devDependency tree. The site, the SDKs and
+# the MCP server all stay dependency-free; only the browser smoke test needs a
+# browser, and nothing ships it.
+node_modules/
+
+.registry-watch/
+p6-session.jsonl
