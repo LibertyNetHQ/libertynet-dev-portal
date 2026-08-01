@@ -152,8 +152,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/LibertyNetHQ",
-      "discord": "https://discord.gg/libertynet"
+      "github": "https://github.com/LibertyNetHQ"
     },
     "links": [
       {
@@ -181,7 +180,7 @@
         "header": "Community",
         "items": [
           {
-            "label": "Discord",
+            "label": "Discord (planned — not live yet)",
             "href": "https://discord.gg/libertynet"
           },
           {
@@ -211,5 +210,6 @@
       "description": "That page does not exist. Try the quickstart."
     }
   },
-  "$localeNote": "Navigation is declared once, for English. Translations live at docs-site/<locale>/<slug>.mdx and are picked up automatically by site/build.mjs; a page with no translation falls back to English behind a visible notice. Locale registry: site/build/locales.mjs."
+  "$localeNote": "Navigation is declared once, for English. Translations live at docs-site/<locale>/<slug>.mdx and are picked up automatically by site/build.mjs; a page with no translation falls back to English behind a visible notice. Locale registry: site/build/locales.mjs.",
+  "$discordNote": "The Discord server does not exist yet; see api-spec/status.json group `community`. The address is reserved and every reference to it is badged `planned`. community/apply-invite.mjs swaps in the real invite in one command once it exists."
 }

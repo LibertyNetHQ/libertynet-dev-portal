@@ -192,6 +192,27 @@ function findClose(lines, start, name) {
 
 const CALLOUTS = { Note: "note", Tip: "tip", Info: "info", Warning: "warning", Check: "check" };
 
+/**
+ * Does this line end the paragraph being accumulated?
+ *
+ * The subtle case is components. A line that is *only* a component tag opens a
+ * block and ends the paragraph. A line that merely *starts* with an inline
+ * component — `<Status level="planned" /> Reserved at …` — is still a paragraph,
+ * and treating it as a block silently dropped the entire line.
+ *
+ * That bug ate the first sentence of two cards on the community page and would
+ * have eaten any paragraph opening with a badge. It failed invisibly: the page
+ * still rendered, just missing a sentence, which is the worst way for a
+ * documentation bug to behave.
+ */
+function endsParagraph(line) {
+  if (/^(#{1,4}\s|```|\||>|---+\s*$)/.test(line)) return true;
+  if (/^\s*([-*+]|\d+\.)\s/.test(line)) return true;
+
+  // A component tag alone on its line — opening, closing or self-closing.
+  return /^\s*<\/?[A-Z]\w*[^>]*\/?>\s*$/.test(line);
+}
+
 // ---------------------------------------------------------------------------
 // block renderer
 // ---------------------------------------------------------------------------
@@ -327,11 +348,7 @@ function renderRange(lines, from, to, ctx, headings) {
     // paragraph
     let j = i;
     const para = [];
-    while (
-      j < to &&
-      lines[j].trim() &&
-      !/^(#{1,4}\s|```|\||>|\s*<[A-Z]|---+\s*$|\s*([-*+]|\d+\.)\s)/.test(lines[j])
-    ) {
+    while (j < to && lines[j].trim() && !endsParagraph(lines[j])) {
       para.push(lines[j++]);
     }
     if (para.length) {

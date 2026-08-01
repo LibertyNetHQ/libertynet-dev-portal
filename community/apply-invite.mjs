@@ -50,14 +50,51 @@ for (const file of files) {
 const total = hits.reduce((n, h) => n + h.count, 0);
 
 if (checkOnly) {
-  console.log(`\n${total} placeholder Discord link(s) across ${hits.length} file(s)`);
+  // What matters is not that the placeholder exists — it is reserved on purpose,
+  // and deleting it would mean re-finding every spot later. What matters is that
+  // no reference to it pretends the server is live. So this checks labelling.
+  const MARKERS = [
+    /planned/i,
+    /not live/i,
+    /does not exist/i,
+    /not yet/i,
+    /\$discordNote/,          // docs.json carries its explanation in a sibling key
+  ];
+
+  const unlabelled = [];
+  for (const h of hits) {
+    for (const line of h.text.split("\n")) {
+      if (!line.includes(PLACEHOLDER)) continue;
+
+      // A reference is labelled if the line itself says so, or — for JSX and
+      // JSON, where the URL and its label are on neighbouring lines — if the
+      // surrounding few lines do.
+      const at = h.text.indexOf(line);
+      const context = h.text.slice(Math.max(0, at - 400), at + 400);
+      if (!MARKERS.some((m) => m.test(context))) {
+        unlabelled.push({ file: h.file, line: line.trim().slice(0, 90) });
+      }
+    }
+  }
+
+  console.log(`\n${total} reference(s) to the reserved Discord address across ${hits.length} file(s)`);
   for (const h of hits) console.log(`  ${h.count}×  ${h.file}`);
-  console.log(
-    total
-      ? `\nThese point at a server that does not exist yet.\nSee community/DISCORD-SETUP.md\n`
-      : "\n✓ no placeholders left\n",
+
+  if (unlabelled.length === 0) {
+    console.log(
+      "\n✓ every reference is labelled as planned — nothing here claims the server is live" +
+        "\n  run without --check once it exists, to swap in the real invite\n",
+    );
+    process.exit(0);
+  }
+
+  console.error(`\n✗ ${unlabelled.length} reference(s) do NOT say the server is unbuilt:\n`);
+  for (const u of unlabelled) console.error(`  ${u.file}\n    ${u.line}\n`);
+  console.error(
+    "A link that silently goes nowhere is the kind of small dishonesty this portal exists\n" +
+      "to avoid. Mark it planned, or remove it.\n",
   );
-  process.exit(0);
+  process.exit(1);
 }
 
 if (!existsSync(INVITE_FILE)) {

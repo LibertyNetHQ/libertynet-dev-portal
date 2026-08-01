@@ -285,6 +285,27 @@
           "note": "The three verification steps, as data."
         }
       ]
+    },
+    {
+      "id": "community",
+      "title": "Community",
+      "base_url": null,
+      "auth": "n/a",
+      "note": "Not an API surface, tracked here so its status is derived from the same single source as everything else rather than asserted by hand in prose.",
+      "endpoints": [
+        {
+          "method": "LINK",
+          "path": "https://discord.gg/libertynet",
+          "status": "planned",
+          "note": "The Discord server does not exist yet — creating one needs an interactive login. The address is reserved and referenced in the docs so that it can be swapped in one command (community/apply-invite.mjs) the moment it is real. Until then every reference to it is badged `planned`."
+        },
+        {
+          "method": "LINK",
+          "path": "https://github.com/LibertyNetHQ",
+          "status": "implemented",
+          "note": "Issues, pull requests and the source for everything documented here."
+        }
+      ]
     }
   ],
   "capability_vocabulary": {

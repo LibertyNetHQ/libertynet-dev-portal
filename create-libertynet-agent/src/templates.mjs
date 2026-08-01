@@ -590,7 +590,7 @@ signature is not a valid identity.
 - [Core concepts](https://docs.libertynet.ai/concepts/overview)
 - [API reference](https://docs.libertynet.ai/api-reference)
 - [Capability status](https://docs.libertynet.ai/status) — what is real, right now
-- [Discord](https://discord.gg/libertynet)
+- [Discord](https://discord.gg/libertynet) — **planned, not live yet**
 `;
 }
 

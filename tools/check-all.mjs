@@ -33,6 +33,18 @@ const SUITES = [
     args: ["tools/check-examples.mjs"],
   },
   {
+    name: "site renderer",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["--test", "site/test/mdx.test.mjs"],
+  },
+  {
+    name: "community links",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["community/apply-invite.mjs", "--check"],
+  },
+  {
     name: "ai answers",
     cwd: ROOT,
     cmd: "node",

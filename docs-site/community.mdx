@@ -5,18 +5,40 @@ description: "Where to ask, what gets answered, and how to show what you built."
 
 import { Status } from '/snippets/status.mdx';
 
+<Warning>
+**The Discord server does not exist yet.** <Status level="planned" />
+
+Creating one needs an interactive login, so it is waiting on a human rather than on work.
+The address below is reserved and kept in the docs deliberately — when the server is real it
+is swapped in everywhere by one command — but **clicking it today will not take you
+anywhere**.
+
+Everything on this page that mentions a channel describes how it *will* be organised. Use
+[GitHub](https://github.com/LibertyNetHQ/libertynet-dev-portal/issues) until then; it is
+live and it is read.
+</Warning>
+
 <Columns cols={2}>
-  <Card title="Discord" icon="discord" href="https://discord.gg/libertynet">
-    Questions, help, release announcements. The fastest way to reach someone.
+  <Card title="Discord — planned" icon="discord" href="https://discord.gg/libertynet">
+    <Status level="planned" /> Reserved at `discord.gg/libertynet`. Not live yet, so this
+    link does not resolve.
   </Card>
   <Card title="GitHub" icon="github" href="https://github.com/LibertyNetHQ">
-    Issues, pull requests, and the source for everything documented here.
+    <Status level="implemented" /> Issues, pull requests, and the source for everything
+    documented here. **This is where to reach us today.**
   </Card>
 </Columns>
 
 ## Getting help
 
-Ask in **#developers** on Discord. Bring:
+<Note>
+**Today:** open an issue on
+[libertynet-dev-portal](https://github.com/LibertyNetHQ/libertynet-dev-portal/issues).
+
+**Once Discord is live:** `#developers`. The rest of this section describes that plan.
+</Note>
+
+Bring:
 
 - What you were calling, and with which SDK and language.
 - The error's **`code`** — every LibertyNet error has a stable one.
@@ -31,14 +53,14 @@ already in the error message.
 ### Early developers get hands-on help
 
 The network is small enough that this is a real offer, not a slogan: if you are among the
-first building on LibertyNet and get stuck, say so in **#developers** and someone will work
-through it with you directly.
+first building on LibertyNet and get stuck, open an issue saying so and someone will work
+through it with you directly. When Discord exists this moves to `#developers`.
 
 That will not scale forever. Take advantage of it while it lasts.
 
 ## Showcase
 
-Built something? Post it in **#showcase**. What is useful to include:
+Built something? Open an issue tagged `showcase` — and once Discord exists, `#showcase`. What is useful to include:
 
 - What it does, in one sentence.
 - Which parts of LibertyNet it uses.
@@ -76,7 +98,7 @@ good. Do not budget for them.
 
 <AccordionGroup>
   <Accordion title="A documentation page is wrong">
-    Tell us in Discord or open an issue. **The fix is the page, not the wording** — if a
+    Open an issue. **The fix is the page, not the wording** — if a
     page describes a capability as more finished than it is, we change the badge or the
     code, never the phrasing.
   </Accordion>
@@ -97,8 +119,9 @@ good. Do not budget for them.
   </Accordion>
 
   <Accordion title="A security issue">
-    Do not post it publicly. Contact the maintainers directly through Discord and ask for a
-    private channel.
+    Do not post it publicly and do not open a public issue. Email the maintainers and ask
+    for a private channel. Until Discord exists, that is the only private route — which is
+    itself a gap worth closing.
   </Accordion>
 
   <Accordion title="The AI assistant said something false">
