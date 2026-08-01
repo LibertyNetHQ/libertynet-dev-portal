@@ -70,6 +70,15 @@ const SUITES = [
     args: ["--test", "site/test/artifacts.test.mjs"],
   },
   {
+    // Completeness half only, offline: every `implemented` badge in the docs
+    // must have something that could disprove it. The measuring half needs the
+    // network and runs in the live job.
+    name: "implemented audit",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/audit-implemented.mjs", "--offline"],
+  },
+  {
     // Static rules only in the required job — the live fetches belong in the
     // live job, where a third party's outage cannot fail an unrelated PR.
     name: "external links",
@@ -141,6 +150,12 @@ const SUITES = [
 ];
 
 const LIVE_SUITES = [
+  {
+    name: "implemented audit (live)",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/audit-implemented.mjs"],
+  },
   {
     name: "external links (live)",
     cwd: ROOT,

@@ -64,6 +64,12 @@ jobs:
 
       # Fetched with no credentials, on purpose: a private repository answers
       # 404 to strangers and 200 to us, so checking as ourselves proves nothing.
+      # Every `implemented` claim, measured against the running system —
+      # including a full operator login with a freshly generated identity, so
+      # the endpoints behind auth stop being taken on trust.
+      - name: Audit every implemented claim
+        run: node tools/audit-implemented.mjs
+
       - name: External links, as an anonymous reader sees them
         run: node tools/check-external-links.mjs
 
