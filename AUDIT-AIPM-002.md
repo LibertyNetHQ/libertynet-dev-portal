@@ -208,7 +208,7 @@ their operators and useless to everyone else.** The defect was that nothing said
 docs sent people to those addresses.
 
 **Fixed** by classifying rather than hiding (`registry-standalone.py`, genesis
-[PR #560](https://github.com/LibertyNetHQ/LibertyNet-hq/pull/560)):
+PR #560 in the private LibertyNet-hq repository):
 
 ```text
 reachability       "public" | "private" | "unroutable"

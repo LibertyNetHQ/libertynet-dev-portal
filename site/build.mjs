@@ -693,7 +693,7 @@ async function llmsFull(pages, strings) {
 }
 
 function sitemap(pages) {
-  let out = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemap.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n`;
+  let out = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n`;
   for (const [slug] of pages) {
     for (const l of LOCALES) {
       out += `  <url><loc>${SITE_URL}${href(slug, l.code)}</loc>\n`;

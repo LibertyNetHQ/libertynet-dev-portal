@@ -1,28 +1,30 @@
 #!/usr/bin/env node
 /**
- * Every external link on the site, fetched.
+ * Every external link in the repository, fetched as a stranger.
  *
  *     node tools/check-external-links.mjs
  *     node tools/check-external-links.mjs --offline   # static rules only
  *
- * The internal link checker in check-docs-drift.mjs only ever knew about pages
- * in this repository, so when the portal moved out of the monorepo, a dozen
- * links to `LibertyNet-hq/tree/main/dev-portal/...` kept passing every check and
- * every one of them was a 404 for anyone who was not signed in. The docs looked
- * fine to us precisely because we had access.
+ * The point is the word *stranger*. GitHub answers 404 rather than 403 for a
+ * repository you cannot see, so a link into a private repo reads as perfectly
+ * healthy to anyone on the team and as a dead end to everyone else. That is how
+ * a dozen of them shipped: the docs looked fine to us precisely because we had
+ * access.
+ *
+ * So every request here goes out with no credentials at all — no token, no
+ * cookie, no `gh auth`. Checking as ourselves would prove nothing, and would
+ * prove it very convincingly.
  *
  * Two layers, because they fail differently:
  *
- *   · Static rules run everywhere, including offline and in the required CI job.
- *     They encode what we know: this repository moved, and the repository it
- *     moved out of is private.
- *   · Live fetches run where the network is available. They catch the links
- *     nobody thought to write a rule for.
+ *   · Static rules run everywhere, including offline and in the required job.
+ *     They encode what we already know went wrong.
+ *   · Live fetches catch the links nobody thought to write a rule for.
  *
- * A private repository is the interesting case. GitHub answers 404 rather than
- * 403 for a repository you cannot see, so "does it resolve for me" is not the
- * question — the question is whether it resolves for a reader who has never
- * heard of us. That is why this runs unauthenticated, deliberately.
+ * A link that cannot be reached at all is reported as unverified and fails too.
+ * "We could not check it" is not the same claim as "it works", and a gate that
+ * quietly passes on connection errors is a gate that passes on everything the
+ * day DNS breaks.
  */
 
 import { readFile, readdir } from "node:fs/promises";
@@ -30,15 +32,23 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DOCS = path.join(ROOT, "docs-site");
 const OFFLINE = process.argv.includes("--offline");
 
 const failures = [];
 const notes = [];
 
+/** Directories with nothing hand-written in them. */
+const SKIP_DIRS = new Set([
+  "node_modules", ".git", "dist", "out", ".next", "__pycache__",
+  ".pytest_cache", "logo", "images", "public",
+]);
+
+/** Files a human reads or a package manager publishes. */
+const SCAN = /\.(mdx?|json|ya?ml|mjs|ts|tsx|py|sh|toml)$/;
+
 /**
- * Links we know are wrong, with the reason. Each of these was live on the
- * public site at some point; the rule is what stops it coming back.
+ * Links we know are wrong, with the reason. Each was live on the public site at
+ * some point; the rule is what stops it coming back.
  */
 const FORBIDDEN = [
   {
@@ -54,50 +64,87 @@ const FORBIDDEN = [
   },
 ];
 
-// Links that are allowed to fail a live fetch without failing the build.
+/** Fails a live fetch without failing the build, and why that is acceptable. */
 const TOLERATED = [
-  // Rate-limits and bot-blocks aggressively; a 429 here says nothing about us.
-  /^https:\/\/(www\.)?npmjs\.com\//,
-  /^https:\/\/pypi\.org\//,
+  // Rate-limits and bot-blocks aggressively; a 429 says nothing about the link.
+  { pattern: /^https:\/\/(www\.)?npmjs\.com\//, why: "rate-limits anonymous clients" },
+  { pattern: /^https:\/\/pypi\.org\//, why: "rate-limits anonymous clients" },
 ];
 
 /**
  * API endpoints quoted in prose are not links a reader clicks.
  *
- * A GET against a POST-only endpoint is a 404 and an authenticated endpoint is
- * a 401 — both correct, neither a broken link. Whether these agree with the
- * documentation is a real question, and check-api-sync.mjs answers it properly,
- * with the right method and the right credentials. Guessing here would only
- * produce noise that trains people to ignore this check.
+ * A GET against a POST-only endpoint is 404 and an authenticated endpoint is
+ * 401 — both correct, neither a broken link. check-api-sync.mjs answers that
+ * question properly, with the right method and the right credentials.
  */
-const API_HOSTS = [/^https:\/\/registry\.libertynet\.ai\//];
+const API_HOSTS = [
+  /^https:\/\/registry\.libertynet\.ai\//,
+  // The demo node's /echo is POST-only; a GET is correctly a 404.
+  /^https:\/\/libertynet\.ai\/demo-node\//,
+];
+
+/**
+ * URLs that are not links.
+ *
+ * An XML namespace identifies a vocabulary; whether anything is served there is
+ * irrelevant, and several well-known ones deliberately serve nothing. Fetching
+ * them would produce noise that teaches people to ignore this check — which
+ * costs more than the namespaces are worth.
+ */
+const NOT_A_LINK = [
+  /^https?:\/\/www\.w3\.org\/\d{4}\//,
+  /^https?:\/\/www\.sitemaps\.org\/schemas\//,
+];
+
+/**
+ * Broken URLs quoted on purpose, as evidence of a defect that was fixed.
+ *
+ * Each needs a reason, and each is a URL the project is *documenting* rather
+ * than offering. Without this the honest write-up of a bug becomes a reason to
+ * delete the write-up, which is a bad trade for a project whose whole argument
+ * is that it says what went wrong.
+ */
+const QUOTED_AS_BROKEN = [
+  {
+    pattern: /^https:\/\/docs\.libertynet\.ai\/\.md$/,
+    why: "the malformed home-page entry llms.txt used to emit; quoted in the fix's write-up",
+  },
+];
+
+// ---------------------------------------------------------------------------
 
 async function walk(dir, out = []) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     if (e.isDirectory()) {
-      if (["node_modules", ".git", "logo", "images"].includes(e.name)) continue;
+      if (SKIP_DIRS.has(e.name)) continue;
       await walk(path.join(dir, e.name), out);
-    } else if (e.name.endsWith(".mdx") || e.name.endsWith(".md")) {
+    } else if (SCAN.test(e.name) && e.name !== "package-lock.json") {
       out.push(path.join(dir, e.name));
     }
   }
   return out;
 }
 
-const files = [...(await walk(DOCS)), path.join(ROOT, "README.md")];
+const files = await walk(ROOT);
 const links = new Map(); // url → [where]
 
 for (const file of files) {
   const text = await readFile(file, "utf8").catch(() => "");
   const rel = path.relative(ROOT, file);
 
-  for (const m of text.matchAll(/https?:\/\/[^\s"'`)<>\]]+/g)) {
-    const url = m[0].replace(/[.,;:]+$/, "");
+  for (const m of text.matchAll(/https?:\/\/[^\s"'`)<>\]\\]+/g)) {
+    // Trailing punctuation, and the closing brace of a template literal,
+    // belong to the surrounding code rather than to the URL.
+    const url = m[0].replace(/[.,;:}]+$/, "");
+    if (url.includes("localhost") || url.includes("127.0.0.1")) continue;
+    // Placeholders and reserved test names. `.test` is reserved by RFC 2606
+    // precisely so it never resolves — a test fixture pointing there is correct.
+    if (/example\.(com|org)|\.test(\/|$)|YOUR|<[^>]*>|\$\{|\*/.test(url)) continue;
     if (!links.has(url)) links.set(url, []);
-    links.get(url).push(rel);
+    if (!links.get(url).includes(rel)) links.get(url).push(rel);
   }
 
-  // -- static rules ---------------------------------------------------------
   for (const rule of FORBIDDEN) {
     for (const hit of text.matchAll(new RegExp(rule.pattern, "g"))) {
       const line = text.slice(0, hit.index).split("\n").length;
@@ -106,67 +153,102 @@ for (const file of files) {
   }
 }
 
-notes.push(`${links.size} distinct external links across ${files.length} files`);
+notes.push(`${links.size} distinct link(s) across ${files.length} scanned files`);
 
 // ---------------------------------------------------------------------------
 
+/** Four attempts with backoff. A blip is not a verdict; a 404 is. */
+async function probe(url) {
+  let lastError;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      // No credentials of any kind. That is the entire point.
+      let res = await fetch(url, {
+        method: "HEAD",
+        redirect: "follow",
+        headers: { "User-Agent": "libertynet-docs-link-check" },
+        signal: AbortSignal.timeout(20_000),
+      });
+
+      // Plenty of servers dislike HEAD; confirm with GET before accusing.
+      if ([403, 405, 501].includes(res.status)) {
+        res = await fetch(url, {
+          redirect: "follow",
+          headers: { "User-Agent": "libertynet-docs-link-check" },
+          signal: AbortSignal.timeout(20_000),
+        });
+      }
+
+      return { status: res.status, ok: res.ok };
+    } catch (e) {
+      lastError = e;
+      await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+    }
+  }
+
+  return { unreachable: String(lastError?.message ?? lastError) };
+}
+
 if (!OFFLINE) {
   const isApi = (u) => API_HOSTS.some((re) => re.test(u));
-  const urls = [...links.keys()].filter((u) => !u.includes("localhost") && !isApi(u));
-  const apiSkipped = [...links.keys()].filter(isApi).length;
+  const skip = (u) =>
+    isApi(u) ||
+    NOT_A_LINK.some((re) => re.test(u)) ||
+    QUOTED_AS_BROKEN.some((q) => q.pattern.test(u));
+
+  const urls = [...links.keys()].filter((u) => !skip(u));
+  const apiSkipped = links.size - urls.length;
+
   let checked = 0;
   let tolerated = 0;
 
   // Small batches: this is someone else's server, and a documentation check is
   // not a reason to hammer it.
-  for (let i = 0; i < urls.length; i += 6) {
+  for (let i = 0; i < urls.length; i += 5) {
     await Promise.all(
-      urls.slice(i, i + 6).map(async (url) => {
-        try {
-          // No credentials of any kind — the point is what a stranger sees.
-          let res = await fetch(url, {
-            method: "HEAD",
-            redirect: "follow",
-            headers: { "User-Agent": "libertynet-docs-link-check" },
-            signal: AbortSignal.timeout(15_000),
-          });
+      urls.slice(i, i + 5).map(async (url) => {
+        const result = await probe(url);
+        const excuse = TOLERATED.find((t) => t.pattern.test(url));
 
-          // Plenty of servers dislike HEAD; confirm with GET before accusing.
-          if (res.status === 405 || res.status === 403 || res.status === 501) {
-            res = await fetch(url, {
-              redirect: "follow",
-              headers: { "User-Agent": "libertynet-docs-link-check" },
-              signal: AbortSignal.timeout(15_000),
-            });
-          }
-
+        if (result.ok) {
           checked++;
-          if (res.ok) return;
+          return;
+        }
 
-          if (TOLERATED.some((re) => re.test(url))) {
-            tolerated++;
-            return;
-          }
+        if (excuse) {
+          tolerated++;
+          return;
+        }
 
+        if (result.unreachable) {
           failures.push({
             where: links.get(url).join(", "),
             url,
-            why: `HTTP ${res.status} for an anonymous reader`,
+            why:
+              `could not be reached after 4 attempts (${result.unreachable}). ` +
+              `Unverified is not the same as working — re-run if this was a network blip.`,
           });
-        } catch (e) {
-          if (TOLERATED.some((re) => re.test(url))) {
-            tolerated++;
-            return;
-          }
-          failures.push({ where: links.get(url).join(", "), url, why: String(e.message ?? e) });
+          return;
         }
+
+        failures.push({
+          where: links.get(url).join(", "),
+          url,
+          why:
+            result.status === 404
+              ? "HTTP 404 for an anonymous reader. On GitHub this is also what a " +
+                "private repository returns, so check visibility before assuming a typo."
+              : `HTTP ${result.status} for an anonymous reader`,
+        });
       }),
     );
   }
 
   notes.push(
-    `${checked} fetched unauthenticated${tolerated ? `, ${tolerated} tolerated` : ""}` +
-      `${apiSkipped ? `, ${apiSkipped} API endpoint(s) left to check-api-sync` : ""}`,
+    `${checked} fetched with no credentials` +
+      `${tolerated ? `, ${tolerated} tolerated` : ""}` +
+      `${apiSkipped ? `, ${apiSkipped} not fetched (API endpoints, XML namespaces, quoted-as-broken)` : ""}`,
   );
 } else {
   notes.push("live fetches skipped (--offline)");
@@ -177,11 +259,11 @@ if (!OFFLINE) {
 for (const n of notes) console.log(`  · ${n}`);
 
 if (failures.length === 0) {
-  console.log(`\n✓ no dead external links\n`);
+  console.log(`\n✓ every link resolves for someone with no access to anything\n`);
   process.exit(0);
 }
 
-console.error(`\n✗ ${failures.length} bad external link(s):\n`);
+console.error(`\n✗ ${failures.length} bad link(s):\n`);
 for (const f of failures) {
   console.error(`  ${f.where}`);
   console.error(`    ${f.url}`);

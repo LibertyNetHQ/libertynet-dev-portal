@@ -46,6 +46,31 @@ jobs:
       - name: AI answer quality
         run: node tools/check-ai-answers.mjs
 
+  # A required job of its own, deliberately.
+  #
+  # This used to sit inside the advisory `live` job, where a red result changed
+  # nothing — which is how a dozen links into a private repository stayed
+  # published. A rule that cannot fail a pull request is a preference.
+  #
+  # It is separate from the main suite so a GitHub outage fails one obvious job
+  # that can be re-run, rather than the job that gates every change. The check
+  # retries four times before calling a link unreachable, and an unreachable
+  # link still fails: "we could not check it" is not "it works".
+  links:
+    name: Links, as a stranger sees them
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # No credentials of any kind. GitHub answers 404 rather than 403 for a
+      # repository you cannot see, so checking as ourselves would prove nothing
+      # and would prove it convincingly.
+      - name: Every link, fetched anonymously
+        run: node tools/check-external-links.mjs
+
   live:
     name: Live network agreement
     runs-on: ubuntu-latest
