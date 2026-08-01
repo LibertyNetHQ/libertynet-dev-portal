@@ -36,6 +36,72 @@ any moment you need it as an event.
 ## The flow
 
 <Steps>
+  <Step title="Issue the DeviceCredential (once, offline)">
+    The root key signs exactly one thing, ever. Nine fields, in this order, joined with
+    `\n`:
+
+    ```text
+    libertynet-operator-device-credential:v1
+    <credential_id>
+    <operator_did>
+    <operator_root_public_key>
+    <device_id>
+    <device_public_key>
+    <permissions>            ← sorted, comma-joined; "" when there are none
+    <issued_at>
+    <expires_at>
+    <revocation_id>
+    ```
+
+    <Warning>
+    **All nine are signed, and the order is part of the signature.** An earlier version of
+    the [OpenAPI schema](/api-spec/libertynet-v1.yaml) listed seven of them — it omitted
+    `device_id` and `revocation_id` — so a credential built from the documentation could not
+    verify, and the registry's answer was `401 DC_BAD_SIGNATURE` with no hint as to which
+    field was wrong.
+
+    Nothing caught it because no code here had ever built a credential from the published
+    schema; the SDKs accepted them and never issued them. `node tools/check-credential-schema.mjs`
+    now does exactly that against the live registry on every CI run.
+    </Warning>
+
+    <CodeGroup>
+
+    ```typescript TypeScript
+    import { issueDeviceCredential } from "libertynet-sdk";
+
+    const credential = issueDeviceCredential({
+      rootSecretKey,                 // 32-byte seed, zeroed on return
+      deviceId: "laptop-2026",
+      devicePublicKey,
+      permissions: ["nodes.bind"],
+    });
+    ```
+
+    ```python Python
+    from libertynet import issue_device_credential
+
+    credential = issue_device_credential(
+        root_secret_key,               # 32-byte seed
+        device_id="laptop-2026",
+        device_public_key=device_public_key,
+        permissions=["nodes.bind"],
+    )
+    ```
+
+    </CodeGroup>
+
+    No network call happens here. Put the root key back in cold storage; the device key does
+    everything from now on, and revoking a device never touches your root identity.
+
+    <Tip>
+    Omitting a required field currently makes the registry answer **502**, not a validation
+    error — so "it broke and I cannot tell why" is the default experience. Both SDKs ship
+    `validateDeviceCredential` / `validate_device_credential`, which name every missing field
+    before you spend a challenge on it.
+    </Tip>
+  </Step>
+
   <Step title="Get a challenge">
     ```bash
     curl -s -X POST https://registry.libertynet.ai/v1/auth/challenge

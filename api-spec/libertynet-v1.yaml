@@ -941,20 +941,67 @@ components:
         Issued once by the operator's **root** key, offline, to a specific device key. This is what
         lets the root key stay cold: the device key does everything afterwards, and revoking a
         device does not touch the root identity.
-      required: [credential_id, operator_did, operator_root_public_key, device_public_key, issued_at, expires_at, signature]
+
+        **Every field below is signed over.** An earlier version of this schema omitted
+        `device_id` and `revocation_id`, so a credential built strictly from it could not
+        verify — the registry hashes nine fields and the spec described seven. Measured
+        against the live registry: dropping either field from the signed bytes returns
+        `401 DC_BAD_SIGNATURE`.
+
+        The canonical bytes are `x-ln-canonical` below: the domain string, then the nine
+        field values in that exact order, joined with `\n` and encoded UTF-8. `permissions`
+        is joined with `,` after sorting; an absent list is the empty string. Order is not
+        negotiable and neither is the sort — both are part of what the root key signed.
+      required:
+        - credential_id
+        - operator_did
+        - operator_root_public_key
+        - device_id
+        - device_public_key
+        - issued_at
+        - expires_at
+        - revocation_id
+        - signature
+      x-ln-canonical:
+        domain: 'libertynet-operator-device-credential:v1'
+        fields:
+          - credential_id
+          - operator_did
+          - operator_root_public_key
+          - device_id
+          - device_public_key
+          - permissions        # sorted, comma-joined; "" when absent
+          - issued_at
+          - expires_at
+          - revocation_id
       properties:
-        credential_id: { type: string }
+        credential_id: { type: string, description: Unique per credential. Signed. }
         operator_did: { $ref: '#/components/schemas/Did' }
         operator_root_public_key: { $ref: '#/components/schemas/PublicKeyB58' }
+        device_id:
+          type: string
+          description: |
+            Names the device this credential is for. Signed, and required — omitting it
+            from the request currently returns `502` rather than a validation error.
+          examples: ['laptop-2026']
         device_public_key: { $ref: '#/components/schemas/PublicKeyB58' }
         permissions:
           type: array
           items: { type: string }
-          description: 'Binding requires `nodes.bind`.'
+          description: |
+            Binding requires `nodes.bind`. Signed as a sorted comma-joined string, so
+            reordering the array does not change the signature but adding to it does.
+            May be omitted from the JSON; the signature must then be over `""`.
           examples: [['nodes.bind']]
         issued_at: { $ref: '#/components/schemas/Rfc3339Utc' }
         expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
-        signature: { type: string, description: Base58 Ed25519 by the root key. }
+        revocation_id:
+          type: string
+          description: |
+            Identifies this credential for revocation without touching the root identity.
+            Signed, and required.
+          examples: ['rev-3f2a1c9d4b7e']
+        signature: { type: string, description: Base58 Ed25519 by the root key, over the bytes above. }
 
     AuthorizationCredential:
       type: object

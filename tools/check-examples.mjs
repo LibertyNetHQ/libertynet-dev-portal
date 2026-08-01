@@ -128,6 +128,10 @@ async function checkExampleShape() {
       /verify_?[iI]d[_-]?[bB]inding/,           // the named helper
       /verify_identity/,                         // via the MCP tool
       /sha256\((?:key|raw|pk|public)/i,          // the arithmetic, inline
+      // The same arithmetic in Node's streaming form. An example that derives
+      // a DID from a key it holds is doing the strongest version of this —
+      // it never asks anyone who the identity belongs to.
+      /createHash\(["']sha256["']\)\s*\.update\([^)]*\b(key|raw|pk|public)/i,
       // An example whose subject is another program — the scaffolder — verifies
       // by asserting that the program it produced verified everything it
       // reported. Reading those two counts and requiring them equal is a

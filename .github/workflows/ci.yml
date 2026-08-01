@@ -67,6 +67,13 @@ jobs:
       # Every `implemented` claim, measured against the running system —
       # including a full operator login with a freshly generated identity, so
       # the endpoints behind auth stop being taken on trust.
+      # Builds a DeviceCredential strictly from the published OpenAPI schema and
+      # requires the live registry to accept it. The schema said seven fields
+      # where the registry signs nine, and every test passed anyway, because
+      # nothing here had ever built one from the documentation.
+      - name: Published credential schema actually works
+        run: node tools/check-credential-schema.mjs
+
       - name: Audit every implemented claim
         run: node tools/audit-implemented.mjs
 
