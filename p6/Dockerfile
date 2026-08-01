@@ -12,16 +12,13 @@
 # LibertyNet code, no credentials, no cached anything. If the quickstart works
 # here it works for a stranger, and if it does not, the gap is real.
 
-FROM debian:bookworm-slim
+# Start from the official Node image rather than installing Node onto Debian.
+# The nodesource route worked but took several minutes, and a kit somebody else
+# has to run should not have a five-minute step that can fail on a slow network.
+FROM node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl python3 python3-pip python3-venv git jq \
-  && rm -rf /var/lib/apt/lists/*
-
-# Node from nodesource — the Debian package lags far enough behind that a tester
-# would hit version problems that have nothing to do with LibertyNet.
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-  && apt-get install -y --no-install-recommends nodejs \
   && rm -rf /var/lib/apt/lists/*
 
 # A non-root user, because a tester who is root will not hit the permission
