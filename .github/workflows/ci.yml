@@ -36,11 +36,12 @@ jobs:
       # what a function returns in isolation. With the build running afterwards
       # those suites read a directory that does not exist yet, so CI was red on
       # main for reasons that had nothing to do with the change under test.
-      - name: Build the docs site
-        run: node site/build.mjs
-
+      # Bundle first: it writes `site/public/`, which the build copies into dist.
       - name: Bundle the MCP server
         run: node tools/bundle-mcp.mjs
+
+      - name: Build the docs site
+        run: node site/build.mjs
 
       # Runs the docs honesty checker, the example safety checker, both SDK
       # suites, the scaffolder, the MCP server and a TypeScript strict typecheck.
@@ -73,15 +74,29 @@ jobs:
 
       # Fetched with no credentials, on purpose: a private repository answers
       # The audit measures claims against what is *served* (copy-for-ai, llms.txt,
-      # the MCP bundle), so the build and the bundle have to exist before it runs
+      # the MCP bundle in `site/dist/mcp/`), so both have to exist before it runs
       # — otherwise it reports "false claim" for a file CI simply had not made yet.
-      - name: Build the docs site
-        run: node site/build.mjs
-
+      # Bundle first: it writes `site/public/`, which the build copies into dist.
+      #
       # The install instructions on /ai/mcp, executed against the live network:
       # one downloaded file in an empty directory, all six tools called.
       - name: Bundle the MCP server
         run: node tools/bundle-mcp.mjs
+
+      - name: Build the docs site
+        run: node site/build.mjs
+
+      # `sdk-namespaces` runs both SDK suites; without their dependencies it
+      # reports the claim false rather than reporting that CI is under-provisioned.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SDK dependencies
+        run: |
+          npm ci --no-audit --no-fund --prefix sdk/typescript \
+            || npm install --no-audit --no-fund --prefix sdk/typescript
+          python -m pip install --quiet pytest
 
       # 404 to strangers and 200 to us, so checking as ourselves proves nothing.
       # Every `implemented` claim, measured against the running system —
