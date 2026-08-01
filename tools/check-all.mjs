@@ -87,6 +87,22 @@ const SUITES = [
     args: ["tools/check-external-links.mjs", "--offline"],
   },
   {
+    // Both SDKs must produce byte-identical canonical bytes. Divergence is
+    // silent: a credential one signs and the registry rejects looks exactly
+    // like a bad key.
+    name: "canonical parity",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/check-canonical-parity.mjs"],
+  },
+  {
+    // Structure only offline — the half that catches "signed but not required".
+    name: "credential schema",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/check-credential-schema.mjs", "--offline"],
+  },
+  {
     name: "community links",
     cwd: ROOT,
     cmd: "node",
@@ -150,6 +166,15 @@ const SUITES = [
 ];
 
 const LIVE_SUITES = [
+  {
+    // Builds a credential from the published schema and requires the live
+    // registry to accept it. The only way a schema is correct rather than
+    // merely plausible.
+    name: "credential schema (live)",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/check-credential-schema.mjs"],
+  },
   {
     name: "implemented audit (live)",
     cwd: ROOT,

@@ -28,6 +28,7 @@ __all__ = ["LibertyNet", "Discovery", "Auth", "Operator", "Binding", "Wallet", "
 DEFAULT_FRESHNESS_S = 600.0
 
 DOMAIN_AUTH_CHALLENGE = "libertynet-auth-challenge:v1"
+DOMAIN_DEVICE_CREDENTIAL = "libertynet-operator-device-credential:v1"
 
 
 # ---------------------------------------------------------------- discovery --
@@ -279,6 +280,140 @@ def canon_auth_challenge(
 def rfc3339(epoch_s: float) -> str:
     """RFC3339 UTC to the second with a ``Z`` suffix. Other forms are rejected."""
     return datetime.fromtimestamp(epoch_s, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+#: Fields of a DeviceCredential, in the order the root key signs them.
+#:
+#: ``device_id`` and ``revocation_id`` were missing from the published OpenAPI
+#: schema, so a credential built from the documentation could not verify. Nobody
+#: noticed, because nothing in this SDK ever built one — it accepted credentials
+#: and never issued them, which left the documentation free to say anything.
+DEVICE_CREDENTIAL_FIELDS = (
+    "credential_id",
+    "operator_did",
+    "operator_root_public_key",
+    "device_id",
+    "device_public_key",
+    "permissions",
+    "issued_at",
+    "expires_at",
+    "revocation_id",
+)
+
+
+def canon_device_credential(c: dict[str, Any]) -> bytes:
+    """Canonical bytes for a DeviceCredential.
+
+    Byte-exact mirror of ``svrp_crypto.canon_device_credential``. ``permissions``
+    is sorted and comma-joined; absent means the empty string.
+    """
+    values = []
+    for field in DEVICE_CREDENTIAL_FIELDS:
+        if field == "permissions":
+            values.append(",".join(sorted(c.get("permissions") or [])))
+        else:
+            values.append(str(c[field]))
+    return "\n".join([DOMAIN_DEVICE_CREDENTIAL, *values]).encode()
+
+
+def issue_device_credential(
+    root_secret_key: bytes,
+    device_id: str,
+    device_public_key: str,
+    permissions: Iterable[str] | None = None,
+    ttl_seconds: int = 90 * 24 * 60 * 60,
+    credential_id: str | None = None,
+    revocation_id: str | None = None,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Issue a DeviceCredential — the one thing the root key ever signs.
+
+    Entirely offline; nothing here touches the network, which is the point. The
+    root key comes out of cold storage once and goes back; the device key does
+    everything afterwards, and revoking a device never touches the root identity.
+
+    ``operator_did`` is derived rather than accepted. A credential whose DID does
+    not follow from its own root key is not a credential, and taking both from
+    the caller invites exactly that mismatch.
+    """
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    except ImportError as e:  # pragma: no cover - exercised by the import guard test
+        raise LibertyNetError(
+            "MISSING_DEPENDENCY",
+            "Issuing a credential needs the `cryptography` package: "
+            "pip install 'libertynet[signing]'.",
+        ) from e
+
+    import hashlib
+    import secrets
+
+    key = Ed25519PrivateKey.from_private_bytes(root_secret_key)
+    root_public = key.public_key().public_bytes_raw()
+    root_public_b58 = _b58encode(root_public)
+    operator_did = "did:svrp:o:" + hashlib.sha256(root_public).hexdigest()[:8]
+
+    issued = time.time() if now is None else now
+
+    credential = {
+        "credential_id": credential_id or f"cred-{secrets.token_hex(6)}",
+        "operator_did": operator_did,
+        "operator_root_public_key": root_public_b58,
+        "device_id": device_id,
+        "device_public_key": device_public_key,
+        "permissions": sorted(permissions or []),
+        "issued_at": rfc3339(issued),
+        "expires_at": rfc3339(issued + ttl_seconds),
+        "revocation_id": revocation_id or f"rev-{secrets.token_hex(6)}",
+    }
+
+    credential["signature"] = _b58encode(key.sign(canon_device_credential(credential)))
+    return credential
+
+
+def validate_device_credential(dc: dict[str, Any]) -> list[str]:
+    """Return everything wrong with a credential, rather than the first thing.
+
+    Worth calling before spending a challenge: the registry answers a malformed
+    credential with ``502`` rather than a validation error, so without this the
+    default experience is "it broke and I cannot tell why".
+    """
+    problems: list[str] = []
+
+    for field in (*DEVICE_CREDENTIAL_FIELDS, "signature"):
+        if field == "permissions":
+            continue
+        if not dc.get(field):
+            problems.append(
+                f"{field} is missing — the registry signs over it and returns 502 without it"
+            )
+
+    did, root = dc.get("operator_did"), dc.get("operator_root_public_key")
+    if did and root and not verify_id_binding(did, root):
+        problems.append("operator_did is not derived from operator_root_public_key")
+
+    expires = dc.get("expires_at")
+    if expires:
+        try:
+            if datetime.strptime(expires, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=timezone.utc
+            ) < datetime.now(timezone.utc):
+                problems.append(f"expired at {expires}")
+        except ValueError:
+            problems.append(
+                f"expires_at must be RFC3339 UTC to the second with a Z suffix, got {expires!r}"
+            )
+
+    issued = dc.get("issued_at")
+    if issued:
+        try:
+            datetime.strptime(issued, "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            problems.append(
+                f"issued_at must be RFC3339 UTC to the second with a Z suffix, got {issued!r}"
+            )
+
+    return problems
 
 
 def _sign_b58(secret_key: bytes, message: bytes) -> str:

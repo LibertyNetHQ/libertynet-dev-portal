@@ -66,7 +66,17 @@ export default LibertyNet;
 
 export { DEFAULT_BASE_URL, Http, type HttpOptions } from "./http.ts";
 export { Discovery, DEFAULT_FRESHNESS_MS, type OnlineOptions, type AuditResult } from "./discovery.ts";
-export { Auth, canonAuthChallenge, rfc3339, type DeviceCredential, type LoginOptions } from "./auth.ts";
+export {
+  Auth,
+  canonAuthChallenge,
+  canonDeviceCredential,
+  issueDeviceCredential,
+  validateDeviceCredential,
+  rfc3339,
+  type DeviceCredential,
+  type UnsignedDeviceCredential,
+  type LoginOptions,
+} from "./auth.ts";
 export { Operator } from "./operator.ts";
 export { Binding } from "./binding.ts";
 export { Wallet, Dex, Oracle } from "./planned.ts";

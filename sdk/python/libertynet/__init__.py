@@ -23,6 +23,10 @@ from .client import (
     Oracle,
     Wallet,
     canon_auth_challenge,
+    canon_device_credential,
+    issue_device_credential,
+    validate_device_credential,
+    DEVICE_CREDENTIAL_FIELDS,
     rfc3339,
 )
 from .did import (
@@ -80,6 +84,10 @@ __all__ = [
     "same_identity",
     "fingerprint",
     "canon_auth_challenge",
+    "canon_device_credential",
+    "issue_device_credential",
+    "validate_device_credential",
+    "DEVICE_CREDENTIAL_FIELDS",
     "rfc3339",
     # errors
     "LibertyNetError",

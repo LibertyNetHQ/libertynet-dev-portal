@@ -56,6 +56,31 @@ jobs:
       - name: AI answer quality
         run: node tools/check-ai-answers.mjs
 
+  # A required job of its own, deliberately.
+  #
+  # This used to sit inside the advisory `live` job, where a red result changed
+  # nothing — which is how a dozen links into a private repository stayed
+  # published. A rule that cannot fail a pull request is a preference.
+  #
+  # It is separate from the main suite so a GitHub outage fails one obvious job
+  # that can be re-run, rather than the job that gates every change. The check
+  # retries four times before calling a link unreachable, and an unreachable
+  # link still fails: "we could not check it" is not "it works".
+  links:
+    name: Links, as a stranger sees them
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # No credentials of any kind. GitHub answers 404 rather than 403 for a
+      # repository you cannot see, so checking as ourselves would prove nothing
+      # and would prove it convincingly.
+      - name: Every link, fetched anonymously
+        run: node tools/check-external-links.mjs
+
   live:
     name: Live network agreement
     runs-on: ubuntu-latest
@@ -72,7 +97,6 @@ jobs:
       - name: API sync
         run: node tools/check-api-sync.mjs
 
-      # Fetched with no credentials, on purpose: a private repository answers
       # The audit measures claims against what is *served* (copy-for-ai, llms.txt,
       # the MCP bundle in `site/dist/mcp/`), so both have to exist before it runs
       # — otherwise it reports "false claim" for a file CI simply had not made yet.
@@ -98,10 +122,16 @@ jobs:
             || npm install --no-audit --no-fund --prefix sdk/typescript
           python -m pip install --quiet pytest
 
-      # 404 to strangers and 200 to us, so checking as ourselves proves nothing.
       # Every `implemented` claim, measured against the running system —
       # including a full operator login with a freshly generated identity, so
       # the endpoints behind auth stop being taken on trust.
+      # Builds a DeviceCredential strictly from the published OpenAPI schema and
+      # requires the live registry to accept it. The schema said seven fields
+      # where the registry signs nine, and every test passed anyway, because
+      # nothing here had ever built one from the documentation.
+      - name: Published credential schema actually works
+        run: node tools/check-credential-schema.mjs
+
       - name: Audit every implemented claim
         run: node tools/audit-implemented.mjs
 

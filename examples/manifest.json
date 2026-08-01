@@ -331,6 +331,36 @@
           "LibertyNet has no wallets"
         ]
       }
+    },
+    {
+      "dir": "device-credential",
+      "title": "Issue a DeviceCredential and log in with it",
+      "teaches": "The root key signs one thing, offline. All nine fields are signed and the order is part of the signature.",
+      "runs": [
+        {
+          "cmd": [
+            "node",
+            "issue.mjs"
+          ],
+          "expect": [
+            "CREDENTIAL ACCEPTED",
+            "self-verifies  true",
+            "AUTHENTICATED READ"
+          ]
+        }
+      ],
+      "network": true,
+      "offline": {
+        "cmd": [
+          "node",
+          "issue.mjs",
+          "--offline"
+        ],
+        "expect": [
+          "CREDENTIAL OK",
+          "self-verifies  true"
+        ]
+      }
     }
   ]
 }
