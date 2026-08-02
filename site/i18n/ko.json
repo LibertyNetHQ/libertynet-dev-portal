@@ -20,7 +20,9 @@
     "copyForAI": "AI용 복사",
     "copyForAITitle": "이 페이지를 markdown으로 복사해 어시스턴트에 붙여넣을 수 있습니다",
     "untranslatedSuffix": "(영어)",
-    "languageHint": "언어. (영어)로 표시된 항목은 이 페이지의 번역이 아직 없어 영어 원문이 표시됩니다."
+    "languageHint": "언어. (영어)로 표시된 항목은 이 페이지의 번역이 아직 없어 영어 원문이 표시됩니다.",
+    "moreLanguages": "다른 언어",
+    "moreLanguagesTitle": "아홉 개 언어는 인터페이스만 번역되어 있고 본문은 영어입니다. 진행 상황을 확인하고 맡아 주세요."
   },
   "status": {
     "implemented": "구현됨",

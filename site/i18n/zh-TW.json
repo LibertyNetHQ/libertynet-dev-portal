@@ -20,7 +20,9 @@
     "copyForAI": "複製給 AI",
     "copyForAITitle": "把本頁複製成 markdown，可直接貼給 AI 助手",
     "untranslatedSuffix": "（英文）",
-    "languageHint": "語言。標註（英文）的選項表示本頁尚無該語言譯文，會顯示英文原文。"
+    "languageHint": "語言。標註（英文）的選項表示本頁尚無該語言譯文，會顯示英文原文。",
+    "moreLanguages": "更多語言",
+    "moreLanguagesTitle": "另外九種語言介面已翻譯，但正文仍是英文。看看各自的進度，也歡迎認領。"
   },
   "status": {
     "implemented": "已實作",

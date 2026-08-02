@@ -27,6 +27,43 @@ export const LOCALES = [
 
 export const DEFAULT_LOCALE = "en";
 
+/**
+ * How much prose a locale needs before it appears in the language menu.
+ *
+ * Every locale here is real: it routes, it has a translated interface, and its
+ * untranslated pages fall back to English with a notice. But offering eleven
+ * options when nine of them lead to English prose makes the menu a promise the
+ * site does not keep — the reader picks 日本語 and gets English, and finds that
+ * out one page at a time.
+ *
+ * So the menu lists the locales that have translated prose beyond the single
+ * entry page. Nine of the ten non-English locales have exactly the quickstart
+ * translated; a tenth has seven pages. That is the line, and it is a count of
+ * files rather than a hand-maintained list: translate a second page in a locale
+ * and it returns to the menu on the next build, with nobody editing anything.
+ *
+ * The others stay reachable by URL, stay in `hreflang`, and stay listed with
+ * their real coverage on /translations, which is where a contributor looks for
+ * something to claim. Removing them from a dropdown is not removing them.
+ */
+export const MENU_MIN_TRANSLATED_PAGES = 2;
+
+/**
+ * Locales to offer in the menu, given a `code → translated page count` map.
+ *
+ * `current` is always included even when it is below the line: a reader who
+ * arrived at /ja must be able to see which language they are in and switch out
+ * of it. A menu that hides the page you are on is worse than a long menu.
+ */
+export function menuLocales(counts, current = DEFAULT_LOCALE) {
+  return LOCALES.filter(
+    (l) =>
+      l.code === DEFAULT_LOCALE ||
+      l.code === current ||
+      (counts[l.code] ?? 0) >= MENU_MIN_TRANSLATED_PAGES,
+  );
+}
+
 /** Cookie remembering a manual choice — cookie, not localStorage, per the Console. */
 export const LOCALE_COOKIE = "LN_LOCALE";
 

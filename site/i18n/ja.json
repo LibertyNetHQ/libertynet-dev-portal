@@ -20,7 +20,9 @@
     "copyForAI": "AI 用にコピー",
     "copyForAITitle": "このページを markdown としてコピーし、アシスタントに貼り付けられます",
     "untranslatedSuffix": "（英語）",
-    "languageHint": "言語。（英語）と付いた選択肢は、このページの翻訳がまだないため英語原文が表示されます。"
+    "languageHint": "言語。（英語）と付いた選択肢は、このページの翻訳がまだないため英語原文が表示されます。",
+    "moreLanguages": "他の言語",
+    "moreLanguagesTitle": "他に九言語はインターフェースが翻訳済みですが本文は英語です。進捗を確認し、翻訳を引き受けられます。"
   },
   "status": {
     "implemented": "実装済み",

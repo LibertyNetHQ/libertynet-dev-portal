@@ -25,7 +25,7 @@ import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import { DEFAULT_LOCALE, LOCALES, byCode } from "./build/locales.mjs";
+import { DEFAULT_LOCALE, LOCALES, byCode, menuLocales } from "./build/locales.mjs";
 import { parseFrontmatter, renderBlocks, toPlainText } from "./build/mdx.mjs";
 import { escapeHtml } from "./build/highlight.mjs";
 
@@ -164,24 +164,38 @@ function tocHtml(headings, strings) {
   return out;
 }
 
-function languageSwitcher(slug, locale, pages, strings) {
-  // Options for languages that have no translation of *this* page say so, in
-  // words, in the reader's current language.
+function languageSwitcher(slug, locale, pages, strings, counts) {
+  // Only locales with translated prose are offered — plus whichever one the
+  // reader is currently in, so arriving at /ja by link or search does not leave
+  // them unable to see or leave the language they are in.
   //
-  // The marker used to be a bare "·", which is information only to whoever
-  // wrote it. Naming the fallback outright — "Deutsch (auf Englisch)" — means
-  // the reader knows what they will get before they choose, and the control
-  // needs no legend to explain itself.
-  const options = LOCALES.map((l) => {
+  // Options for a language that has no translation of *this particular* page
+  // still say so, in words, in the reader's current language. The marker used
+  // to be a bare "·", which is information only to whoever wrote it. Naming the
+  // fallback outright — "简体中文（英文）" — means the reader knows what they
+  // will get before they choose, and the control needs no legend.
+  const offered = menuLocales(counts, locale);
+
+  const options = offered.map((l) => {
     const has = Boolean(pages.get(slug)?.sources?.[l.code]);
     const label = escapeHtml(l.label) + (has ? "" : escapeHtml(strings.nav.untranslatedSuffix));
     return `<option value="${l.code}"${l.code === locale ? " selected" : ""}>${label}</option>`;
   }).join("");
 
+  // The languages not in the menu are not gone, and a dropdown cannot say so.
+  // This link is how a reader — or someone who wants to translate one — finds
+  // the other nine and what each is actually at.
+  const more =
+    offered.length < LOCALES.length
+      ? `<a class="lang-more" href="${href("translations", locale)}" ` +
+        `title="${escapeHtml(strings.nav.moreLanguagesTitle)}">` +
+        `${escapeHtml(strings.nav.moreLanguages)}</a>`
+      : "";
+
   return (
     `<select class="control" data-lang-switch aria-label="${escapeHtml(strings.nav.language)}" ` +
     `title="${escapeHtml(strings.nav.languageHint)}" ` +
-    `data-slug="${escapeHtml(slug)}">${options}</select>`
+    `data-slug="${escapeHtml(slug)}">${options}</select>${more}`
   );
 }
 
@@ -202,7 +216,7 @@ function sectionsBehind(english, translation) {
   return Math.max(0, count(english) - count(translation));
 }
 
-function shell({ slug, locale, meta, body, headings, nav, pages, strings, prev, next, translated, behind = 0 }) {
+function shell({ slug, locale, meta, body, headings, nav, pages, strings, prev, next, translated, behind = 0, counts = {} }) {
   const l = byCode[locale];
   const prefix = localePrefix(locale);
   const canonical = `${SITE_URL}${href(slug, locale)}`;
@@ -285,7 +299,7 @@ ${alternates}
       <input type="search" data-search placeholder="${escapeHtml(strings.nav.searchPlaceholder)}" aria-label="${escapeHtml(strings.nav.search)}" autocomplete="off">
       <div class="search__results" data-search-results></div>
     </div>
-    ${languageSwitcher(slug, locale, pages, strings)}
+    ${languageSwitcher(slug, locale, pages, strings, counts)}
     <button class="control" data-theme-toggle aria-label="${escapeHtml(strings.nav.theme)}">◐</button>
   </div>
 </header>
@@ -410,6 +424,14 @@ async function build() {
   const nav = await loadNavigation();
   const sources = await collectPages();
 
+  // Translated pages per locale. Drives which locales the language menu offers,
+  // so a locale rejoins the menu the moment its second page lands — no list to
+  // maintain and nothing to remember.
+  const counts = {};
+  for (const bySource of sources.values()) {
+    for (const code of Object.keys(bySource)) counts[code] = (counts[code] ?? 0) + 1;
+  }
+
   // Pre-read every source so titles are available for navigation in all locales.
   const pages = new Map();
   for (const [slug, bySource] of sources) {
@@ -470,6 +492,7 @@ async function build() {
         next,
         translated,
         behind: translated ? sectionsBehind(entry.metas[DEFAULT_LOCALE], source) : 0,
+        counts,
       });
 
       const outPath =

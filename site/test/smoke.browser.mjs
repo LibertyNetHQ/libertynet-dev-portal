@@ -177,11 +177,22 @@ try {
   }
 
   // -------------------------------------------------------------------------
-  // 3. every language in the dropdown really navigates
+  // 3. the languages in the menu really navigate — and the ones not in the
+  //    menu are still reachable
   // -------------------------------------------------------------------------
 
-  const LOCALES = [
+  // The menu offers only locales with translated prose. Nine others still
+  // route, still have a translated interface, and still fall back to English
+  // with a notice — so both halves get asserted. Dropping the second half when
+  // the menu shrank would have quietly stopped testing nine tenths of the
+  // locales while the suite still reported green, which is the exact move this
+  // file exists to prevent.
+  const IN_MENU = [
+    { code: "en", prefix: "", lang: "en-US" },
     { code: "zh-CN", prefix: "/zh-CN", lang: "zh-CN" },
+  ];
+
+  const NOT_IN_MENU = [
     { code: "zh-TW", prefix: "/zh-TW", lang: "zh-TW" },
     { code: "ja", prefix: "/ja", lang: "ja-JP" },
     { code: "ko", prefix: "/ko", lang: "ko-KR" },
@@ -191,22 +202,18 @@ try {
     { code: "fr", prefix: "/fr", lang: "fr-FR" },
     { code: "ar", prefix: "/ar", lang: "ar-SA" },
     { code: "hi", prefix: "/hi", lang: "hi-IN" },
-    { code: "en", prefix: "", lang: "en-US" },
   ];
 
   const langProblems = [];
 
-  for (const loc of LOCALES) {
+  for (const loc of IN_MENU) {
     const page = await browser.newPage();
     await page.goto(`${BASE}/quickstart`, { waitUntil: "networkidle" });
 
-    // Drive the real control the way a reader does, and follow where it goes.
-    //
     // Caught rather than thrown: when the handler is dead — which is exactly
     // the failure this file exists for — the navigation simply never happens,
     // and an uncaught timeout aborts the run with a stack trace instead of
-    // saying which languages broke. A test that only crashes is a test whose
-    // output you have to debug before you can read it.
+    // saying which languages broke.
     try {
       await Promise.all([
         page.waitForURL(`**${loc.prefix}/quickstart`, { timeout: 15_000 }),
@@ -229,10 +236,69 @@ try {
   }
 
   check(
-    `all ${LOCALES.length} languages navigate and set html lang`,
+    `both menu languages navigate and set html lang`,
     langProblems.length === 0,
-    langProblems.length ? langProblems.join(" | ") : "every option lands on its own prefix",
+    langProblems.length ? langProblems.join(" | ") : "en, zh-CN",
   );
+
+  // The menu must not offer a language whose prose is untranslated — that is
+  // the promise the whole change is making.
+  {
+    const page = await browser.newPage();
+    await page.goto(`${BASE}/quickstart`, { waitUntil: "networkidle" });
+    const offered = await page.$$eval("[data-lang-switch] option", (os) => os.map((o) => o.value));
+    await page.close();
+
+    check(
+      "the menu offers only languages with translated prose",
+      offered.join(",") === "en,zh-CN",
+      offered.join(", "),
+    );
+  }
+
+  // Removed from a dropdown is not removed from the site.
+  const reachProblems = [];
+
+  for (const loc of NOT_IN_MENU) {
+    const page = await browser.newPage();
+    const res = await page.goto(`${BASE}${loc.prefix}/quickstart`, { waitUntil: "networkidle" });
+
+    const lang = await page.getAttribute("html", "lang");
+    if (res.status() !== 200) reachProblems.push(`${loc.code}: HTTP ${res.status()}`);
+    else if (lang !== loc.lang) reachProblems.push(`${loc.code}: lang="${lang}"`);
+
+    // A reader who lands here must be able to see and leave the language they
+    // are in, so the current locale is added to the menu even when it is below
+    // the line.
+    const offered = await page.$$eval("[data-lang-switch] option", (os) => os.map((o) => o.value));
+    if (!offered.includes(loc.code)) {
+      reachProblems.push(`${loc.code}: not selectable while reading it (${offered.join(",")})`);
+    }
+
+    await page.close();
+  }
+
+  check(
+    `all ${NOT_IN_MENU.length} non-menu locales still open and can be left`,
+    reachProblems.length === 0,
+    reachProblems.length ? reachProblems.join(" | ") : "reachable by URL, self-selectable",
+  );
+
+  // An untranslated page must say so. That notice is the whole reason falling
+  // back to English is acceptable rather than a silent bait-and-switch.
+  {
+    const page = await browser.newPage();
+    await page.goto(`${BASE}/ja/concepts/identity`, { waitUntil: "networkidle" });
+    const notice = await page.$(".i18n-notice");
+    const text = notice ? (await notice.innerText()).trim() : "";
+    await page.close();
+
+    check(
+      "an untranslated page shows the fallback notice",
+      Boolean(notice) && text.length > 20,
+      text.slice(0, 52).replace(/\s+/g, " ") || "no notice found",
+    );
+  }
 
   // Arabic must additionally flip direction, or the layout is only pretending.
   {

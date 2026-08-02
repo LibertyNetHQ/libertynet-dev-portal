@@ -20,7 +20,9 @@
     "copyForAI": "Copiar para IA",
     "copyForAITitle": "Copia esta página como markdown, lista para pegar en un asistente",
     "untranslatedSuffix": " (en inglés)",
-    "languageHint": "Idiomas. Una opción marcada (en inglés) todavía no tiene traducción de esta página y mostrará el original en inglés."
+    "languageHint": "Idiomas. Una opción marcada (en inglés) todavía no tiene traducción de esta página y mostrará el original en inglés.",
+    "moreLanguages": "Más idiomas",
+    "moreLanguagesTitle": "Otros nueve idiomas tienen la interfaz traducida pero el texto en inglés. Mira en qué punto está cada uno."
   },
   "status": {
     "implemented": "Implementado",

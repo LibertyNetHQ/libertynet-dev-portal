@@ -147,6 +147,21 @@ header.top {
 }
 .control:hover { border-color: var(--accent); }
 
+/* The nine languages that are not in the menu are not gone, and a <select>
+   cannot say that. This is the only place a reader learns they exist. Quiet by
+   default — it is a footnote to the control beside it, not a second control. */
+.lang-more {
+  font-size: .78rem;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  padding-inline: .1rem;
+}
+.lang-more:hover { color: var(--accent); text-decoration: underline; }
+
+/* Narrow screens: the header already has more in it than fits. */
+@media (max-width: 860px) { .lang-more { display: none; } }
+
 /* ---------------------------------------------------------------- search -- */
 
 .search { position: relative; flex: 0 1 280px; }

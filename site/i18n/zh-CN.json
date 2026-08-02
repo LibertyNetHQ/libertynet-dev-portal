@@ -20,7 +20,9 @@
     "copyForAI": "复制给 AI",
     "copyForAITitle": "把本页复制成 markdown，可直接贴给 AI 助手",
     "untranslatedSuffix": "（英文）",
-    "languageHint": "语言。标注（英文）的选项表示本页尚无该语言译文，会显示英文原文。"
+    "languageHint": "语言。标注（英文）的选项表示本页尚无该语言译文，会显示英文原文。",
+    "moreLanguages": "更多语言",
+    "moreLanguagesTitle": "另外九种语言界面已翻译，但正文仍是英文。看看各自的进度，也欢迎认领。"
   },
   "status": {
     "implemented": "已实现",

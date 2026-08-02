@@ -21,7 +21,9 @@
     "copyForAI": "Copy for AI",
     "copyForAITitle": "Copy this page as markdown, ready to paste into an assistant",
     "untranslatedSuffix": " (English)",
-    "languageHint": "Languages. An option marked (English) has no translation for this page yet, so it shows the English original."
+    "languageHint": "Languages. An option marked (English) has no translation for this page yet, so it shows the English original.",
+    "moreLanguages": "More languages",
+    "moreLanguagesTitle": "Nine more languages have a translated interface but English prose. See what each is at, and claim one."
   },
   "status": {
     "implemented": "Implemented",

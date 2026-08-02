@@ -20,7 +20,9 @@
     "copyForAI": "Für KI kopieren",
     "copyForAITitle": "Diese Seite als Markdown kopieren, bereit zum Einfügen in einen Assistenten",
     "untranslatedSuffix": " (auf Englisch)",
-    "languageHint": "Sprachen. Eine mit (auf Englisch) markierte Option hat für diese Seite noch keine Übersetzung und zeigt das englische Original."
+    "languageHint": "Sprachen. Eine mit (auf Englisch) markierte Option hat für diese Seite noch keine Übersetzung und zeigt das englische Original.",
+    "moreLanguages": "Weitere Sprachen",
+    "moreLanguagesTitle": "Neun weitere Sprachen haben eine übersetzte Oberfläche, aber englische Texte. Sieh nach, wo jede steht."
   },
   "status": {
     "implemented": "Implementiert",
