@@ -257,7 +257,7 @@ function renderRange(lines, from, to, ctx, headings) {
       const rendered = renderInline(m[2], ctx);
       const id = slugify(m[2]);
       if (level <= 3) headings.push({ level, id, text: m[2].replace(/<[^>]+>/g, "").trim() });
-      out += `<h${level} id="${id}"><a class="anchor" href="#${id}" aria-hidden="true">#</a>${rendered}</h${level}>`;
+      out += `<h${level} id="${id}"><a class="anchor" href="#${id}" aria-label="${escapeHtml(m[2].replace(/[*`_]/g, "").trim())}" title="#">#</a>${rendered}</h${level}>`;
       i++;
       continue;
     }
@@ -368,7 +368,7 @@ function codeBlock(code, lang, title, ctx) {
     `<div class="code" data-lang="${escapeHtml(lang)}">` +
     (label && label !== "text" ? `<div class="code__bar"><span>${escapeHtml(label)}</span>` : `<div class="code__bar"><span></span>`) +
     `<button class="code__copy" type="button" data-copy>${escapeHtml(ctx.strings?.nav?.copyPage ?? "Copy")}</button></div>` +
-    `<pre><code>${highlight(code, lang)}</code></pre>` +
+    `<pre tabindex="0"><code>${highlight(code, lang)}</code></pre>` +
     `</div>`
   );
 }
@@ -380,7 +380,7 @@ function table(rows, ctx) {
   const header = cells(rows[0]);
   const body = rows.slice(2).map(cells);
 
-  let out = '<div class="table-wrap"><table><thead><tr>';
+  let out = '<div class="table-wrap" tabindex="0" role="region" aria-label="表格（可横向滚动）"><table><thead><tr>';
   for (const h of header) out += `<th>${renderInline(h, ctx)}</th>`;
   out += "</tr></thead><tbody>";
   for (const row of body) {
@@ -480,7 +480,7 @@ function renderComponent(name, attrs, body, ctx, headings) {
 
     case "StatusKey": {
       const s = ctx.strings?.status ?? {};
-      let out = '<div class="table-wrap"><table><tbody>';
+      let out = '<div class="table-wrap" tabindex="0" role="region" aria-label="表格（可横向滚动）"><table><tbody>';
       for (const level of ["implemented", "not_yet_wired", "testing", "planned"]) {
         out += `<tr><td>${statusPill(level, ctx)}</td><td>${escapeHtml(s[`${level}Help`] ?? "")}</td></tr>`;
       }
