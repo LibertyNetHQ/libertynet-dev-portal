@@ -622,14 +622,14 @@ html[dir="rtl"] .fallback-ltr :is(th, td) { padding: 11px 14px 11px 0; }
    Scoped to running text — navigation, cards and buttons are distinguishable by
    position and shape, and underlining those would just be noise.
    --------------------------------------------------------------------------- */
-.prose p a:not(.card):not(.btn),
-.prose li a:not(.card):not(.btn),
-.prose td a:not(.card):not(.btn) {
+article p a:not(.card):not(.btn):not(.anchor),
+article li a:not(.card):not(.btn):not(.anchor),
+article td a:not(.card):not(.btn):not(.anchor) {
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
 }
-.prose p a:hover, .prose li a:hover, .prose td a:hover { text-decoration-thickness: 2px; }
+article p a:hover, article li a:hover, article td a:hover { text-decoration-thickness: 2px; }
 
 /* The heading anchor keeps its accessible name but must not be a visual
    distraction; it is still reachable and still announced. */

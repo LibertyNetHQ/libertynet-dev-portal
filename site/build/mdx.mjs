@@ -163,6 +163,13 @@ export function statusPill(level, ctx = {}) {
 // component tags
 // ---------------------------------------------------------------------------
 
+/** Strip a single wrapping <p> so link cards contain no block-level elements. */
+function unwrapSingleParagraph(html) {
+  const trimmed = html.trim();
+  const m = /^<p>([\s\S]*)<\/p>$/.exec(trimmed);
+  return m && !m[1].includes("<p>") ? m[1] : trimmed;
+}
+
 function parseAttrs(raw) {
   const attrs = {};
   for (const m of raw.matchAll(/(\w+)=(?:"([^"]*)"|\{([^}]*)\})/g)) {
@@ -405,10 +412,16 @@ function renderComponent(name, attrs, body, ctx, headings) {
       const href = attrs.href ? resolveHref(attrs.href, ctx) : null;
       const tag = href ? "a" : "div";
       const attr = href ? ` href="${escapeHtml(href)}"` : "";
+      // A <p> inside an <a> makes the HTML parser close the anchor early and
+      // re-open an empty one after it — a duplicate link with no accessible name,
+      // which is invisible on screen and reported by axe as `link-name`. Cards
+      // that are links therefore carry inline body content, not block content.
+      const bodyHtml = inner();
+      const body = tag === "a" ? unwrapSingleParagraph(bodyHtml) : bodyHtml;
       return (
         `<${tag} class="card${attrs.horizontal ? " card--h" : ""}"${attr}>` +
         (attrs.title ? `<div class="card__title">${renderInline(attrs.title, ctx)}</div>` : "") +
-        `<div class="card__body">${inner()}</div></${tag}>`
+        `<div class="card__body">${body}</div></${tag}>`
       );
     }
     case "Columns":
