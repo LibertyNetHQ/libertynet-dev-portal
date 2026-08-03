@@ -46,7 +46,8 @@ describe("block boundaries still hold", () => {
     ["heading", "## Title", /<h2/],
     ["list", "- one\n- two", /<li>one<\/li>/],
     ["table", "| a | b |\n|---|---|\n| 1 | 2 |", /<table>/],
-    ["code fence", "```bash\necho hi\n```", /<pre>/],
+    // `tabindex` so a keyboard user can scroll a wide code block (WCAG 2.1.1).
+    ["code fence", "```bash\necho hi\n```", /<pre tabindex="0">/],
     ["blockquote", "> quoted", /<blockquote>/],
     ["rule", "---", /<hr>/],
   ]) {

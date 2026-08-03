@@ -163,6 +163,13 @@ export function statusPill(level, ctx = {}) {
 // component tags
 // ---------------------------------------------------------------------------
 
+/** Strip a single wrapping <p> so link cards contain no block-level elements. */
+function unwrapSingleParagraph(html) {
+  const trimmed = html.trim();
+  const m = /^<p>([\s\S]*)<\/p>$/.exec(trimmed);
+  return m && !m[1].includes("<p>") ? m[1] : trimmed;
+}
+
 function parseAttrs(raw) {
   const attrs = {};
   for (const m of raw.matchAll(/(\w+)=(?:"([^"]*)"|\{([^}]*)\})/g)) {
@@ -257,7 +264,7 @@ function renderRange(lines, from, to, ctx, headings) {
       const rendered = renderInline(m[2], ctx);
       const id = slugify(m[2]);
       if (level <= 3) headings.push({ level, id, text: m[2].replace(/<[^>]+>/g, "").trim() });
-      out += `<h${level} id="${id}"><a class="anchor" href="#${id}" aria-hidden="true">#</a>${rendered}</h${level}>`;
+      out += `<h${level} id="${id}"><a class="anchor" href="#${id}" aria-label="${escapeHtml(m[2].replace(/[*`_]/g, "").trim())}" title="#">#</a>${rendered}</h${level}>`;
       i++;
       continue;
     }
@@ -368,7 +375,7 @@ function codeBlock(code, lang, title, ctx) {
     `<div class="code" data-lang="${escapeHtml(lang)}">` +
     (label && label !== "text" ? `<div class="code__bar"><span>${escapeHtml(label)}</span>` : `<div class="code__bar"><span></span>`) +
     `<button class="code__copy" type="button" data-copy>${escapeHtml(ctx.strings?.nav?.copyPage ?? "Copy")}</button></div>` +
-    `<pre><code>${highlight(code, lang)}</code></pre>` +
+    `<pre tabindex="0"><code>${highlight(code, lang)}</code></pre>` +
     `</div>`
   );
 }
@@ -380,7 +387,7 @@ function table(rows, ctx) {
   const header = cells(rows[0]);
   const body = rows.slice(2).map(cells);
 
-  let out = '<div class="table-wrap"><table><thead><tr>';
+  let out = '<div class="table-wrap" tabindex="0" role="region" aria-label="表格（可横向滚动）"><table><thead><tr>';
   for (const h of header) out += `<th>${renderInline(h, ctx)}</th>`;
   out += "</tr></thead><tbody>";
   for (const row of body) {
@@ -405,10 +412,16 @@ function renderComponent(name, attrs, body, ctx, headings) {
       const href = attrs.href ? resolveHref(attrs.href, ctx) : null;
       const tag = href ? "a" : "div";
       const attr = href ? ` href="${escapeHtml(href)}"` : "";
+      // A <p> inside an <a> makes the HTML parser close the anchor early and
+      // re-open an empty one after it — a duplicate link with no accessible name,
+      // which is invisible on screen and reported by axe as `link-name`. Cards
+      // that are links therefore carry inline body content, not block content.
+      const bodyHtml = inner();
+      const body = tag === "a" ? unwrapSingleParagraph(bodyHtml) : bodyHtml;
       return (
         `<${tag} class="card${attrs.horizontal ? " card--h" : ""}"${attr}>` +
         (attrs.title ? `<div class="card__title">${renderInline(attrs.title, ctx)}</div>` : "") +
-        `<div class="card__body">${inner()}</div></${tag}>`
+        `<div class="card__body">${body}</div></${tag}>`
       );
     }
     case "Columns":
@@ -480,7 +493,7 @@ function renderComponent(name, attrs, body, ctx, headings) {
 
     case "StatusKey": {
       const s = ctx.strings?.status ?? {};
-      let out = '<div class="table-wrap"><table><tbody>';
+      let out = '<div class="table-wrap" tabindex="0" role="region" aria-label="表格（可横向滚动）"><table><tbody>';
       for (const level of ["implemented", "not_yet_wired", "testing", "planned"]) {
         out += `<tr><td>${statusPill(level, ctx)}</td><td>${escapeHtml(s[`${level}Help`] ?? "")}</td></tr>`;
       }
