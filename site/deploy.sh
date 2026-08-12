@@ -18,10 +18,44 @@ INSTANCE="libertynet-node-1"
 REMOTE_ROOT="/var/www/libertynet-docs"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+ROOT="$(cd "$HERE/.." && pwd)"
+
 cyan() { printf '\033[38;5;43m%s\033[39m\n' "$1"; }
+red()  { printf '\033[38;5;203m%s\033[39m\n' "$1"; }
+
+# Preflight, before anything is uploaded.
+#
+# The post-deploy gate drives the deployed site with a real browser, and it needs
+# playwright to exist on this machine. Finding that out *after* the upload means
+# a good build goes live, fails a check that never ran, and gets rolled back —
+# which is safe but reads like the build was broken. It also burns a release and
+# two swaps to discover a missing `npm ci`.
+cyan "› preflight"
+if ! node -e "require.resolve('playwright')" 2>/dev/null; then
+  red "✗ playwright is not installed in this checkout — the post-deploy browser gate could not run."
+  red "  Run: npm ci && npx playwright install chromium"
+  exit 1
+fi
+printf '  playwright present\n'
+
+# The MCP bundle is generated, not committed, and `build.mjs` only copies whatever
+# is already in site/public. So a clean checkout builds a site with no
+# /mcp/libertynet-mcp.mjs in it — and since the install is an atomic swap of the
+# whole tree, deploying that *removes* a URL the docs actively tell people to
+# curl (docs-site/ai/mcp.mdx). CI already runs this step before building; this
+# script did not, and the two have to agree or the local path is a trap.
+cyan "› bundling the MCP server"
+node "$ROOT/tools/bundle-mcp.mjs"
 
 cyan "› building"
 node "$HERE/build.mjs"
+
+# Belt and braces: prove the thing exists in the artifact before it is shipped,
+# not only after.
+if [[ ! -s "$HERE/dist/mcp/libertynet-mcp.mjs" ]]; then
+  red "✗ site/dist/mcp/libertynet-mcp.mjs is missing or empty — refusing to deploy a tree that drops it."
+  exit 1
+fi
 
 cyan "› packing"
 TARBALL="$(mktemp -t docs-dist).tgz"
@@ -92,6 +126,22 @@ fi
 
 # A page whose HTML points at an asset that is not there renders unstyled and
 # inert, and no console error necessarily says so.
+# Every URL the docs tell a reader to fetch by hand. The browser gate walks pages;
+# it never touches a raw file, so this class of breakage is invisible to it — and
+# it is exactly the class an atomic whole-tree swap can cause.
+cyan "› documented downloads still resolve"
+for d in /mcp/libertynet-mcp.mjs; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "https://docs.libertynet.ai$d")"
+  ctype="$(curl -sI "https://docs.libertynet.ai$d" | grep -i '^content-type' | tr -d '\r' | cut -d' ' -f2-)"
+  size="$(curl -s -o /dev/null -w '%{size_download}' "https://docs.libertynet.ai$d")"
+  printf '  %-28s %s  %s  %s bytes\n' "$d" "$code" "${ctype:-?}" "$size"
+  # A 404 page served with 200 is still a broken download, so the body has to be
+  # big enough and must not be HTML.
+  if [ "$code" != "200" ] || [ "$size" -lt 10000 ] || printf '%s' "$ctype" | grep -qi 'text/html'; then
+    rollback
+  fi
+done
+
 cyan "› asset references resolve"
 ASSETS="$(curl -s https://docs.libertynet.ai/quickstart | grep -oE '(src|href)="/(site|theme)\.[^"]*"' | sed 's/.*="//;s/"$//' | sort -u)"
 for a in $ASSETS; do
