@@ -631,6 +631,19 @@ article td a:not(.card):not(.btn):not(.anchor) {
 }
 article p a:hover, article li a:hover, article td a:hover { text-decoration-thickness: 2px; }
 
+/* A link *inside* a card's body is running text too, and the rule above misses it
+   because the anchor is a direct child of `.card__body` rather than of a `<p>`.
+   Not the same thing as `a.card`, where the whole card is the link and its shape
+   already distinguishes it — that one stays un-underlined on purpose.
+   Caught on /examples by axe-core 4.13; axe 4.10.3 (the version the gate pins)
+   does not report it, which is why it survived the first sweep. */
+.card__body a:not(.card):not(.btn):not(.anchor) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.card__body a:not(.card):not(.btn):not(.anchor):hover { text-decoration-thickness: 2px; }
+
 /* The heading anchor keeps its accessible name but must not be a visual
    distraction; it is still reachable and still announced. */
 .anchor { text-decoration: none !important; }
