@@ -11,7 +11,7 @@
 import type { CapabilityStatus } from "./types.ts";
 
 /** When the matrix was last verified against the live network. */
-export const VERIFIED_AT = "2026-08-01";
+export const VERIFIED_AT = "2026-08-13";
 
 /**
  * Every capability, nested by area.
@@ -26,7 +26,7 @@ export const CAPABILITIES: Readonly<Record<string, Readonly<Record<string, Capab
       "GET /health": "implemented",
       "GET /nodes": "implemented",
       "GET /peers": "implemented",
-      "GET /api/v1/peers": "implemented",
+      "GET /api/v1/peers": "not_yet_wired",
       "POST /api/v1/register": "implemented",
       "POST /api/v1/heartbeat": "implemented",
       "GET /nodes?callable=1": "implemented",

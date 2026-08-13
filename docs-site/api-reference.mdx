@@ -53,15 +53,11 @@ Plain-text peer list (did pubkey endpoint per line), for shell tooling.
 curl -s https://registry.libertynet.ai/peers
 ```
 
-### `GET /api/v1/peers` <Status level="implemented" />
+### `GET /api/v1/peers` <Status level="not_yet_wired" />
 
 List peers (JSON envelope)
 
-JSON envelope form of /peers.
-
-```bash
-curl -s https://registry.libertynet.ai/api/v1/peers
-```
+Returns 200 with a well-formed envelope, but the peer list inside is always empty — it is NOT the JSON form of /peers. Probed 2026-08-13: GET /peers returned 4+ real nodes with endpoints, while GET /api/v1/peers returned {"ok": true, "data": [], "error": null} at the same moment. Use /peers or /nodes until this is wired.
 
 ### `POST /api/v1/register` <Status level="implemented" />
 
