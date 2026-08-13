@@ -27,7 +27,8 @@ import { Status, StatusKey } from '/snippets/status.mdx';
 |---|---|
 | `GET /health` | <Status level="implemented" /> |
 | `GET /nodes` | <Status level="implemented" /> |
-| `GET /peers` · `GET /api/v1/peers` | <Status level="implemented" /> |
+| `GET /peers` | <Status level="implemented" /> |
+| `GET /api/v1/peers` | <Status level="not_yet_wired" /> · 返回 200 且信封格式正确，但里面的列表恒为空，**不是** `/peers` 的 JSON 版。2026-08-13 实测：同一时刻 `/peers` 返回了真实节点，本端点返回 `{"ok": true, "data": [], "error": null}`。请改用 `/peers` 或 `/nodes`。 |
 | `POST /api/v1/register` · `POST /api/v1/heartbeat` | <Status level="implemented" /> |
 
 ## 运营者身份 <Status level="implemented" />

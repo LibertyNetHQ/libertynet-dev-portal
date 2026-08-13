@@ -2,8 +2,8 @@
   "$comment": "Machine-readable capability matrix for the LibertyNet developer portal. SINGLE SOURCE OF TRUTH for every 'Implemented / Testing / Planned' badge rendered in the docs, the SDKs and the dashboard. Never hand-edit a badge in an .mdx file — edit this file and re-run `node tools/check-docs-drift.mjs`.",
   "spec": "LIBERTYNET-DEV-PORTAL-AIPM-001 §9",
   "generated_by": "human-authored, endpoint-probed",
-  "verified_at": "2026-08-01",
-  "verified_against": "https://registry.libertynet.ai (live probe) + https://libertynet.ai/demo-node (end-to-end loop), see TEST-EVIDENCE.md",
+  "verified_at": "2026-08-13",
+  "verified_against": "https://registry.libertynet.ai (live probe) + https://libertynet.ai/demo-node (end-to-end loop), see TEST-EVIDENCE.md. 2026-08-13 re-probe corrected GET /api/v1/peers from implemented to not_yet_wired.",
   "levels": {
     "implemented": "Live on a public endpoint today. Anyone can call it right now and get a real answer.",
     "testing": "Code exists and its own test suite passes, but it is NOT reachable on a public endpoint yet.",
@@ -38,8 +38,8 @@
         {
           "method": "GET",
           "path": "/api/v1/peers",
-          "status": "implemented",
-          "note": "JSON envelope form of /peers."
+          "status": "not_yet_wired",
+          "note": "Returns 200 with a well-formed envelope, but the peer list inside is always empty \u2014 it is NOT the JSON form of /peers. Probed 2026-08-13: GET /peers returned 4+ real nodes with endpoints, while GET /api/v1/peers returned {\"ok\": true, \"data\": [], \"error\": null} at the same moment. Use /peers or /nodes until this is wired."
         },
         {
           "method": "POST",

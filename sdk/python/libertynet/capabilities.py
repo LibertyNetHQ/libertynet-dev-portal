@@ -22,7 +22,7 @@ __all__ = [
 ]
 
 #: When the matrix was last verified against the live network.
-VERIFIED_AT = "2026-08-01"
+VERIFIED_AT = "2026-08-13"
 
 #: Every capability, nested by area.
 #:
@@ -34,7 +34,7 @@ CAPABILITIES = MappingProxyType({
         "GET /health": "implemented",
         "GET /nodes": "implemented",
         "GET /peers": "implemented",
-        "GET /api/v1/peers": "implemented",
+        "GET /api/v1/peers": "not_yet_wired",
         "POST /api/v1/register": "implemented",
         "POST /api/v1/heartbeat": "implemented",
         "GET /nodes?callable=1": "implemented",
