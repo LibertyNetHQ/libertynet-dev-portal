@@ -329,6 +329,26 @@ const FEATURE_CLAIMS = [
     },
   },
   {
+    id: "compute-app",
+    match: /The first real user of the coordination API/i,
+    pages: ["index"],
+    how: "live probe of the App's readiness, including which gateway it points at",
+    async verify() {
+      if (OFFLINE) return [null, "network disabled"];
+      // The claim has two halves and both have to hold. "Live" is the easy one. The half worth
+      // checking is *which* platform it reaches: the whole point of this App is that it uses the
+      // published coordination URL any third party can use, so a build quietly pointed at an
+      // internal address would make the sentence false while every page still loaded.
+      const res = await fetch("https://libertynet.ai/compute/readyz", {
+        signal: AbortSignal.timeout(20_000),
+      });
+      const body = await res.json().catch(() => ({}));
+      const gateway = body.gateway_url;
+      const ok = res.ok && gateway === "https://libertynet.ai/coordination";
+      return [ok, ok ? `ready, gateway_url=${gateway}` : `status ${res.status}, gateway_url=${gateway ?? "absent"}`];
+    },
+  },
+  {
     id: "examples",
     match: /All CI-executed against the live network|verified.*example|^#{2,4}\s+(Verify the whole network|Capability monitor|Identity gate)/im,
     pages: ["showcase", "examples"],

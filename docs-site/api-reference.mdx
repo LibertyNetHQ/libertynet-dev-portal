@@ -283,6 +283,143 @@ Register an executable runtime package
 Register an executable runtime package. Same digest-covering signature as object upload.
 
 
+## Compute App — the first application on the coordination API
+
+**Base URL** `https://libertynet.ai/compute` · **Auth** the caller's own ed25519 envelopes, forwarded unchanged; this service holds no key
+
+### `GET /` <Status level="implemented" />
+
+The browser UI. Submit -> Proposal -> Commitment -> Session -> Result -> Receipt, client-side hash routing.
+
+```bash
+curl -s https://libertynet.ai/compute/
+```
+
+### `GET /healthz` <Status level="implemented" />
+
+Liveness probe
+
+Liveness.
+
+```bash
+curl -s https://libertynet.ai/compute/healthz
+```
+
+### `GET /readyz` <Status level="implemented" />
+
+Readiness, plus the platform gateway URL and contract version this build talks.
+
+```bash
+curl -s https://libertynet.ai/compute/readyz
+```
+
+### `GET /version` <Status level="implemented" />
+
+Contract and build version
+
+Service name, build version and the configured gateway.
+
+```bash
+curl -s https://libertynet.ai/compute/version
+```
+
+### `GET /openapi.json` <Status level="implemented" />
+
+This document
+
+This service's own contract — distinct from the platform's, which is at /coordination/openapi.json.
+
+```bash
+curl -s https://libertynet.ai/compute/openapi.json
+```
+
+### `GET /metrics` <Status level="implemented" />
+
+Prometheus text exposition.
+
+```bash
+curl -s https://libertynet.ai/compute/metrics
+```
+
+### `GET /v1/task-package` <Status level="implemented" />
+
+The WebAssembly task guest the browser registers before it can submit. A browser has no filesystem, so it fetches the bytes here and registers them with the platform itself.
+
+```bash
+curl -s https://libertynet.ai/compute/v1/task-package
+```
+
+### `POST /v1/derive-core-intent` <Status level="implemented" />
+
+Turns a plain compute request into the exact platform Intent to sign, including the derived `intent_id`. Unsigned: it computes, it does not act.
+
+### `POST /v1/intents` <Status level="implemented" />
+
+Submit an Intent
+
+Forwards the caller's signed `submit_intent` envelope to the platform unchanged.
+
+### `GET /v1/sessions/{session_id}` <Status level="implemented" />
+
+Session status
+
+Session status. Needs the caller's signed read credential; 401 without one.
+
+### `GET /v1/sessions/{session_id}/proposal` <Status level="implemented" />
+
+Get the recommended proposal and its alternatives
+
+The proposal to choose from. Signed read.
+
+### `POST /v1/sessions/{session_id}/commitment` <Status level="implemented" />
+
+Prepare the draft Commitment for signing
+
+Prepares the Commitment to sign. The body is the caller's envelope.
+
+### `POST /v1/sessions/{session_id}/authorize` <Status level="implemented" />
+
+Authorize the proposal and start execution
+
+Authorizes and runs the work. Blocks for as long as the delivery takes — do not set a short client timeout.
+
+### `POST /v1/sessions/{session_id}/cancel` <Status level="implemented" />
+
+Cancel the session
+
+Cancels a non-terminal session.
+
+### `GET /v1/sessions/{session_id}/result` <Status level="implemented" />
+
+Delivered result
+
+The delivered result. Signed read.
+
+### `GET /v1/sessions/{session_id}/receipt` <Status level="implemented" />
+
+Final receipt
+
+The receipt. Signed read. The settlement figure is an accounting record and moves no value — see the coordination group.
+
+### `GET /v1/sessions/{session_id}/events` <Status level="implemented" />
+
+Session events (polling snapshot — NOT a push stream)
+
+A polling snapshot, not a push stream. The name is SSE-shaped; the behaviour is polling, and the module says so itself.
+
+### `POST /v1/objects` <Status level="implemented" />
+
+Upload an input object
+
+Uploads an input object, forwarding the caller's signed envelope.
+
+### `POST /v1/runtimes` <Status level="implemented" />
+
+Register an executable runtime package
+
+Registers a runtime package, forwarding the caller's signed envelope.
+
+
 ## Credits & contribution evidence
 
 **Base URL** `https://registry.libertynet.ai` · **Auth** bearer session

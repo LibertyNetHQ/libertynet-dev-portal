@@ -2,10 +2,37 @@ openapi: 3.1.0
 info:
   title: LibertyNet API
   version: 1.0.0
-  summary: Node discovery, operator identity, and node↔operator binding for the LibertyNet network.
+  summary: >-
+    Node discovery, operator identity, node↔operator binding, and the coordination loop that
+    turns an Intent into a delivered Result and a signed Receipt.
   description: |
-    The LibertyNet public API. Everything documented here with `x-ln-status: implemented`
-    is live right now at `https://registry.libertynet.ai` and was probed on 2026-07-31.
+    The LibertyNet public API. Everything documented here with `x-ln-status: implemented` is
+    live right now and was probed on the date recorded in `api-spec/status.json`.
+
+    ## Current scope
+
+    Two live surfaces, and they are different hosts because they are different services:
+
+    | Surface | Base URL | What it does |
+    |---|---|---|
+    | Registry | `https://registry.libertynet.ai` | Discovery, operator identity, node binding. |
+    | Coordination | `https://libertynet.ai/coordination` | Intent → Proposal → Commitment → authorize → Result → Receipt, executed on a real provider fleet. |
+
+    Coordination is **implemented and callable today**, not planned: `POST /v1/intents` opens a
+    session, `POST /v1/sessions/{session_id}/authorize` runs the work on a real node, and
+    `GET /v1/sessions/{session_id}/receipt` returns a Receipt naming the provider that did it.
+    Earlier revisions of this document described that loop as unbuilt. It is built, and there is
+    an application using it: `https://libertynet.ai/compute` is the Compute App, which reaches
+    the platform over exactly these public endpoints and no private ones.
+
+    Two things the Receipt does **not** mean. The `settlement.amount` it carries is an
+    accounting record: fuel settlement is deliberately unwired on this deployment (no rate card
+    is provisioned) so no delivery is charged and no value moves. And the coordinator identity
+    is stable but not yet endorsed under the operator key hierarchy.
+
+    Coordination is not the same thing as the **trading** intents under
+    [Intents](/concepts/intents) — those are `planned`, have no endpoint, and are unrelated to
+    the coordination Intent described here.
 
     ## Honesty contract
 
