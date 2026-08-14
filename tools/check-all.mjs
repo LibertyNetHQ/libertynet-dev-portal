@@ -21,6 +21,16 @@ const live = process.argv.includes("--live");
 
 const SUITES = [
   {
+    // Before the matrix check, because it writes into the same YAML: the
+    // coordination block is generated from the contract the gateway serves, and
+    // `sync-status` then stamps `x-ln-status` across the whole file. Checking the
+    // matrix first would pass on a spec whose coordination half was stale.
+    name: "coordination spec",
+    cwd: ROOT,
+    cmd: "node",
+    args: ["tools/sync-coordination-spec.mjs", "--check"],
+  },
+  {
     // Runs first: if the generated artifacts are stale, every downstream check is
     // testing yesterday's matrix.
     name: "status sync",

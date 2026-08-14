@@ -59,6 +59,7 @@ matrix rather than written by hand.
 | Node discovery | <Status level="implemented" /> | Public, live, no auth. `/health`, `/nodes`, `/peers`. |
 | Operator login | <Status level="implemented" /> | Challenge → device-key signature → 1-hour session. No passwords. |
 | Node ↔ operator binding | <Status level="implemented" /> | Full double-signature handshake, all four signatures re-verified. |
+| Coordination — Intent → Result | <Status level="implemented" /> | Live at `https://libertynet.ai/coordination`. `POST /v1/intents`, then `GET /v1/sessions/{session_id}/proposal`, `POST /v1/sessions/{session_id}/authorize`, `GET /v1/sessions/{session_id}/result` and `GET /v1/sessions/{session_id}/receipt`. Every call signed, reads included. |
 | Credits & evidence | <Status level="not_yet_wired" /> | Endpoints live and return `200`, but no ledger behind them. They return zeros and say so. |
 | Oracle contracts | <Status level="testing" /> | 23/23 tests pass. Not deployed to any public network. |
 | Wallet · DEX · token | <Status level="planned" /> | Not built. Nothing to call. |
@@ -74,6 +75,11 @@ that is a bug — [tell us](/community) and it gets fixed, not reworded.
 There is no endpoint in this API that moves value. No wallet, no swap, no staking, no token
 transfer, no trading. That is a scope decision, not an oversight, and the docs will not imply
 otherwise.
+
+That includes the coordination Receipt. It carries a settlement figure, and the figure is an
+**accounting record**: nothing is debited, credited or transferred when you read it. The
+deployment runs with no rate card provisioned, so charging is deny-by-default and no delivery is
+priced at all.
 
 **Credits are a test unit.** Not cash, not redeemable, not a claim on future value. Any page that
 shows you a Credits number will say that next to the number.
@@ -94,9 +100,14 @@ Most programs you write here follow the same three beats.
     Talk to the node, or bind it to an operator identity so it can work on your behalf under
     limits you set.
   </Step>
+  <Step title="Coordinate">
+    Or skip picking a node yourself: describe *what you want done* as an Intent, and the
+    coordination gateway proposes who should do it, runs it once you authorize, and hands back a
+    Result and a Receipt.
+  </Step>
 </Steps>
 
-Everything else in these docs is detail on those three.
+Everything else in these docs is detail on those four.
 
 <Card title="Ready" icon="arrow-right" href="/quickstart" horizontal>
   **Quickstart** — first verified call in under five minutes.

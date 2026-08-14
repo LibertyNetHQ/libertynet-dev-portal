@@ -42,6 +42,12 @@ info:
 servers:
   - url: https://registry.libertynet.ai
     description: Production registry (live)
+  - url: https://libertynet.ai/coordination
+    description: |
+      Public coordination gateway (live). Discovery, identity and binding are on the registry;
+      the coordination operations are here. Every path under this server carries its own
+      `servers` entry, so a generated client routes each operation correctly without the caller
+      having to know which host is which.
 
 tags:
   - name: Discovery
@@ -54,6 +60,11 @@ tags:
     description: Endpoints a node daemon calls on its own behalf.
   - name: Economics
     description: Credits and contribution evidence. Live endpoints, unconnected data sources.
+  - name: Coordination
+    description: |
+      Ask the network to do work: Intent → Proposal → Commitment → authorize → Result → Receipt.
+      Every operation is authenticated by a signed envelope, reads included, and the settlement
+      figure on a Receipt is an accounting record — it moves no value.
 
 paths:
   /health:
@@ -714,6 +725,514 @@ paths:
           description: '`BAD_STATE` — already terminal.'
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
+  # The Coordination API. These operations are NOT on the document-level server — each carries
+  # its own `servers` entry pointing at the public gateway. Generated from the contract that
+  # gateway actually serves; see tools/sync-coordination-spec.mjs. Do not edit by hand.
+  # >>> BEGIN generated coordination paths
+  /healthz:
+    get:
+      summary: "Liveness probe"
+      x-ln-status: implemented
+      operationId: "healthz"
+      tags:
+        - "Coordination"
+      responses:
+        "200":
+          description: "Gateway is up"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationHealth"
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /version:
+    get:
+      summary: "Contract and build version"
+      x-ln-status: implemented
+      operationId: "version"
+      tags:
+        - "Coordination"
+      responses:
+        "200":
+          description: "Version information"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationVersion"
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /openapi.json:
+    get:
+      summary: "This document"
+      x-ln-status: implemented
+      operationId: "openapi"
+      tags:
+        - "Coordination"
+      responses:
+        "200":
+          description: "The OpenAPI document"
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/intents:
+    post:
+      summary: "Submit an Intent"
+      description: "Opens a coordination session. Submitting an identical Intent twice is a no-op — the same session is returned with `duplicate: true` — because the Intent id is derived from its content."
+      x-ln-status: implemented
+      operationId: "submit_intent"
+      tags:
+        - "Coordination"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/CoordinationSignedRequest"
+      responses:
+        "200":
+          description: "Session opened"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationSubmitIntentResponse"
+        "400":
+          "$ref": "#/components/responses/CoordinationError"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeBody: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/sessions/{session_id}/proposal:
+    get:
+      summary: "Get the recommended proposal and its alternatives"
+      description: "**Changed in contract 3.0.0:** requires a signed `get_proposal` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      x-ln-status: implemented
+      operationId: "get_proposal"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      responses:
+        "200":
+          description: "Proposal set"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationGetProposalResponse"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "404":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/sessions/{session_id}/commitment:
+    post:
+      summary: "Prepare the draft Commitment for signing"
+      description: "Draft the Commitment the requester will be asked to sign.\n\n**Changed in contract 3.0.0:** this is a write and now requires a signed `prepare_commitment` envelope as the request body. It previously accepted a bare `{\"proposal_id\": \"...\"}` with no envelope, so anyone who could name a session could drive its commitment preparation.\n\nSign the returned Commitment's `signing_bytes` and pass the signature to `authorize_proposal`."
+      x-ln-status: implemented
+      operationId: "prepare_commitment"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/CoordinationSignedRequest"
+            example:
+              operation: "prepare_commitment"
+              payload:
+                session_id: "sess_00000000000000000000000000000000"
+                proposal_id: "prop_..."
+      responses:
+        "200":
+          description: "Draft commitment"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationCommitment"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "404":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeBody: []
+    get:
+      summary: "Get the session's Commitment, if one exists"
+      description: "**Changed in contract 3.0.0:** requires a signed `get_commitment` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      x-ln-status: implemented
+      operationId: "get_commitment"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      responses:
+        "200":
+          description: "Commitment"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationCommitment"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "404":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/sessions/{session_id}/authorize:
+    post:
+      summary: "Authorize the proposal and start execution"
+      description: "Activates the Commitment and hands the work to the coordination layer, which schedules it onto a real node. This call may take as long as the delivery does; poll `status` instead if you do not want to hold a connection open."
+      x-ln-status: implemented
+      operationId: "authorize_proposal"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/CoordinationSignedRequest"
+      responses:
+        "200":
+          description: "Authorized"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationAuthorizeProposalResponse"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "409":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeBody: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/sessions/{session_id}/cancel:
+    post:
+      summary: "Cancel the session"
+      x-ln-status: implemented
+      operationId: "cancel_session"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/CoordinationSignedRequest"
+      responses:
+        "200":
+          description: "Cancelled"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationSessionStatusView"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "409":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeBody: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/sessions/{session_id}:
+    get:
+      summary: "Session status"
+      description: "**Changed in contract 3.0.0:** requires a signed `get_session_status` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      x-ln-status: implemented
+      operationId: "get_session_status"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      responses:
+        "200":
+          description: "Status"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationSessionStatusView"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "404":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/sessions/{session_id}/result:
+    get:
+      summary: "Delivered result"
+      description: "**Changed in contract 3.0.0:** requires a signed `get_result` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      x-ln-status: implemented
+      operationId: "get_result"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      responses:
+        "200":
+          description: "Result"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationResultView"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "404":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/sessions/{session_id}/receipt:
+    get:
+      summary: "Final receipt"
+      description: "Every terminal state produces a receipt, including failure and cancellation — a business that delivered nothing still needs an auditable record of why.\n\n**Changed in contract 3.0.0:** requires a signed `get_receipt` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      x-ln-status: implemented
+      operationId: "get_receipt"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      responses:
+        "200":
+          description: "Receipt"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationReceiptView"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "404":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/objects:
+    post:
+      summary: "Upload an input object"
+      description: "Upload a object. The request body is the raw bytes.\n\n**Changed in contract 3.0.0:** requires a signed envelope in `x-ln-signed-request`. This was previously open to anyone — there was a 64 MB body limit and no identity, no quota and no rate limit.\n\nThe envelope's `payload.content_digest` must be the lowercase hex SHA-256 of the body. The upload is refused with `hash_mismatch` if it is not, which is what stops a captured upload envelope being replayed with different bytes under your name.\n\nUpload objects **before** submitting the Intent that references them: the `object://` reference is minted here, not chosen by you.\n\nYou may read back only what you uploaded."
+      x-ln-status: implemented
+      operationId: "put_object"
+      tags:
+        - "Coordination"
+      requestBody:
+        required: true
+        content:
+          "application/octet-stream":
+            schema:
+              type: "string"
+              format: "binary"
+      responses:
+        "200":
+          description: "Stored"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationObjectRef"
+        "400":
+          "$ref": "#/components/responses/CoordinationError"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/objects/{object_id}:
+    get:
+      summary: "Download an object"
+      description: "Download an object you uploaded, or the output of a session you own.\n\n**Changed in contract 3.0.0:** requires a signed `get_object` envelope whose `payload.object_id` matches the URL. This endpoint was previously open, and because `object_id` is a content digest, anyone holding the same bytes — or simply handed the digest — could download them.\n\n`not_found` and `not_authorized` are distinct: a content-addressed store must not confirm to a stranger whether a digest exists."
+      x-ln-status: implemented
+      operationId: "get_object"
+      tags:
+        - "Coordination"
+      parameters:
+        - name: "object_id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "Bytes"
+          content:
+            "application/octet-stream":
+              schema:
+                type: "string"
+                format: "binary"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "404":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/runtimes:
+    post:
+      summary: "Register an executable runtime package"
+      description: "Upload a runtime package. The request body is the raw bytes.\n\n**Changed in contract 3.0.0:** requires a signed envelope in `x-ln-signed-request`. This was previously open to anyone — there was a 64 MB body limit and no identity, no quota and no rate limit.\n\nThe envelope's `payload.content_digest` must be the lowercase hex SHA-256 of the body. The upload is refused with `hash_mismatch` if it is not, which is what stops a captured upload envelope being replayed with different bytes under your name.\n\nYou may read back only what you uploaded."
+      x-ln-status: implemented
+      operationId: "put_runtime"
+      tags:
+        - "Coordination"
+      requestBody:
+        required: true
+        content:
+          "application/wasm":
+            schema:
+              type: "string"
+              format: "binary"
+      responses:
+        "200":
+          description: "Registered"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationRuntimeRef"
+        "400":
+          "$ref": "#/components/responses/CoordinationError"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/capabilities:
+    get:
+      summary: "Capability catalogue"
+      description: "What `CapabilityRequirement.capability_type` and `interface_version` may be set to, and the DID a requester must trust for their Intents to be schedulable.\n\nCall this **before** building your first Intent. Both fields are required in a signed Intent and their accepted values previously existed only in a platform source constant; getting `capability_type` wrong did not fail at submit but later, at `get_proposal`, as 'no capability passed qualification' — which names neither the field nor the mistake.\n\n`providers_available` is measured by a liveness probe at request time, not read off a config file. Zero available with a non-zero `providers_known` is a real and useful answer."
+      x-ln-status: implemented
+      operationId: "get_capabilities"
+      tags:
+        - "Coordination"
+      responses:
+        "200":
+          description: "Catalogue"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationGetCapabilitiesResponse"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+        "500":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  /v1/sessions/{session_id}/events:
+    get:
+      summary: "Session events (polling snapshot — NOT a push stream)"
+      description: "Returns a snapshot of the session's observable state as a one-element event list.\n\n**This is not a subscription.** There is no SSE and no WebSocket in this contract; the response says so itself via `stream: false`. Poll this, or `GET /v1/sessions/{session_id}`, at roughly `poll_after_ms`.\n\nIt exists in this shape so that the event surface is authenticated from its first day. If a real push stream is added later it will be a change to *how* events are delivered, not a new unauthenticated door — which is the mistake the read endpoints made before contract 3.0.0."
+      x-ln-status: implemented
+      operationId: "get_events"
+      tags:
+        - "Coordination"
+      parameters:
+        - "$ref": "#/components/parameters/CoordinationSessionId"
+      responses:
+        "200":
+          description: "Snapshot"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/CoordinationSessionEventsResponse"
+        "401":
+          "$ref": "#/components/responses/CoordinationError"
+        "403":
+          "$ref": "#/components/responses/CoordinationError"
+        "404":
+          "$ref": "#/components/responses/CoordinationError"
+        "429":
+          "$ref": "#/components/responses/CoordinationError"
+      security:
+        - signedEnvelopeHeader: []
+    servers:
+      - url: "https://libertynet.ai/coordination"
+        description: "Public coordination gateway"
+  # <<< END generated coordination paths
+
 components:
   securitySchemes:
     operatorSession:
@@ -722,6 +1241,34 @@ components:
       description: |
         A 1-hour session token from [`/v1/auth/device-login`](#operation/deviceLogin).
         Not an API key — it cannot be listed, rotated or recovered, and it expires on its own.
+
+    # The Coordination API authenticates every call — reads included — with a signed envelope
+    # rather than a bearer token. Nothing is issued to you and there is nothing to revoke: you
+    # hold an Ed25519 key, and your DID is derived from it.
+    signedEnvelopeHeader:
+      type: apiKey
+      in: header
+      name: x-ln-signed-request
+      description: |
+        A `SignedRequest`, serialized to JSON and encoded as base64url without padding.
+
+        Used by every coordination endpoint that has no JSON body of its own — all reads, and
+        the two byte-upload endpoints. The envelope's `operation` must name the endpoint being
+        called, and for session-scoped endpoints its `payload.session_id` must equal the one in
+        the URL. Both bindings are enforced: without the first, an envelope signed for a read
+        could be replayed against `authorize`; without the second, one captured read envelope
+        would unlock every session for the rest of its freshness window.
+    signedEnvelopeBody:
+      type: apiKey
+      in: header
+      name: x-ln-signed-request-in-body
+      description: |
+        A documentation marker, **not** a real header — do not send it.
+
+        OpenAPI cannot express "the request body is the credential", which is how
+        `submit_intent`, `prepare_commitment`, `authorize_proposal` and `cancel_session`
+        authenticate: their body *is* a `SignedRequest`. The `requestBody` schema on those
+        operations is the authoritative statement.
 
   responses:
     BadRequest:
@@ -737,6 +1284,25 @@ components:
     NotFound:
       description: '`NOT_FOUND`.'
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    # >>> BEGIN generated coordination responses
+    CoordinationError:
+      description: "Error"
+      content:
+        "application/json":
+          schema:
+            "$ref": "#/components/schemas/CoordinationError"
+    # <<< END generated coordination responses
+
+  parameters:
+    # >>> BEGIN generated coordination parameters
+    CoordinationSessionId:
+      name: "session_id"
+      in: "path"
+      required: true
+      schema:
+        type: "string"
+        pattern: "^sess_[0-9a-f]{32}$"
+    # <<< END generated coordination parameters
 
   schemas:
     Error:
@@ -1020,6 +1586,964 @@ components:
         issued_at: { $ref: '#/components/schemas/Rfc3339Utc' }
         expires_at: { $ref: '#/components/schemas/Rfc3339Utc' }
         signature: { type: string, description: Base58 Ed25519 by the device key. }
+    # >>> BEGIN generated coordination schemas
+    CoordinationHealth:
+      type: "object"
+      required:
+        - "status"
+      properties:
+        status:
+          type: "string"
+          enum:
+            - "ok"
+    CoordinationVersion:
+      type: "object"
+      required:
+        - "contract_version"
+      properties:
+        contract_version:
+          type: "string"
+        gateway_version:
+          type: "string"
+    CoordinationError:
+      type: "object"
+      required:
+        - "code"
+        - "message"
+        - "retryable"
+      properties:
+        code:
+          type: "string"
+          enum:
+            - "schema_invalid"
+            - "signature_missing"
+            - "signature_invalid"
+            - "id_binding_failed"
+            - "stale_request"
+            - "not_authorized"
+            - "not_found"
+            - "invalid_state"
+            - "hash_mismatch"
+            - "rate_limited"
+            - "capability_unavailable"
+            - "verification_failed"
+            - "deadline_exceeded"
+            - "internal"
+        message:
+          type: "string"
+        retryable:
+          type: "boolean"
+          description: "Whether repeating the identical request could plausibly succeed later. A property of `code`, published in this contract — not a per-response judgement. True means the platform's state or load must change; false means your request must change."
+        retry_after_ms:
+          type:
+            - "integer"
+            - "null"
+          format: "int64"
+          description: "Minimum wait before retrying, in milliseconds. Present when `retryable` is true and waiting can help. Mirrored, rounded up to whole seconds, in the `Retry-After` header."
+      description: "The error body served by every failing endpoint.\n\n| code | HTTP | retryable | meaning |\n|---|---|---|---|\n| `schema_invalid` | 400 | no | the request did not match the published schema |\n| `hash_mismatch` | 400 | no | a hash binding did not hold (commitment vs proposal, or upload bytes vs signed digest) |\n| `signature_missing` | 401 | no | no signature where one was required |\n| `signature_invalid` | 401 | no | the signature did not verify over the canonical bytes |\n| `id_binding_failed` | 401 | no | the public key presented does not derive the DID claimed |\n| `stale_request` | 401 | no | timestamp outside the 300000 ms freshness window — re-sign, do not replay |\n| `not_authorized` | 403 | no | authenticated, but not entitled to this session or object |\n| `not_found` | 404 | no | no such object |\n| `invalid_state` | 409 | no | not legal from the object's current state |\n| `verification_failed` | 409 | no | the delivery ran and its evidence did not pass verification; the Receipt carries the reason |\n| `rate_limited` | 429 | **yes** | too many requests; obey `Retry-After` |\n| `capability_unavailable` | 503 | **yes** | well-formed, but no matching capability is available right now — check `GET /v1/capabilities` |\n| `deadline_exceeded` | 504 | **yes** | the work exceeded the Intent's deadline; retrying means a new Intent with a new deadline |\n| `internal` | 500 | **yes** | a platform failure, deliberately opaque |\n"
+    CoordinationObjectRef:
+      type: "object"
+      required:
+        - "object_ref"
+        - "digest"
+        - "size_bytes"
+      properties:
+        object_ref:
+          type: "string"
+          pattern: "^object://input/[0-9a-f]{64}$"
+          example: "object://input/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+          description: "Names the uploaded bytes in an Intent's `input_refs`. Always an `object://` reference; a client that validates references will reject any other scheme."
+        digest:
+          "$ref": "#/components/schemas/CoordinationContentHash"
+        size_bytes:
+          type: "integer"
+          format: "int64"
+    CoordinationRuntimeRef:
+      type: "object"
+      required:
+        - "runtime_digest"
+        - "size_bytes"
+      properties:
+        runtime_digest:
+          "$ref": "#/components/schemas/CoordinationContentHash"
+          description: "Digest of the registered package. Name it in an Intent's `input_refs` as `runtime://<digest>`. Deliberately a different scheme from `object://`: a runtime is code the platform executes, an object is data it moves, and naming them alike would let an Intent point one at the other."
+        size_bytes:
+          type: "integer"
+          format: "int64"
+    CoordinationContentHash:
+      type: "string"
+      pattern: "^[0-9a-f]{64}$"
+      description: "Lowercase hex SHA-256."
+    CoordinationOperation:
+      type: "string"
+      enum:
+        - "submit_intent"
+        - "get_proposal"
+        - "prepare_commitment"
+        - "get_commitment"
+        - "authorize_proposal"
+        - "cancel_session"
+        - "get_session_status"
+        - "get_result"
+        - "get_receipt"
+        - "get_events"
+        - "put_object"
+        - "get_object"
+        - "put_runtime"
+        - "get_capabilities"
+    CoordinationSignedRequest:
+      type: "object"
+      description: "The signed envelope. `signature` is a hex Ed25519 signature over the canonical encoding of every other field. `actor_public_key` is only *claimed* until id-binding proves it derives `actor_did` — the gateway checks binding before it checks the signature, because a valid signature under a foreign DID would otherwise authenticate as that DID."
+      required:
+        - "operation"
+        - "request_id"
+        - "idempotency_key"
+        - "actor_did"
+        - "actor_public_key"
+        - "nonce"
+        - "timestamp_ms"
+        - "payload"
+        - "signature"
+      properties:
+        operation:
+          "$ref": "#/components/schemas/CoordinationOperation"
+        request_id:
+          type: "string"
+        idempotency_key:
+          type: "string"
+          description: "Required for writes. One key means one effect."
+        actor_did:
+          type: "string"
+          pattern: "^did:svrp:[hadrns]:[0-9a-f]{8}([0-9a-f]{2})?$"
+        actor_public_key:
+          type: "string"
+          description: "Base58 Ed25519 public key."
+        nonce:
+          type: "string"
+          description: "Required for writes. Single-use per actor."
+        timestamp_ms:
+          type: "integer"
+          format: "int64"
+        payload:
+          type: "object"
+          description: "Operation-specific; signed verbatim."
+        signature:
+          type: "string"
+          pattern: "^[0-9a-f]{128}$"
+    CoordinationSecurityLevel:
+      type: "string"
+      enum:
+        - "STANDARD"
+        - "HIGH"
+        - "CRITICAL"
+    CoordinationVerificationStrength:
+      type: "string"
+      enum:
+        - "STANDARD"
+        - "INDEPENDENT"
+    CoordinationSessionState:
+      type: "string"
+      enum:
+        - "CREATED"
+        - "PROPOSING"
+        - "AWAITING_AUTHORIZATION"
+        - "COMMITTED"
+        - "PLANNING"
+        - "SCHEDULING"
+        - "EXECUTING"
+        - "RECOVERING"
+        - "VERIFYING"
+        - "SETTLING"
+        - "COMPLETED"
+        - "FAILED"
+        - "CANCELLED"
+        - "SAFE_FROZEN"
+    CoordinationReceiptOutcome:
+      type: "string"
+      enum:
+        - "COMPLETED"
+        - "FAILED"
+        - "CANCELLED"
+    CoordinationProviderRole:
+      type: "string"
+      enum:
+        - "PRIMARY"
+        - "STANDBY"
+        - "VERIFIER"
+    CoordinationCommitmentState:
+      type: "string"
+      enum:
+        - "DRAFT"
+        - "VALIDATING"
+        - "SIGNED"
+        - "ACTIVE"
+        - "FULFILLED"
+        - "REJECTED"
+        - "EXPIRED"
+        - "CANCELLED"
+        - "BREACHED"
+        - "DISPUTED"
+    CoordinationAuthorizationPolicy:
+      type: "object"
+      required:
+        - "auto_authorize_max_price"
+        - "auto_authorize_max_risk_bps"
+        - "allow_automatic_provider_switch"
+      properties:
+        auto_authorize_max_price:
+          type: "integer"
+          format: "int64"
+        auto_authorize_max_risk_bps:
+          type: "integer"
+        allow_automatic_provider_switch:
+          type: "boolean"
+    CoordinationRecoveryPolicy:
+      type: "object"
+      required:
+        - "max_retries_same_provider"
+        - "max_provider_switches"
+        - "heartbeat_timeout_ms"
+        - "recovery_deadline_ms"
+        - "resume_from_checkpoint"
+      properties:
+        max_retries_same_provider:
+          type: "integer"
+        max_provider_switches:
+          type: "integer"
+        heartbeat_timeout_ms:
+          type: "integer"
+          format: "int64"
+        recovery_deadline_ms:
+          type: "integer"
+          format: "int64"
+        resume_from_checkpoint:
+          type: "boolean"
+    CoordinationPolicySnapshot:
+      type: "object"
+      required:
+        - "policy_version"
+        - "budget_limit"
+        - "min_security_level"
+        - "verification_strength"
+        - "allowed_regions"
+        - "excluded_providers"
+        - "max_risk_bps"
+        - "min_stake"
+        - "authorization"
+        - "recovery"
+        - "request_freshness_window_ms"
+        - "proposal_validity_ms"
+        - "require_signed_snapshots"
+        - "trusted_snapshot_issuers"
+        - "snapshot_freshness_window_ms"
+        - "require_recovery_capability"
+        - "preferred_region"
+        - "max_domain_share_bps"
+      properties:
+        policy_version:
+          type: "integer"
+        budget_limit:
+          type: "integer"
+          format: "int64"
+        min_security_level:
+          "$ref": "#/components/schemas/CoordinationSecurityLevel"
+        verification_strength:
+          "$ref": "#/components/schemas/CoordinationVerificationStrength"
+        allowed_regions:
+          type: "array"
+          items:
+            type: "string"
+        excluded_providers:
+          type: "array"
+          items:
+            type: "string"
+        max_risk_bps:
+          type: "integer"
+        min_stake:
+          type: "integer"
+          format: "int64"
+        authorization:
+          "$ref": "#/components/schemas/CoordinationAuthorizationPolicy"
+        recovery:
+          "$ref": "#/components/schemas/CoordinationRecoveryPolicy"
+        request_freshness_window_ms:
+          type: "integer"
+          format: "int64"
+        proposal_validity_ms:
+          type: "integer"
+          format: "int64"
+        require_signed_snapshots:
+          type: "boolean"
+          description: "Must every Scheduler scoring input arrive as a verified, signed snapshot (PLANNER-001 §11.3)? Defaults to true."
+          default: true
+        trusted_snapshot_issuers:
+          type: "array"
+          items:
+            type: "string"
+          description: "DIDs authorized to issue snapshot readings. Empty means nobody — deny-by-default, and every task is then UNSCHEDULABLE. List the coordinator DID that the gateway logs at startup."
+        snapshot_freshness_window_ms:
+          type: "integer"
+          format: "int64"
+          description: "How old a signed reading may be before it is refused."
+        require_recovery_capability:
+          type: "boolean"
+          description: "Must a candidate support the checkpoint resume the Plan requires (PLANNER-001 §6.1)?"
+          default: true
+        preferred_region:
+          type:
+            - "string"
+            - "null"
+          description: "Preferred region for the scoring Locality term. Null means locality decides nothing. This is a preference, not the allowed_regions gate."
+        max_domain_share_bps:
+          type: "integer"
+          format: "int32"
+          description: "Maximum share, in basis points, of one Assignment's slots (primary + standbys) that a single provider or failure domain may occupy (PLANNER-001 §6.2)."
+    CoordinationCapabilityRequirement:
+      type: "object"
+      required:
+        - "capability_type"
+        - "interface_version"
+        - "capacity"
+      properties:
+        capability_type:
+          type: "string"
+        interface_version:
+          type: "string"
+        capacity:
+          type: "integer"
+          format: "int64"
+    CoordinationIntent:
+      type: "object"
+      description: "Signed. Its canonical bytes must match the platform's exactly."
+      required:
+        - "intent_id"
+        - "intent_version"
+        - "requester_did"
+        - "goal"
+        - "expected_result"
+        - "input_refs"
+        - "capability_requirement"
+        - "budget_limit"
+        - "deadline_ms"
+        - "policy"
+        - "created_at_ms"
+      properties:
+        intent_id:
+          type: "string"
+          description: "Derived from content."
+        intent_version:
+          type: "integer"
+        requester_did:
+          type: "string"
+        goal:
+          type: "string"
+        expected_result:
+          type: "string"
+        input_refs:
+          type: "array"
+          items:
+            type: "string"
+        capability_requirement:
+          "$ref": "#/components/schemas/CoordinationCapabilityRequirement"
+        budget_limit:
+          type: "integer"
+          format: "int64"
+        deadline_ms:
+          type: "integer"
+          format: "int64"
+        policy:
+          "$ref": "#/components/schemas/CoordinationPolicySnapshot"
+        created_at_ms:
+          type: "integer"
+          format: "int64"
+    CoordinationCommitmentSignature:
+      type: "object"
+      required:
+        - "signer_did"
+        - "public_key"
+        - "signature"
+      properties:
+        signer_did:
+          type: "string"
+        public_key:
+          type: "string"
+        signature:
+          type: "string"
+    CoordinationCommitment:
+      type: "object"
+      description: "Signed by the requester. `signatures` and `state` are excluded from the signing bytes, so adding a signature or advancing the lifecycle does not invalidate signatures already made."
+      required:
+        - "commitment_id"
+        - "session_id"
+        - "proposal_id"
+        - "proposal_hash"
+        - "proposal_version"
+        - "intent_id"
+        - "intent_version"
+        - "commitment_version"
+        - "requester_did"
+        - "provider_set"
+        - "delivery_result"
+        - "agreed_price"
+        - "maximum_price"
+        - "deadline_ms"
+        - "security_requirements"
+        - "verification_requirements"
+        - "recovery_requirements"
+        - "refund_rule"
+        - "compensation_rule"
+        - "cancellation_rule"
+        - "dispute_rule"
+        - "policy_hash"
+        - "signatures"
+        - "state"
+        - "created_at_ms"
+        - "expires_at_ms"
+      properties:
+        commitment_id:
+          type: "string"
+        session_id:
+          type: "string"
+        proposal_id:
+          type: "string"
+        proposal_hash:
+          "$ref": "#/components/schemas/CoordinationContentHash"
+        proposal_version:
+          type: "integer"
+        intent_id:
+          type: "string"
+        intent_version:
+          type: "integer"
+        commitment_version:
+          type: "integer"
+        requester_did:
+          type: "string"
+        provider_set:
+          type: "array"
+          items:
+            type: "string"
+        delivery_result:
+          type: "string"
+        agreed_price:
+          type: "integer"
+          format: "int64"
+          description: "What it is expected to cost — not the ceiling."
+        maximum_price:
+          type: "integer"
+          format: "int64"
+          description: "Absolute ceiling. Settlement never exceeds it."
+        deadline_ms:
+          type: "integer"
+          format: "int64"
+        security_requirements:
+          "$ref": "#/components/schemas/CoordinationSecurityLevel"
+        verification_requirements:
+          "$ref": "#/components/schemas/CoordinationVerificationStrength"
+        recovery_requirements:
+          "$ref": "#/components/schemas/CoordinationRecoveryPolicy"
+        refund_rule:
+          type: "string"
+        compensation_rule:
+          type: "string"
+        cancellation_rule:
+          type: "string"
+        dispute_rule:
+          type: "string"
+        policy_hash:
+          "$ref": "#/components/schemas/CoordinationContentHash"
+        signatures:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CoordinationCommitmentSignature"
+        state:
+          "$ref": "#/components/schemas/CoordinationCommitmentState"
+        created_at_ms:
+          type: "integer"
+          format: "int64"
+        expires_at_ms:
+          type: "integer"
+          format: "int64"
+    CoordinationPrepareCommitmentRequest:
+      type: "object"
+      required:
+        - "proposal_id"
+        - "intent"
+      properties:
+        proposal_id:
+          type: "string"
+        intent:
+          "$ref": "#/components/schemas/CoordinationIntent"
+    CoordinationBundleMemberView:
+      type: "object"
+      required:
+        - "role"
+        - "provider_did"
+        - "region"
+        - "price"
+      properties:
+        role:
+          "$ref": "#/components/schemas/CoordinationProviderRole"
+        provider_did:
+          type: "string"
+        region:
+          type: "string"
+        price:
+          type: "integer"
+          format: "int64"
+    CoordinationProposalView:
+      type: "object"
+      required:
+        - "proposal_id"
+        - "session_id"
+        - "intent_id"
+        - "intent_version"
+        - "proposal_version"
+        - "bundle"
+        - "delivery_result"
+        - "estimated_price"
+        - "maximum_price"
+        - "estimated_completion_ms"
+        - "delivery_probability_bps"
+        - "security_level"
+        - "verification_strength"
+        - "risk_bps"
+        - "trust_bps"
+        - "recovery_strategy"
+        - "refund_rule"
+        - "compensation_rule"
+        - "selected_because"
+        - "authorization_required"
+        - "valid_until_ms"
+        - "created_at_ms"
+      properties:
+        proposal_id:
+          type: "string"
+        session_id:
+          type: "string"
+        intent_id:
+          type: "string"
+        intent_version:
+          type: "integer"
+        proposal_version:
+          type: "integer"
+        bundle:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CoordinationBundleMemberView"
+        delivery_result:
+          type: "string"
+        estimated_price:
+          type: "integer"
+          format: "int64"
+        maximum_price:
+          type: "integer"
+          format: "int64"
+        estimated_completion_ms:
+          type: "integer"
+          format: "int64"
+        delivery_probability_bps:
+          type: "integer"
+          description: "Basis points. An integer because a float would break the hash it feeds."
+        security_level:
+          "$ref": "#/components/schemas/CoordinationSecurityLevel"
+        verification_strength:
+          "$ref": "#/components/schemas/CoordinationVerificationStrength"
+        risk_bps:
+          type: "integer"
+        trust_bps:
+          type: "integer"
+        recovery_strategy:
+          type: "string"
+        refund_rule:
+          type: "string"
+        compensation_rule:
+          type: "string"
+        selected_because:
+          type: "array"
+          items:
+            type: "string"
+        authorization_required:
+          type: "boolean"
+          description: "Per proposal, so a client never has to re-implement authorization policy."
+        valid_until_ms:
+          type: "integer"
+          format: "int64"
+        created_at_ms:
+          type: "integer"
+          format: "int64"
+    CoordinationLeaseRefView:
+      type: "object"
+      required:
+        - "lease_id"
+        - "task_id"
+        - "provider_did"
+        - "epoch"
+        - "fencing_token"
+        - "granted_at_ms"
+        - "expires_at_ms"
+      properties:
+        lease_id:
+          type: "string"
+        task_id:
+          type: "string"
+        provider_did:
+          type: "string"
+        epoch:
+          type: "integer"
+          format: "int64"
+          description: "Monotonic per task. A higher epoch kills every lower one."
+        fencing_token:
+          type: "integer"
+          format: "int64"
+          description: "Monotonic. An old token is permanently refused."
+        granted_at_ms:
+          type: "integer"
+          format: "int64"
+        expires_at_ms:
+          type: "integer"
+          format: "int64"
+    CoordinationEvidenceRefView:
+      type: "object"
+      required:
+        - "evidence_id"
+        - "task_id"
+        - "provider_did"
+        - "output_digest"
+        - "evidence_hash"
+        - "submitted_at_ms"
+      properties:
+        evidence_id:
+          type: "string"
+        task_id:
+          type: "string"
+        provider_did:
+          type: "string"
+        output_digest:
+          "$ref": "#/components/schemas/CoordinationContentHash"
+        evidence_hash:
+          "$ref": "#/components/schemas/CoordinationContentHash"
+        submitted_at_ms:
+          type: "integer"
+          format: "int64"
+        input_digest:
+          "$ref": "#/components/schemas/CoordinationContentHash"
+    CoordinationVerificationRefView:
+      type: "object"
+      required:
+        - "verification_id"
+        - "task_id"
+        - "evidence_id"
+        - "passed"
+        - "reason_code"
+        - "verifier_did"
+        - "decided_at_ms"
+      properties:
+        verification_id:
+          type: "string"
+        task_id:
+          type: "string"
+        evidence_id:
+          type: "string"
+        passed:
+          type: "boolean"
+        reason_code:
+          type: "string"
+        verifier_did:
+          type: "string"
+        decided_at_ms:
+          type: "integer"
+          format: "int64"
+    CoordinationSettlementRefView:
+      type: "object"
+      required:
+        - "settlement_id"
+        - "settlement_key"
+        - "amount"
+        - "payer_did"
+        - "payee_did"
+        - "completed_at_ms"
+      properties:
+        settlement_id:
+          type: "string"
+        settlement_key:
+          type: "string"
+        amount:
+          type: "integer"
+          format: "int64"
+        payer_did:
+          type: "string"
+        payee_did:
+          type: "string"
+        completed_at_ms:
+          type: "integer"
+          format: "int64"
+    CoordinationReceiptView:
+      type: "object"
+      required:
+        - "receipt_id"
+        - "session_id"
+        - "outcome"
+        - "verifications"
+        - "evidence_hashes"
+        - "deliverable"
+        - "cost"
+        - "duration_ms"
+        - "provider_summary"
+        - "completed_at_ms"
+      properties:
+        receipt_id:
+          type: "string"
+        session_id:
+          type: "string"
+        commitment_id:
+          type: "string"
+        outcome:
+          "$ref": "#/components/schemas/CoordinationReceiptOutcome"
+        settlement:
+          "$ref": "#/components/schemas/CoordinationSettlementRefView"
+        verifications:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CoordinationVerificationRefView"
+        evidence_hashes:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CoordinationContentHash"
+        deliverable:
+          type: "string"
+        cost:
+          type: "integer"
+          format: "int64"
+        duration_ms:
+          type: "integer"
+          format: "int64"
+        provider_summary:
+          type: "array"
+          items:
+            type: "string"
+        failure_reason:
+          type: "string"
+        completed_at_ms:
+          type: "integer"
+          format: "int64"
+    CoordinationSessionStatusView:
+      type: "object"
+      required:
+        - "session_id"
+        - "state"
+        - "intent_id"
+        - "updated_at_ms"
+      properties:
+        session_id:
+          type: "string"
+        state:
+          "$ref": "#/components/schemas/CoordinationSessionState"
+        intent_id:
+          type: "string"
+        commitment_id:
+          type: "string"
+        active_proposal_id:
+          type: "string"
+        lease:
+          "$ref": "#/components/schemas/CoordinationLeaseRefView"
+        updated_at_ms:
+          type: "integer"
+          format: "int64"
+    CoordinationResultView:
+      type: "object"
+      required:
+        - "session_id"
+        - "state"
+        - "evidence"
+        - "verifications"
+      properties:
+        session_id:
+          type: "string"
+        state:
+          "$ref": "#/components/schemas/CoordinationSessionState"
+        output_ref:
+          type: "string"
+        output_digest:
+          "$ref": "#/components/schemas/CoordinationContentHash"
+        evidence:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CoordinationEvidenceRefView"
+        verifications:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CoordinationVerificationRefView"
+    CoordinationSubmitIntentResponse:
+      type: "object"
+      required:
+        - "session_id"
+        - "intent_id"
+        - "state"
+        - "duplicate"
+      properties:
+        session_id:
+          type: "string"
+        intent_id:
+          type: "string"
+        state:
+          "$ref": "#/components/schemas/CoordinationSessionState"
+        duplicate:
+          type: "boolean"
+          description: "True when this exact Intent was already submitted. Still a success."
+    CoordinationGetProposalResponse:
+      type: "object"
+      required:
+        - "recommended"
+        - "alternatives"
+      properties:
+        recommended:
+          "$ref": "#/components/schemas/CoordinationProposalView"
+        alternatives:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CoordinationProposalView"
+    CoordinationAuthorizeProposalResponse:
+      type: "object"
+      required:
+        - "session_id"
+        - "commitment_id"
+        - "state"
+      properties:
+        session_id:
+          type: "string"
+        commitment_id:
+          type: "string"
+        state:
+          "$ref": "#/components/schemas/CoordinationSessionState"
+    CoordinationSessionReadPayload:
+      type: "object"
+      required:
+        - "session_id"
+      description: "Payload of every session-scoped read. `session_id` must equal the one in the URL: without that binding one captured read envelope would authorize reading every session the actor could name, for the rest of its freshness window."
+      properties:
+        session_id:
+          type: "string"
+          pattern: "^sess_[0-9a-f]{32}$"
+    CoordinationPrepareCommitmentPayload:
+      type: "object"
+      required:
+        - "session_id"
+        - "proposal_id"
+      description: "Payload of `prepare_commitment`. Replaces the unsigned `{proposal_id}` body used before contract 3.0.0."
+      properties:
+        session_id:
+          type: "string"
+          pattern: "^sess_[0-9a-f]{32}$"
+        proposal_id:
+          type: "string"
+    CoordinationUploadPayload:
+      type: "object"
+      required:
+        - "content_digest"
+      description: "Payload of `put_object` and `put_runtime`. The uploaded bytes are the request body, not part of the envelope — a copy in a header would double every upload and cap it at a header's size. The signature covers this digest instead, and the platform refuses the upload if the body does not hash to it, so a captured upload envelope cannot be reused to store different bytes under the original signer's name."
+      properties:
+        content_digest:
+          type: "string"
+          pattern: "^[0-9a-f]{64}$"
+          description: "Lowercase hex SHA-256 of the raw request body."
+    CoordinationObjectReadPayload:
+      type: "object"
+      required:
+        - "object_id"
+      description: "Payload of `get_object`. Must equal the `object_id` in the URL."
+      properties:
+        object_id:
+          type: "string"
+    CoordinationGetCapabilitiesPayload:
+      type: "object"
+      description: "Payload of `get_capabilities`. Empty today; an object rather than a scalar so filters can be added without changing its JSON shape."
+      properties: {}
+    CoordinationCapabilityDescriptor:
+      type: "object"
+      required:
+        - "capability_type"
+        - "interface_version"
+        - "description"
+        - "capacity_unit"
+        - "providers_known"
+        - "providers_available"
+        - "regions"
+      description: "One capability the platform will accept an Intent for."
+      properties:
+        capability_type:
+          type: "string"
+          description: "The exact string to put in `CapabilityRequirement.capability_type`."
+        interface_version:
+          type: "string"
+          description: "The exact string to put in `CapabilityRequirement.interface_version`."
+        description:
+          type: "string"
+        capacity_unit:
+          type: "string"
+          description: "The unit `CapabilityRequirement.capacity` is counted in, e.g. `vcpu`. Named because the number is meaningless without it."
+        providers_known:
+          type: "integer"
+          description: "Providers this coordinator knows of that advertise this capability. A count, not a roster: which providers exist is not a requester's business."
+        providers_available:
+          type: "integer"
+          description: "How many answered a liveness probe when this catalogue was assembled. Measured, not configured. Zero is a real answer and means an Intent for this capability is not schedulable right now."
+        regions:
+          type: "array"
+          items:
+            type: "string"
+          description: "Regions those providers are in. Feeds `PolicySnapshot.allowed_regions` and `preferred_region`, which are otherwise unguessable."
+        unit_price_min:
+          type:
+            - "integer"
+            - "null"
+          format: "int64"
+        unit_price_max:
+          type:
+            - "integer"
+            - "null"
+          format: "int64"
+          description: "Advertised unit price range, in the same integer unit as `budget_limit`. Absent — not zero — when no provider is known; a range of zero would read as 'free'."
+    CoordinationGetCapabilitiesResponse:
+      type: "object"
+      required:
+        - "capabilities"
+        - "snapshot_issuer_did"
+        - "observed_at_ms"
+      properties:
+        capabilities:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/CoordinationCapabilityDescriptor"
+        snapshot_issuer_did:
+          type: "string"
+          description: "The DID you must list in `PolicySnapshot.trusted_snapshot_issuers`. Read this before submitting anything: the default policy is deny-by-default — `trusted_snapshot_issuers` is empty, empty means nobody, and an Intent that trusts no issuer is UNSCHEDULABLE on every task with nothing in the response explaining why. Before contract 3.0.0 this value was only printed to the coordinator's stdout at startup."
+        observed_at_ms:
+          type: "integer"
+          format: "int64"
+          description: "When this catalogue was assembled. It is a snapshot of a live fleet, not a static list."
+    CoordinationSessionEventsResponse:
+      type: "object"
+      required:
+        - "session_id"
+        - "events"
+        - "stream"
+        - "poll_after_ms"
+      description: "A snapshot of a session's observable state. **This is polling, not a push stream** — see `stream`."
+      properties:
+        session_id:
+          type: "string"
+        events:
+          type: "array"
+          items:
+            type: "object"
+          description: "Currently exactly one `session_status` event carrying the same projection `GET /v1/sessions/{session_id}` serves."
+        stream:
+          type: "boolean"
+          description: "Always `false` in contract 3.0.0. Stated in the body, not only in prose, so a client that only reads JSON does not have to consult documentation to learn this is a snapshot rather than a subscription."
+        poll_after_ms:
+          type: "integer"
+          description: "Suggested interval before polling again. 300 ms today."
+    # <<< END generated coordination schemas
 
 security:
   - operatorSession: []

@@ -1,0 +1,2025 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "LibertyNet Public Coordination API",
+    "version": "3.0.0",
+    "description": "The public boundary of the LibertyNet platform. Third-party applications use only this API; platform internals are not exposed and are not part of any compatibility promise.\n\n## Authentication\n\nAuthentication is **per request**, not per connection. Every call under `/v1` — reads included — carries a signed envelope naming the actor. TLS proves you are talking to the gateway; the envelope proves who is talking to it.\n\nA call with a JSON body of its own (`submit_intent`, `authorize_proposal`, `cancel_session`, `prepare_commitment`) sends the envelope **as** that body. Everything else — every `GET`, and the two byte-upload endpoints — sends it in the `x-ln-signed-request` header, base64url encoded without padding.\n\nThere is deliberately no query-parameter form. A signed envelope is a credential, and query strings end up in access logs, browser history, `Referer` headers and proxy caches.\n\nReads were unauthenticated before contract 3.0.0. That was a disclosure vulnerability, not a convenience: `session_id` is derived from content (see **Derived identifiers**), so it is a value an outsider can compute rather than a secret they must be told, and computing it was enough to read another party's settlement figures and uploaded input.\n\nEvery session-scoped read binds the signed `session_id` to the one in the URL. A captured read envelope is therefore useful only for the single session it was minted for.\n\n## Canonical encoding\n\nEverything that is signed or hashed is encoded as **canonical JSON**. These five rules are the whole specification; an implementation in any language that follows them will interoperate.\n\n1. Convert the value to JSON.\n2. Sort object keys ascending by **Unicode code point** — not by locale, not by insertion order. Sort explicitly rather than relying on your JSON library's map ordering.\n3. No insignificant whitespace: no space after `:` or `,`, no newlines, no indentation.\n4. **Integers only.** A floating-point number is rejected with an error, never rounded and never silently accepted. This is load-bearing: `0.1` has no exact binary representation, so serializing and reparsing it can change the bit pattern, which changes the hash, which invalidates a signature that was perfectly good. Every numeric field in a signed object is an integer with an explicit unit — money in whole micro-units, probabilities in basis points, time in milliseconds.\n5. Strings: escape `\"` and `\\`; use the short forms `\\n` `\\r` `\\t` `\\b` `\\f`; escape any other character below U+0020 as `\\u00XX` (lowercase hex). Emit non-ASCII literally as UTF-8 — do **not** `\\u`-escape it.\n\nWorked example: `{\"b\":1,\"a\":2,\"C\":3,\"\\u00e9\":4}` canonicalizes to `{\"C\":3,\"a\":2,\"b\":1,\"é\":4}`.\n\n## What a signature covers\n\n`SignedRequest.signature` is a hex Ed25519 signature over the canonical encoding of an object containing exactly these eight fields, and no others:\n\n`operation`, `request_id`, `idempotency_key`, `actor_did`, `actor_public_key`, `nonce`, `timestamp_ms`, `payload`.\n\n`signature` itself is excluded (a signature cannot cover itself). Because keys are sorted, the bytes you sign begin `{\"actor_did\":`.\n\n`payload` is signed **verbatim**, as the exact JSON value you supply. Do not re-encode it between signing and sending: a reordered key or a dropped null silently invalidates a valid signature.\n\n`Commitment.signing_bytes` is the canonical encoding of the whole Commitment with `signatures` emptied and `state` normalized to `DRAFT` — the parties commit to terms, not to a position in a lifecycle, so a state transition must not invalidate a signature.\n\n## Derived identifiers\n\nIdentifiers are derived from content, not generated randomly. That is what makes resubmitting an identical Intent a natural no-op instead of a special case.\n\nThe rule is: `\"<prefix>_\" || HEX(SHA256(parts joined by U+001F))[0..32]`.\n\nThe join character is **U+001F**, the ASCII unit separator, chosen because it cannot occur inside any of the parts — so no combination of field values can be made to collide with a different combination by embedding the separator. The digest is lowercase hex and only its first 32 characters are used.\n\n| Identifier | Prefix | Parts, in order |\n|---|---|---|\n| `intent_id` | `intent` | `requester_did`, `goal`, `expected_result`, `intent_version`, `budget_limit`, `deadline_ms` |\n| `session_id` | `sess` | `requester_did`, `intent_id`, `intent_version` |\n\nInteger parts are rendered in base 10 with no padding or separators. All six Intent parts matter: leaving `budget_limit` or `deadline_ms` out is not cosmetic — a client that derived from fewer parts would compute a different id, fail to be recognised as a duplicate on resubmission, and open (and be billed for) a second session.\n\nWorked example. For `requester_did = did:svrp:a:1234abcd`, `goal = deduplicate one csv`, `expected_result = sorted unique rows`, `intent_version = 1`, `budget_limit = 100`, `deadline_ms = 2000000`, the string that is hashed is:\n\n`did:svrp:a:1234abcd\\u001Fdeduplicate one csv\\u001Fsorted unique rows\\u001F1\\u001F100\\u001F2000000`\n\ngiving `intent_id = intent_5d5730ced7f77cbcd150cd0792194505`. Feeding that back in as `[requester_did, intent_id, \"1\"]` gives `session_id = sess_aad01fd6bfdd097ffcfa6ef8446497ec`.\n\nBoth values are in `conformance-vectors.json`, alongside a pair of cases pinning that the separator is not forgeable (`[\"ab\",\"c\"]` and `[\"a\",\"bc\"]` must not collide). Those vectors are produced by a separate implementation written from this specification, not by calling the platform's code — a generator that called into the implementation would only ever prove the implementation agrees with itself. Check your client against them before your first live request.\n\n**These identifiers are public values, not credentials.** Anyone who can guess the inputs can compute them. Nothing in this API treats knowledge of an id as evidence of entitlement to it.\n\n## Object identifiers\n\n`POST /v1/objects` returns `object://input/<digest>` where `<digest>` is the lowercase hex SHA-256 of the bytes you uploaded — the raw bytes, not their canonical JSON. `object_id` in `GET /v1/objects/{object_id}` is that digest. It is content-addressed, so anyone holding the same bytes computes the same id; access is decided by who uploaded it, not by who can name it.\n\nThe order matters: **upload the object first, then build the Intent that references it.** The reference is minted by the platform, not chosen by you. An Intent naming an object that was never uploaded is refused at submit.\n\n## evidence_hash — read this before trying to verify one\n\n`evidence_hash` is a SHA-256 over the evidence document produced by the execution. **It is not independently verifiable through this API today**, for two reasons, both stated here rather than left to be discovered:\n\n1. **The document is not served.** No endpoint returns the bytes the hash is taken over, so there is nothing for a third party to hash. Treat `evidence_hash` as an opaque, stable identifier you can store and compare, not as something you can recompute.\n2. **There are two rules, not one, depending on which execution path ran.** They are published separately below because merging them into a single formula would be a fiction:\n\n   * **Real provider fleet** (the path a deployed coordinator uses): `SHA256(task_result_json)` — the exact JSON bytes the provider node returned, hashed as received, *not* canonicalized.\n   * **In-process runtime** (used in local and test deployments): `SHA256(serde_json_encoding_of_the_evidence_struct)` — an ordinary, non-canonical JSON encoding. It is not canonical because the evidence carries a floating-point field (`avg_rtt_ms`) and canonical JSON rejects every float by design.\n\nWhich path produced a given Receipt is not currently distinguishable from the response. Independent re-derivation of `evidence_hash` is therefore **NOT PROVIDED** in contract 3.0.0.\n\n## Retry\n\nEvery error response carries `retryable` (boolean) and, when applicable, `retry_after_ms`, plus the `Retry-After` and `x-ln-retryable` headers. Whether a code is retryable is a property of the code, published in this contract, not a per-response decision by the gateway.\n\nThe split is by *whose* state must change for a retry to succeed. Retryable means the platform's state or load must change; not-retryable means your request must change, and re-sending it unmodified will fail identically forever.\n\n`stale_request` is **not** retryable: the remedy is to re-sign with a fresh timestamp, which is a different request. Replaying the identical expired envelope is exactly what the freshness window exists to refuse.\n\nRetries must be bounded. Back off exponentially from `retry_after_ms` and stop at a budget; this API does not promise to absorb an unbounded retry loop, and the rate limiter will refuse one.\n\n## Rate limiting\n\nTwo token buckets, and a request must pass both: one per `actor_did`, one per client address. Both are needed because identity here is free to mint — a DID is self-certifying, so a per-identity limit alone bounds nobody willing to generate a keypair per request. Exceeding either returns `rate_limited` (429) with `Retry-After`.\n\nThis is abuse resistance at the application edge. It is **not** DDoS protection and is not a substitute for a network-layer defence in front of the gateway.\n\n## Versioning and compatibility\n\n`info.version` is the **wire contract** version, served at `GET /version` as `contract_version`. It is independent of the gateway build, served alongside it as `gateway_version`; a gateway may be redeployed many times without the contract version changing.\n\nThe URL prefix `/v1` is a **path namespace, not a version number**, and it does not track `contract_version`. It has not changed across 1.0.0 → 2.0.0 → 3.0.0 and will only change if two contract majors ever need to be served side by side. Do not infer compatibility from the path; read `GET /version`.\n\n**Compatibility rules, by object kind:**\n\n* *Signed objects* (`Intent`, `Commitment`, `SignedRequest`) must be byte-stable. Adding a field to one is always a **major** change, because the requester's signature covers its canonical bytes. `default`-ing a missing field does not rescue an old client: the platform would fill the field, recompute the canonical bytes *with* it, and the recomputation would no longer match what was signed.\n* *Response views* (`*View`, `*Response`) may gain fields in a **minor** release. Clients must ignore fields they do not recognize. Removing or retyping a field is major.\n* *Enumerations* (`Operation`, error `code`) may gain members in a **minor** release. Codes are strings, not numbers, precisely so an unknown one from a newer gateway is readable in a log. Treat an unrecognized error code as `internal` and an unrecognized `state` as non-terminal.\n\n**Deprecation policy.** A field or endpoint being withdrawn is first marked `deprecated: true` in this document, with `x-deprecated-since` (the contract version that marked it) and `x-removal-earliest` (the earliest contract version that may remove it). Nothing is removed without having been marked in a released contract first. Announcements accompany the published document; this document is the authoritative record, so a client can detect a deprecation mechanically by diffing it rather than by reading prose.\n\n**3.0.0 is breaking.** Reads and three previously-open writes now require a signed envelope; `prepare_commitment` takes an envelope instead of a bare `{proposal_id}` body. A 2.0.0 client will receive `signature_missing` (401) from every read.\n\n**2.0.0 was breaking**, because `PolicySnapshot` gained six PLANNER-001 fields and the policy rides inside the signed Intent. Note for anyone who read the earlier rationale: a 1.0.0-shaped Intent submitted to a 2.0.0+ platform is rejected as `schema_invalid` naming the missing field, **not** as `signature_invalid` — the fields have no schema default, so deserialization fails before any signature is recomputed. Verified against a running gateway; see `docs/CONTRACT-VERSION-DRIFT.md`.\n\n## Capabilities not provided in 3.0.0\n\nStated explicitly, because a blank space reads as 'not documented yet' rather than 'does not exist':\n\n* **Push event streaming — NOT PROVIDED.** There is no SSE or WebSocket endpoint. `GET /v1/sessions/{session_id}/events` is a *polling* endpoint returning a snapshot; it says so in its own response body (`\"stream\": false`). Poll it, or `GET /v1/sessions/{id}`, at roughly `poll_after_ms`.\n* **Evidence documents — NOT PROVIDED.** See *evidence_hash* above. There is no `GET /v1/evidence/{id}`; evidence is referenced by digest inside `ResultView` and `ReceiptView` only.\n* **Independent verification of `evidence_hash` — NOT PROVIDED.** See above.\n* **Key custody and rotation — NOT PROVIDED.** DIDs are self-certifying and you hold your own key. This API offers no key registration, rotation, recovery or revocation. Losing the key means losing the identity and access to every session opened under it.\n* **Multi-version coexistence — NOT PROVIDED.** One contract major is served at a time.\n"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This gateway"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Liveness probe",
+        "operationId": "healthz",
+        "responses": {
+          "200": {
+            "description": "Gateway is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "summary": "Contract and build version",
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "description": "Version information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "This document",
+        "operationId": "openapi",
+        "responses": {
+          "200": {
+            "description": "The OpenAPI document"
+          }
+        }
+      }
+    },
+    "/v1/intents": {
+      "post": {
+        "summary": "Submit an Intent",
+        "description": "Opens a coordination session. Submitting an identical Intent twice is a no-op — the same session is returned with `duplicate: true` — because the Intent id is derived from its content.",
+        "operationId": "submit_intent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitIntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeBody": []
+          }
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/proposal": {
+      "get": {
+        "summary": "Get the recommended proposal and its alternatives",
+        "operationId": "get_proposal",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proposal set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetProposalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ],
+        "description": "**Changed in contract 3.0.0:** requires a signed `get_proposal` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      }
+    },
+    "/v1/sessions/{session_id}/commitment": {
+      "post": {
+        "summary": "Prepare the draft Commitment for signing",
+        "description": "Draft the Commitment the requester will be asked to sign.\n\n**Changed in contract 3.0.0:** this is a write and now requires a signed `prepare_commitment` envelope as the request body. It previously accepted a bare `{\"proposal_id\": \"...\"}` with no envelope, so anyone who could name a session could drive its commitment preparation.\n\nSign the returned Commitment's `signing_bytes` and pass the signature to `authorize_proposal`.",
+        "operationId": "prepare_commitment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignedRequest"
+              },
+              "example": {
+                "operation": "prepare_commitment",
+                "payload": {
+                  "session_id": "sess_00000000000000000000000000000000",
+                  "proposal_id": "prop_..."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft commitment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Commitment"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeBody": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "Get the session's Commitment, if one exists",
+        "operationId": "get_commitment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Commitment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Commitment"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ],
+        "description": "**Changed in contract 3.0.0:** requires a signed `get_commitment` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      }
+    },
+    "/v1/sessions/{session_id}/authorize": {
+      "post": {
+        "summary": "Authorize the proposal and start execution",
+        "description": "Activates the Commitment and hands the work to the coordination layer, which schedules it onto a real node. This call may take as long as the delivery does; poll `status` instead if you do not want to hold a connection open.",
+        "operationId": "authorize_proposal",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizeProposalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeBody": []
+          }
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}/cancel": {
+      "post": {
+        "summary": "Cancel the session",
+        "operationId": "cancel_session",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatusView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeBody": []
+          }
+        ]
+      }
+    },
+    "/v1/sessions/{session_id}": {
+      "get": {
+        "summary": "Session status",
+        "operationId": "get_session_status",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatusView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ],
+        "description": "**Changed in contract 3.0.0:** requires a signed `get_session_status` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      }
+    },
+    "/v1/sessions/{session_id}/result": {
+      "get": {
+        "summary": "Delivered result",
+        "operationId": "get_result",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ],
+        "description": "**Changed in contract 3.0.0:** requires a signed `get_result` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections."
+      }
+    },
+    "/v1/sessions/{session_id}/receipt": {
+      "get": {
+        "summary": "Final receipt",
+        "description": "Every terminal state produces a receipt, including failure and cancellation — a business that delivered nothing still needs an auditable record of why.\n\n**Changed in contract 3.0.0:** requires a signed `get_receipt` envelope in `x-ln-signed-request`, whose `payload.session_id` matches the URL. Only the session's requester may read it.\n\nThis read was unauthenticated before 3.0.0. Because `session_id` is derived from content, that was a disclosure vulnerability rather than an omission — see the *Authentication* and *Derived identifiers* sections.",
+        "operationId": "get_receipt",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/objects": {
+      "post": {
+        "summary": "Upload an input object",
+        "description": "Upload a object. The request body is the raw bytes.\n\n**Changed in contract 3.0.0:** requires a signed envelope in `x-ln-signed-request`. This was previously open to anyone — there was a 64 MB body limit and no identity, no quota and no rate limit.\n\nThe envelope's `payload.content_digest` must be the lowercase hex SHA-256 of the body. The upload is refused with `hash_mismatch` if it is not, which is what stops a captured upload envelope being replayed with different bytes under your name.\n\nUpload objects **before** submitting the Intent that references them: the `object://` reference is minted here, not chosen by you.\n\nYou may read back only what you uploaded.",
+        "operationId": "put_object",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectRef"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/objects/{object_id}": {
+      "get": {
+        "summary": "Download an object",
+        "operationId": "get_object",
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ],
+        "description": "Download an object you uploaded, or the output of a session you own.\n\n**Changed in contract 3.0.0:** requires a signed `get_object` envelope whose `payload.object_id` matches the URL. This endpoint was previously open, and because `object_id` is a content digest, anyone holding the same bytes — or simply handed the digest — could download them.\n\n`not_found` and `not_authorized` are distinct: a content-addressed store must not confirm to a stranger whether a digest exists."
+      }
+    },
+    "/v1/runtimes": {
+      "post": {
+        "summary": "Register an executable runtime package",
+        "description": "Upload a runtime package. The request body is the raw bytes.\n\n**Changed in contract 3.0.0:** requires a signed envelope in `x-ln-signed-request`. This was previously open to anyone — there was a 64 MB body limit and no identity, no quota and no rate limit.\n\nThe envelope's `payload.content_digest` must be the lowercase hex SHA-256 of the body. The upload is refused with `hash_mismatch` if it is not, which is what stops a captured upload envelope being replayed with different bytes under your name.\n\nYou may read back only what you uploaded.",
+        "operationId": "put_runtime",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/wasm": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeRef"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "summary": "Capability catalogue",
+        "description": "What `CapabilityRequirement.capability_type` and `interface_version` may be set to, and the DID a requester must trust for their Intents to be schedulable.\n\nCall this **before** building your first Intent. Both fields are required in a signed Intent and their accepted values previously existed only in a platform source constant; getting `capability_type` wrong did not fail at submit but later, at `get_proposal`, as 'no capability passed qualification' — which names neither the field nor the mistake.\n\n`providers_available` is measured by a liveness probe at request time, not read off a config file. Zero available with a non-zero `providers_known` is a real and useful answer.",
+        "operationId": "get_capabilities",
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catalogue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCapabilitiesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/events": {
+      "get": {
+        "summary": "Session events (polling snapshot — NOT a push stream)",
+        "description": "Returns a snapshot of the session's observable state as a one-element event list.\n\n**This is not a subscription.** There is no SSE and no WebSocket in this contract; the response says so itself via `stream: false`. Poll this, or `GET /v1/sessions/{session_id}`, at roughly `poll_after_ms`.\n\nIt exists in this shape so that the event surface is authenticated from its first day. If a real push stream is added later it will be a change to *how* events are delivered, not a new unauthenticated door — which is the mistake the read endpoints made before contract 3.0.0.",
+        "operationId": "get_events",
+        "security": [
+          {
+            "signedEnvelopeHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionEventsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "SessionId": {
+        "name": "session_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^sess_[0-9a-f]{32}$"
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "required": [
+          "contract_version"
+        ],
+        "properties": {
+          "contract_version": {
+            "type": "string"
+          },
+          "gateway_version": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "schema_invalid",
+              "signature_missing",
+              "signature_invalid",
+              "id_binding_failed",
+              "stale_request",
+              "not_authorized",
+              "not_found",
+              "invalid_state",
+              "hash_mismatch",
+              "rate_limited",
+              "capability_unavailable",
+              "verification_failed",
+              "deadline_exceeded",
+              "internal"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean",
+            "description": "Whether repeating the identical request could plausibly succeed later. A property of `code`, published in this contract — not a per-response judgement. True means the platform's state or load must change; false means your request must change."
+          },
+          "retry_after_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Minimum wait before retrying, in milliseconds. Present when `retryable` is true and waiting can help. Mirrored, rounded up to whole seconds, in the `Retry-After` header."
+          }
+        },
+        "description": "The error body served by every failing endpoint.\n\n| code | HTTP | retryable | meaning |\n|---|---|---|---|\n| `schema_invalid` | 400 | no | the request did not match the published schema |\n| `hash_mismatch` | 400 | no | a hash binding did not hold (commitment vs proposal, or upload bytes vs signed digest) |\n| `signature_missing` | 401 | no | no signature where one was required |\n| `signature_invalid` | 401 | no | the signature did not verify over the canonical bytes |\n| `id_binding_failed` | 401 | no | the public key presented does not derive the DID claimed |\n| `stale_request` | 401 | no | timestamp outside the 300000 ms freshness window — re-sign, do not replay |\n| `not_authorized` | 403 | no | authenticated, but not entitled to this session or object |\n| `not_found` | 404 | no | no such object |\n| `invalid_state` | 409 | no | not legal from the object's current state |\n| `verification_failed` | 409 | no | the delivery ran and its evidence did not pass verification; the Receipt carries the reason |\n| `rate_limited` | 429 | **yes** | too many requests; obey `Retry-After` |\n| `capability_unavailable` | 503 | **yes** | well-formed, but no matching capability is available right now — check `GET /v1/capabilities` |\n| `deadline_exceeded` | 504 | **yes** | the work exceeded the Intent's deadline; retrying means a new Intent with a new deadline |\n| `internal` | 500 | **yes** | a platform failure, deliberately opaque |\n"
+      },
+      "ObjectRef": {
+        "type": "object",
+        "required": [
+          "object_ref",
+          "digest",
+          "size_bytes"
+        ],
+        "properties": {
+          "object_ref": {
+            "type": "string",
+            "pattern": "^object://input/[0-9a-f]{64}$",
+            "example": "object://input/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+            "description": "Names the uploaded bytes in an Intent's `input_refs`. Always an `object://` reference; a client that validates references will reject any other scheme."
+          },
+          "digest": {
+            "$ref": "#/components/schemas/ContentHash"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RuntimeRef": {
+        "type": "object",
+        "required": [
+          "runtime_digest",
+          "size_bytes"
+        ],
+        "properties": {
+          "runtime_digest": {
+            "$ref": "#/components/schemas/ContentHash",
+            "description": "Digest of the registered package. Name it in an Intent's `input_refs` as `runtime://<digest>`. Deliberately a different scheme from `object://`: a runtime is code the platform executes, an object is data it moves, and naming them alike would let an Intent point one at the other."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ContentHash": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "Lowercase hex SHA-256."
+      },
+      "Operation": {
+        "type": "string",
+        "enum": [
+          "submit_intent",
+          "get_proposal",
+          "prepare_commitment",
+          "get_commitment",
+          "authorize_proposal",
+          "cancel_session",
+          "get_session_status",
+          "get_result",
+          "get_receipt",
+          "get_events",
+          "put_object",
+          "get_object",
+          "put_runtime",
+          "get_capabilities"
+        ]
+      },
+      "SignedRequest": {
+        "type": "object",
+        "description": "The signed envelope. `signature` is a hex Ed25519 signature over the canonical encoding of every other field. `actor_public_key` is only *claimed* until id-binding proves it derives `actor_did` — the gateway checks binding before it checks the signature, because a valid signature under a foreign DID would otherwise authenticate as that DID.",
+        "required": [
+          "operation",
+          "request_id",
+          "idempotency_key",
+          "actor_did",
+          "actor_public_key",
+          "nonce",
+          "timestamp_ms",
+          "payload",
+          "signature"
+        ],
+        "properties": {
+          "operation": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Required for writes. One key means one effect."
+          },
+          "actor_did": {
+            "type": "string",
+            "pattern": "^did:svrp:[hadrns]:[0-9a-f]{8}([0-9a-f]{2})?$"
+          },
+          "actor_public_key": {
+            "type": "string",
+            "description": "Base58 Ed25519 public key."
+          },
+          "nonce": {
+            "type": "string",
+            "description": "Required for writes. Single-use per actor."
+          },
+          "timestamp_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Operation-specific; signed verbatim."
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{128}$"
+          }
+        }
+      },
+      "SecurityLevel": {
+        "type": "string",
+        "enum": [
+          "STANDARD",
+          "HIGH",
+          "CRITICAL"
+        ]
+      },
+      "VerificationStrength": {
+        "type": "string",
+        "enum": [
+          "STANDARD",
+          "INDEPENDENT"
+        ]
+      },
+      "SessionState": {
+        "type": "string",
+        "enum": [
+          "CREATED",
+          "PROPOSING",
+          "AWAITING_AUTHORIZATION",
+          "COMMITTED",
+          "PLANNING",
+          "SCHEDULING",
+          "EXECUTING",
+          "RECOVERING",
+          "VERIFYING",
+          "SETTLING",
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED",
+          "SAFE_FROZEN"
+        ]
+      },
+      "ReceiptOutcome": {
+        "type": "string",
+        "enum": [
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED"
+        ]
+      },
+      "ProviderRole": {
+        "type": "string",
+        "enum": [
+          "PRIMARY",
+          "STANDBY",
+          "VERIFIER"
+        ]
+      },
+      "CommitmentState": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "VALIDATING",
+          "SIGNED",
+          "ACTIVE",
+          "FULFILLED",
+          "REJECTED",
+          "EXPIRED",
+          "CANCELLED",
+          "BREACHED",
+          "DISPUTED"
+        ]
+      },
+      "AuthorizationPolicy": {
+        "type": "object",
+        "required": [
+          "auto_authorize_max_price",
+          "auto_authorize_max_risk_bps",
+          "allow_automatic_provider_switch"
+        ],
+        "properties": {
+          "auto_authorize_max_price": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "auto_authorize_max_risk_bps": {
+            "type": "integer"
+          },
+          "allow_automatic_provider_switch": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RecoveryPolicy": {
+        "type": "object",
+        "required": [
+          "max_retries_same_provider",
+          "max_provider_switches",
+          "heartbeat_timeout_ms",
+          "recovery_deadline_ms",
+          "resume_from_checkpoint"
+        ],
+        "properties": {
+          "max_retries_same_provider": {
+            "type": "integer"
+          },
+          "max_provider_switches": {
+            "type": "integer"
+          },
+          "heartbeat_timeout_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recovery_deadline_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resume_from_checkpoint": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PolicySnapshot": {
+        "type": "object",
+        "required": [
+          "policy_version",
+          "budget_limit",
+          "min_security_level",
+          "verification_strength",
+          "allowed_regions",
+          "excluded_providers",
+          "max_risk_bps",
+          "min_stake",
+          "authorization",
+          "recovery",
+          "request_freshness_window_ms",
+          "proposal_validity_ms",
+          "require_signed_snapshots",
+          "trusted_snapshot_issuers",
+          "snapshot_freshness_window_ms",
+          "require_recovery_capability",
+          "preferred_region",
+          "max_domain_share_bps"
+        ],
+        "properties": {
+          "policy_version": {
+            "type": "integer"
+          },
+          "budget_limit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "min_security_level": {
+            "$ref": "#/components/schemas/SecurityLevel"
+          },
+          "verification_strength": {
+            "$ref": "#/components/schemas/VerificationStrength"
+          },
+          "allowed_regions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "excluded_providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "max_risk_bps": {
+            "type": "integer"
+          },
+          "min_stake": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "authorization": {
+            "$ref": "#/components/schemas/AuthorizationPolicy"
+          },
+          "recovery": {
+            "$ref": "#/components/schemas/RecoveryPolicy"
+          },
+          "request_freshness_window_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "proposal_validity_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "require_signed_snapshots": {
+            "type": "boolean",
+            "description": "Must every Scheduler scoring input arrive as a verified, signed snapshot (PLANNER-001 §11.3)? Defaults to true.",
+            "default": true
+          },
+          "trusted_snapshot_issuers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "DIDs authorized to issue snapshot readings. Empty means nobody — deny-by-default, and every task is then UNSCHEDULABLE. List the coordinator DID that the gateway logs at startup."
+          },
+          "snapshot_freshness_window_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How old a signed reading may be before it is refused."
+          },
+          "require_recovery_capability": {
+            "type": "boolean",
+            "description": "Must a candidate support the checkpoint resume the Plan requires (PLANNER-001 §6.1)?",
+            "default": true
+          },
+          "preferred_region": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Preferred region for the scoring Locality term. Null means locality decides nothing. This is a preference, not the allowed_regions gate."
+          },
+          "max_domain_share_bps": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum share, in basis points, of one Assignment's slots (primary + standbys) that a single provider or failure domain may occupy (PLANNER-001 §6.2)."
+          }
+        }
+      },
+      "CapabilityRequirement": {
+        "type": "object",
+        "required": [
+          "capability_type",
+          "interface_version",
+          "capacity"
+        ],
+        "properties": {
+          "capability_type": {
+            "type": "string"
+          },
+          "interface_version": {
+            "type": "string"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Intent": {
+        "type": "object",
+        "description": "Signed. Its canonical bytes must match the platform's exactly.",
+        "required": [
+          "intent_id",
+          "intent_version",
+          "requester_did",
+          "goal",
+          "expected_result",
+          "input_refs",
+          "capability_requirement",
+          "budget_limit",
+          "deadline_ms",
+          "policy",
+          "created_at_ms"
+        ],
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "description": "Derived from content."
+          },
+          "intent_version": {
+            "type": "integer"
+          },
+          "requester_did": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "expected_result": {
+            "type": "string"
+          },
+          "input_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capability_requirement": {
+            "$ref": "#/components/schemas/CapabilityRequirement"
+          },
+          "budget_limit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deadline_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicySnapshot"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CommitmentSignature": {
+        "type": "object",
+        "required": [
+          "signer_did",
+          "public_key",
+          "signature"
+        ],
+        "properties": {
+          "signer_did": {
+            "type": "string"
+          },
+          "public_key": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          }
+        }
+      },
+      "Commitment": {
+        "type": "object",
+        "description": "Signed by the requester. `signatures` and `state` are excluded from the signing bytes, so adding a signature or advancing the lifecycle does not invalidate signatures already made.",
+        "required": [
+          "commitment_id",
+          "session_id",
+          "proposal_id",
+          "proposal_hash",
+          "proposal_version",
+          "intent_id",
+          "intent_version",
+          "commitment_version",
+          "requester_did",
+          "provider_set",
+          "delivery_result",
+          "agreed_price",
+          "maximum_price",
+          "deadline_ms",
+          "security_requirements",
+          "verification_requirements",
+          "recovery_requirements",
+          "refund_rule",
+          "compensation_rule",
+          "cancellation_rule",
+          "dispute_rule",
+          "policy_hash",
+          "signatures",
+          "state",
+          "created_at_ms",
+          "expires_at_ms"
+        ],
+        "properties": {
+          "commitment_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "proposal_id": {
+            "type": "string"
+          },
+          "proposal_hash": {
+            "$ref": "#/components/schemas/ContentHash"
+          },
+          "proposal_version": {
+            "type": "integer"
+          },
+          "intent_id": {
+            "type": "string"
+          },
+          "intent_version": {
+            "type": "integer"
+          },
+          "commitment_version": {
+            "type": "integer"
+          },
+          "requester_did": {
+            "type": "string"
+          },
+          "provider_set": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "delivery_result": {
+            "type": "string"
+          },
+          "agreed_price": {
+            "type": "integer",
+            "format": "int64",
+            "description": "What it is expected to cost — not the ceiling."
+          },
+          "maximum_price": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Absolute ceiling. Settlement never exceeds it."
+          },
+          "deadline_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "security_requirements": {
+            "$ref": "#/components/schemas/SecurityLevel"
+          },
+          "verification_requirements": {
+            "$ref": "#/components/schemas/VerificationStrength"
+          },
+          "recovery_requirements": {
+            "$ref": "#/components/schemas/RecoveryPolicy"
+          },
+          "refund_rule": {
+            "type": "string"
+          },
+          "compensation_rule": {
+            "type": "string"
+          },
+          "cancellation_rule": {
+            "type": "string"
+          },
+          "dispute_rule": {
+            "type": "string"
+          },
+          "policy_hash": {
+            "$ref": "#/components/schemas/ContentHash"
+          },
+          "signatures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommitmentSignature"
+            }
+          },
+          "state": {
+            "$ref": "#/components/schemas/CommitmentState"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expires_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PrepareCommitmentRequest": {
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "intent"
+        ],
+        "properties": {
+          "proposal_id": {
+            "type": "string"
+          },
+          "intent": {
+            "$ref": "#/components/schemas/Intent"
+          }
+        }
+      },
+      "BundleMemberView": {
+        "type": "object",
+        "required": [
+          "role",
+          "provider_did",
+          "region",
+          "price"
+        ],
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/ProviderRole"
+          },
+          "provider_did": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "price": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ProposalView": {
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "session_id",
+          "intent_id",
+          "intent_version",
+          "proposal_version",
+          "bundle",
+          "delivery_result",
+          "estimated_price",
+          "maximum_price",
+          "estimated_completion_ms",
+          "delivery_probability_bps",
+          "security_level",
+          "verification_strength",
+          "risk_bps",
+          "trust_bps",
+          "recovery_strategy",
+          "refund_rule",
+          "compensation_rule",
+          "selected_because",
+          "authorization_required",
+          "valid_until_ms",
+          "created_at_ms"
+        ],
+        "properties": {
+          "proposal_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "intent_id": {
+            "type": "string"
+          },
+          "intent_version": {
+            "type": "integer"
+          },
+          "proposal_version": {
+            "type": "integer"
+          },
+          "bundle": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BundleMemberView"
+            }
+          },
+          "delivery_result": {
+            "type": "string"
+          },
+          "estimated_price": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "maximum_price": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "estimated_completion_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delivery_probability_bps": {
+            "type": "integer",
+            "description": "Basis points. An integer because a float would break the hash it feeds."
+          },
+          "security_level": {
+            "$ref": "#/components/schemas/SecurityLevel"
+          },
+          "verification_strength": {
+            "$ref": "#/components/schemas/VerificationStrength"
+          },
+          "risk_bps": {
+            "type": "integer"
+          },
+          "trust_bps": {
+            "type": "integer"
+          },
+          "recovery_strategy": {
+            "type": "string"
+          },
+          "refund_rule": {
+            "type": "string"
+          },
+          "compensation_rule": {
+            "type": "string"
+          },
+          "selected_because": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "authorization_required": {
+            "type": "boolean",
+            "description": "Per proposal, so a client never has to re-implement authorization policy."
+          },
+          "valid_until_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "LeaseRefView": {
+        "type": "object",
+        "required": [
+          "lease_id",
+          "task_id",
+          "provider_did",
+          "epoch",
+          "fencing_token",
+          "granted_at_ms",
+          "expires_at_ms"
+        ],
+        "properties": {
+          "lease_id": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "provider_did": {
+            "type": "string"
+          },
+          "epoch": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Monotonic per task. A higher epoch kills every lower one."
+          },
+          "fencing_token": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Monotonic. An old token is permanently refused."
+          },
+          "granted_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expires_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "EvidenceRefView": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "task_id",
+          "provider_did",
+          "output_digest",
+          "evidence_hash",
+          "submitted_at_ms"
+        ],
+        "properties": {
+          "evidence_id": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "provider_did": {
+            "type": "string"
+          },
+          "output_digest": {
+            "$ref": "#/components/schemas/ContentHash"
+          },
+          "evidence_hash": {
+            "$ref": "#/components/schemas/ContentHash"
+          },
+          "submitted_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "input_digest": {
+            "$ref": "#/components/schemas/ContentHash"
+          }
+        }
+      },
+      "VerificationRefView": {
+        "type": "object",
+        "required": [
+          "verification_id",
+          "task_id",
+          "evidence_id",
+          "passed",
+          "reason_code",
+          "verifier_did",
+          "decided_at_ms"
+        ],
+        "properties": {
+          "verification_id": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "evidence_id": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "verifier_did": {
+            "type": "string"
+          },
+          "decided_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SettlementRefView": {
+        "type": "object",
+        "required": [
+          "settlement_id",
+          "settlement_key",
+          "amount",
+          "payer_did",
+          "payee_did",
+          "completed_at_ms"
+        ],
+        "properties": {
+          "settlement_id": {
+            "type": "string"
+          },
+          "settlement_key": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payer_did": {
+            "type": "string"
+          },
+          "payee_did": {
+            "type": "string"
+          },
+          "completed_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ReceiptView": {
+        "type": "object",
+        "required": [
+          "receipt_id",
+          "session_id",
+          "outcome",
+          "verifications",
+          "evidence_hashes",
+          "deliverable",
+          "cost",
+          "duration_ms",
+          "provider_summary",
+          "completed_at_ms"
+        ],
+        "properties": {
+          "receipt_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "commitment_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ReceiptOutcome"
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/SettlementRefView"
+          },
+          "verifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerificationRefView"
+            }
+          },
+          "evidence_hashes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentHash"
+            }
+          },
+          "deliverable": {
+            "type": "string"
+          },
+          "cost": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "provider_summary": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "failure_reason": {
+            "type": "string"
+          },
+          "completed_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SessionStatusView": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "state",
+          "intent_id",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SessionState"
+          },
+          "intent_id": {
+            "type": "string"
+          },
+          "commitment_id": {
+            "type": "string"
+          },
+          "active_proposal_id": {
+            "type": "string"
+          },
+          "lease": {
+            "$ref": "#/components/schemas/LeaseRefView"
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ResultView": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "state",
+          "evidence",
+          "verifications"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SessionState"
+          },
+          "output_ref": {
+            "type": "string"
+          },
+          "output_digest": {
+            "$ref": "#/components/schemas/ContentHash"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRefView"
+            }
+          },
+          "verifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerificationRefView"
+            }
+          }
+        }
+      },
+      "SubmitIntentResponse": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "intent_id",
+          "state",
+          "duplicate"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "intent_id": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SessionState"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "description": "True when this exact Intent was already submitted. Still a success."
+          }
+        }
+      },
+      "GetProposalResponse": {
+        "type": "object",
+        "required": [
+          "recommended",
+          "alternatives"
+        ],
+        "properties": {
+          "recommended": {
+            "$ref": "#/components/schemas/ProposalView"
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposalView"
+            }
+          }
+        }
+      },
+      "AuthorizeProposalResponse": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "commitment_id",
+          "state"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "commitment_id": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SessionState"
+          }
+        }
+      },
+      "SessionReadPayload": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "description": "Payload of every session-scoped read. `session_id` must equal the one in the URL: without that binding one captured read envelope would authorize reading every session the actor could name, for the rest of its freshness window.",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^sess_[0-9a-f]{32}$"
+          }
+        }
+      },
+      "PrepareCommitmentPayload": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "proposal_id"
+        ],
+        "description": "Payload of `prepare_commitment`. Replaces the unsigned `{proposal_id}` body used before contract 3.0.0.",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^sess_[0-9a-f]{32}$"
+          },
+          "proposal_id": {
+            "type": "string"
+          }
+        }
+      },
+      "UploadPayload": {
+        "type": "object",
+        "required": [
+          "content_digest"
+        ],
+        "description": "Payload of `put_object` and `put_runtime`. The uploaded bytes are the request body, not part of the envelope — a copy in a header would double every upload and cap it at a header's size. The signature covers this digest instead, and the platform refuses the upload if the body does not hash to it, so a captured upload envelope cannot be reused to store different bytes under the original signer's name.",
+        "properties": {
+          "content_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Lowercase hex SHA-256 of the raw request body."
+          }
+        }
+      },
+      "ObjectReadPayload": {
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "description": "Payload of `get_object`. Must equal the `object_id` in the URL.",
+        "properties": {
+          "object_id": {
+            "type": "string"
+          }
+        }
+      },
+      "GetCapabilitiesPayload": {
+        "type": "object",
+        "description": "Payload of `get_capabilities`. Empty today; an object rather than a scalar so filters can be added without changing its JSON shape.",
+        "properties": {}
+      },
+      "CapabilityDescriptor": {
+        "type": "object",
+        "required": [
+          "capability_type",
+          "interface_version",
+          "description",
+          "capacity_unit",
+          "providers_known",
+          "providers_available",
+          "regions"
+        ],
+        "description": "One capability the platform will accept an Intent for.",
+        "properties": {
+          "capability_type": {
+            "type": "string",
+            "description": "The exact string to put in `CapabilityRequirement.capability_type`."
+          },
+          "interface_version": {
+            "type": "string",
+            "description": "The exact string to put in `CapabilityRequirement.interface_version`."
+          },
+          "description": {
+            "type": "string"
+          },
+          "capacity_unit": {
+            "type": "string",
+            "description": "The unit `CapabilityRequirement.capacity` is counted in, e.g. `vcpu`. Named because the number is meaningless without it."
+          },
+          "providers_known": {
+            "type": "integer",
+            "description": "Providers this coordinator knows of that advertise this capability. A count, not a roster: which providers exist is not a requester's business."
+          },
+          "providers_available": {
+            "type": "integer",
+            "description": "How many answered a liveness probe when this catalogue was assembled. Measured, not configured. Zero is a real answer and means an Intent for this capability is not schedulable right now."
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Regions those providers are in. Feeds `PolicySnapshot.allowed_regions` and `preferred_region`, which are otherwise unguessable."
+          },
+          "unit_price_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "unit_price_max": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Advertised unit price range, in the same integer unit as `budget_limit`. Absent — not zero — when no provider is known; a range of zero would read as 'free'."
+          }
+        }
+      },
+      "GetCapabilitiesResponse": {
+        "type": "object",
+        "required": [
+          "capabilities",
+          "snapshot_issuer_did",
+          "observed_at_ms"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapabilityDescriptor"
+            }
+          },
+          "snapshot_issuer_did": {
+            "type": "string",
+            "description": "The DID you must list in `PolicySnapshot.trusted_snapshot_issuers`. Read this before submitting anything: the default policy is deny-by-default — `trusted_snapshot_issuers` is empty, empty means nobody, and an Intent that trusts no issuer is UNSCHEDULABLE on every task with nothing in the response explaining why. Before contract 3.0.0 this value was only printed to the coordinator's stdout at startup."
+          },
+          "observed_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When this catalogue was assembled. It is a snapshot of a live fleet, not a static list."
+          }
+        }
+      },
+      "SessionEventsResponse": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "events",
+          "stream",
+          "poll_after_ms"
+        ],
+        "description": "A snapshot of a session's observable state. **This is polling, not a push stream** — see `stream`.",
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Currently exactly one `session_status` event carrying the same projection `GET /v1/sessions/{session_id}` serves."
+          },
+          "stream": {
+            "type": "boolean",
+            "description": "Always `false` in contract 3.0.0. Stated in the body, not only in prose, so a client that only reads JSON does not have to consult documentation to learn this is a snapshot rather than a subscription."
+          },
+          "poll_after_ms": {
+            "type": "integer",
+            "description": "Suggested interval before polling again. 300 ms today."
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "signedEnvelopeHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-ln-signed-request",
+        "description": "A `SignedRequest` serialized to JSON and encoded as base64url without padding. Used by every endpoint that has no JSON body of its own — all reads, and the two byte-upload endpoints. The envelope's `operation` must match the endpoint, and for session-scoped endpoints its `payload.session_id` must match the URL."
+      },
+      "signedEnvelopeBody": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-ln-signed-request-in-body",
+        "description": "Documentation marker, not a real header — do not send it. OpenAPI 3.0 cannot express 'the request body is the credential', which is how `submit_intent`, `authorize_proposal`, `cancel_session` and `prepare_commitment` authenticate: their body IS a `SignedRequest`. The requestBody schema on those operations is the authoritative statement."
+      }
+    }
+  }
+}

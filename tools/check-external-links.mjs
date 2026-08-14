@@ -82,6 +82,12 @@ const API_HOSTS = [
   /^https:\/\/registry\.libertynet\.ai\//,
   // The demo node's /echo is POST-only; a GET is correctly a 404.
   /^https:\/\/libertynet\.ai\/demo-node\//,
+  // Every coordination operation under /v1 is authenticated, reads included, so an anonymous
+  // GET is a 401 by design. Treating that as a broken link would mean the check got greener
+  // the day the read path stopped requiring credentials — the reverse of what it is for.
+  // The base URL itself is deliberately NOT skipped: it serves the contract, and a developer
+  // who pastes it should land somewhere, so it stays a link this check can hold to account.
+  /^https:\/\/libertynet\.ai\/coordination\/v1\//,
 ];
 
 /**
