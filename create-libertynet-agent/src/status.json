@@ -3,7 +3,7 @@
   "spec": "LIBERTYNET-DEV-PORTAL-AIPM-001 §9",
   "generated_by": "human-authored, endpoint-probed",
   "verified_at": "2026-08-14",
-  "verified_against": "https://registry.libertynet.ai (live probe) + https://libertynet.ai/demo-node (end-to-end loop) + https://libertynet.ai/coordination (live probe, plus a full Intent -> Proposal -> Commitment -> authorize -> Result -> Receipt run and the read-path authorization control, three consecutive green runs from an external client on 2026-08-14). See TEST-EVIDENCE.md. The 2026-08-13 re-probe corrected GET /api/v1/peers from implemented to not_yet_wired.",
+  "verified_against": "https://registry.libertynet.ai (live probe) + https://libertynet.ai/demo-node (end-to-end loop) + https://libertynet.ai/coordination (gateway at libertynet-coordination f659fc1, redeployed 2026-08-14: a full Intent -> Proposal -> Commitment -> authorize -> Result -> Receipt run from an external client, twice consecutively; the read-path authorization control in both directions, plus its --expect-bypass positive control, which correctly FAILS against this deployment; and the contract-drift suite, where a 1.0.0-shaped Intent gets 400 schema_invalid naming the missing field while a deliberately corrupted signature still gets 401 signature_invalid) + https://libertynet.ai/compute (Compute App at libertynet-compute 61ed652, first deployed 2026-08-14; every endpoint in its group probed from outside the deployment host). See TEST-EVIDENCE.md.",
   "levels": {
     "implemented": "Live on a public endpoint today. Anyone can call it right now and get a real answer.",
     "testing": "Code exists and its own test suite passes, but it is NOT reachable on a public endpoint yet.",
@@ -251,6 +251,129 @@
           "path": "/v1/runtimes",
           "status": "implemented",
           "note": "Register an executable runtime package. Same digest-covering signature as object upload."
+        }
+      ]
+    },
+    {
+      "id": "compute",
+      "title": "Compute App — the first application on the coordination API",
+      "base_url": "https://libertynet.ai/compute",
+      "auth": "the caller's own ed25519 envelopes, forwarded unchanged; this service holds no key",
+      "note": "A working application, not a demo shim: it reaches the platform over `https://libertynet.ai/coordination` and no private path, so what works here is exactly what works for anyone else. It holds **no requester key** — every mutating call carries the browser's already-signed envelope verbatim, and reads carry the browser's signed read credentials in `x-lnc-read-credentials`. That is why a session belongs to the browser that opened it and this service cannot read it on your behalf. `GET /` is the six-page browser UI, which signs with WebCrypto and keeps the key in the tab's memory only — reloading the page is a new identity.",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/",
+          "status": "implemented",
+          "note": "The browser UI. Submit -> Proposal -> Commitment -> Session -> Result -> Receipt, client-side hash routing."
+        },
+        {
+          "method": "GET",
+          "path": "/healthz",
+          "status": "implemented",
+          "note": "Liveness."
+        },
+        {
+          "method": "GET",
+          "path": "/readyz",
+          "status": "implemented",
+          "note": "Readiness, plus the platform gateway URL and contract version this build talks."
+        },
+        {
+          "method": "GET",
+          "path": "/version",
+          "status": "implemented",
+          "note": "Service name, build version and the configured gateway."
+        },
+        {
+          "method": "GET",
+          "path": "/openapi.json",
+          "status": "implemented",
+          "note": "This service's own contract — distinct from the platform's, which is at /coordination/openapi.json."
+        },
+        {
+          "method": "GET",
+          "path": "/metrics",
+          "status": "implemented",
+          "note": "Prometheus text exposition."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/task-package",
+          "status": "implemented",
+          "note": "The WebAssembly task guest the browser registers before it can submit. A browser has no filesystem, so it fetches the bytes here and registers them with the platform itself."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/derive-core-intent",
+          "status": "implemented",
+          "note": "Turns a plain compute request into the exact platform Intent to sign, including the derived `intent_id`. Unsigned: it computes, it does not act."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/intents",
+          "status": "implemented",
+          "note": "Forwards the caller's signed `submit_intent` envelope to the platform unchanged."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}",
+          "status": "implemented",
+          "note": "Session status. Needs the caller's signed read credential; 401 without one."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/proposal",
+          "status": "implemented",
+          "note": "The proposal to choose from. Signed read."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/sessions/{session_id}/commitment",
+          "status": "implemented",
+          "note": "Prepares the Commitment to sign. The body is the caller's envelope."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/sessions/{session_id}/authorize",
+          "status": "implemented",
+          "note": "Authorizes and runs the work. Blocks for as long as the delivery takes — do not set a short client timeout."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/sessions/{session_id}/cancel",
+          "status": "implemented",
+          "note": "Cancels a non-terminal session."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/result",
+          "status": "implemented",
+          "note": "The delivered result. Signed read."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/receipt",
+          "status": "implemented",
+          "note": "The receipt. Signed read. The settlement figure is an accounting record and moves no value — see the coordination group."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/events",
+          "status": "implemented",
+          "note": "A polling snapshot, not a push stream. The name is SSE-shaped; the behaviour is polling, and the module says so itself."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/objects",
+          "status": "implemented",
+          "note": "Uploads an input object, forwarding the caller's signed envelope."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/runtimes",
+          "status": "implemented",
+          "note": "Registers a runtime package, forwarding the caller's signed envelope."
         }
       ]
     },

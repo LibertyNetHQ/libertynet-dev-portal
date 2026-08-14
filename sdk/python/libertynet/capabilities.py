@@ -73,6 +73,27 @@ CAPABILITIES = MappingProxyType({
         "GET /v1/objects/{object_id}": "implemented",
         "POST /v1/runtimes": "implemented",
     }),
+    "compute": MappingProxyType({
+        "GET /": "implemented",
+        "GET /healthz": "implemented",
+        "GET /readyz": "implemented",
+        "GET /version": "implemented",
+        "GET /openapi.json": "implemented",
+        "GET /metrics": "implemented",
+        "GET /v1/task-package": "implemented",
+        "POST /v1/derive-core-intent": "implemented",
+        "POST /v1/intents": "implemented",
+        "GET /v1/sessions/{session_id}": "implemented",
+        "GET /v1/sessions/{session_id}/proposal": "implemented",
+        "POST /v1/sessions/{session_id}/commitment": "implemented",
+        "POST /v1/sessions/{session_id}/authorize": "implemented",
+        "POST /v1/sessions/{session_id}/cancel": "implemented",
+        "GET /v1/sessions/{session_id}/result": "implemented",
+        "GET /v1/sessions/{session_id}/receipt": "implemented",
+        "GET /v1/sessions/{session_id}/events": "implemented",
+        "POST /v1/objects": "implemented",
+        "POST /v1/runtimes": "implemented",
+    }),
     "economics": MappingProxyType({
         "GET /v1/operator/me/credits": "not_yet_wired",
         "GET /v1/operator/me/evidence": "not_yet_wired",
@@ -112,6 +133,7 @@ AREA_BASE_URLS = MappingProxyType({
     "binding": "https://registry.libertynet.ai",
     "identity": "https://registry.libertynet.ai",
     "coordination": "https://libertynet.ai/coordination",
+    "compute": "https://libertynet.ai/compute",
     "economics": "https://registry.libertynet.ai",
     "oracle": None,
     "wallet": None,
@@ -121,7 +143,7 @@ AREA_BASE_URLS = MappingProxyType({
 })
 
 #: Areas, in the order the matrix lists them.
-AREAS = ("discovery", "binding", "identity", "coordination", "economics", "oracle", "wallet", "dex", "demo", "community")
+AREAS = ("discovery", "binding", "identity", "coordination", "compute", "economics", "oracle", "wallet", "dex", "demo", "community")
 
 
 def capability_status(area: str, method: str, path: str) -> str | None:
