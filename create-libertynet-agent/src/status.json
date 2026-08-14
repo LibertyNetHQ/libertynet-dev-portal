@@ -2,8 +2,8 @@
   "$comment": "Machine-readable capability matrix for the LibertyNet developer portal. SINGLE SOURCE OF TRUTH for every 'Implemented / Testing / Planned' badge rendered in the docs, the SDKs and the dashboard. Never hand-edit a badge in an .mdx file — edit this file and re-run `node tools/check-docs-drift.mjs`.",
   "spec": "LIBERTYNET-DEV-PORTAL-AIPM-001 §9",
   "generated_by": "human-authored, endpoint-probed",
-  "verified_at": "2026-08-13",
-  "verified_against": "https://registry.libertynet.ai (live probe) + https://libertynet.ai/demo-node (end-to-end loop), see TEST-EVIDENCE.md. 2026-08-13 re-probe corrected GET /api/v1/peers from implemented to not_yet_wired.",
+  "verified_at": "2026-08-14",
+  "verified_against": "https://registry.libertynet.ai (live probe) + https://libertynet.ai/demo-node (end-to-end loop) + https://libertynet.ai/coordination (live probe, plus a full Intent -> Proposal -> Commitment -> authorize -> Result -> Receipt run and the read-path authorization control, three consecutive green runs from an external client on 2026-08-14). See TEST-EVIDENCE.md. The 2026-08-13 re-probe corrected GET /api/v1/peers from implemented to not_yet_wired.",
   "levels": {
     "implemented": "Live on a public endpoint today. Anyone can call it right now and get a real answer.",
     "testing": "Code exists and its own test suite passes, but it is NOT reachable on a public endpoint yet.",
@@ -39,7 +39,7 @@
           "method": "GET",
           "path": "/api/v1/peers",
           "status": "not_yet_wired",
-          "note": "Returns 200 with a well-formed envelope, but the peer list inside is always empty \u2014 it is NOT the JSON form of /peers. Probed 2026-08-13: GET /peers returned 4+ real nodes with endpoints, while GET /api/v1/peers returned {\"ok\": true, \"data\": [], \"error\": null} at the same moment. Use /peers or /nodes until this is wired."
+          "note": "Returns 200 with a well-formed envelope, but the peer list inside is always empty — it is NOT the JSON form of /peers. Probed 2026-08-13: GET /peers returned 4+ real nodes with endpoints, while GET /api/v1/peers returned {\"ok\": true, \"data\": [], \"error\": null} at the same moment. Use /peers or /nodes until this is wired."
         },
         {
           "method": "POST",
@@ -140,6 +140,117 @@
           "path": "/v1/operator/me/nodes",
           "status": "implemented",
           "note": "Nodes bound to the authenticated operator, with live online/last_seen."
+        }
+      ]
+    },
+    {
+      "id": "coordination",
+      "title": "Coordination — ask the network to do work",
+      "base_url": "https://libertynet.ai/coordination",
+      "auth": "ed25519 signed envelope on every call, reads included; no API key, nothing issued",
+      "note": "The Intent → Proposal → Commitment → authorize → Result → Receipt loop, served by ln-coordination-gateway in front of a coordination core and a real three-node provider fleet. Authentication is a signed envelope carried in `x-ln-signed-request` (or, for the four operations whose body is itself the envelope, the body). There is no anonymous read: `session_id` is derived from content a third party can compute, so an unauthenticated read path would hand any stranger another party's Result and Receipt. The full schemas are in the OpenAPI document; this table is the index.",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/healthz",
+          "status": "implemented",
+          "note": "Gateway liveness. Unauthenticated on purpose, and rate limited by address like everything else."
+        },
+        {
+          "method": "GET",
+          "path": "/version",
+          "status": "implemented",
+          "note": "The contract version the gateway enforces and its own build version. Check this before blaming a signature: a client built against a different contract major fails as `signature_invalid`, which does not mention versions at all."
+        },
+        {
+          "method": "GET",
+          "path": "/openapi.json",
+          "status": "implemented",
+          "note": "The authoritative coordination contract, served by the process that enforces it. `api-spec/libertynet-v1.yaml` is generated from this, not the other way round."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/capabilities",
+          "status": "implemented",
+          "note": "What `capability_requirement.capability_type` may be set to. Guessing wrong used to fail later, at `get_proposal`, as \"no capability passed qualification\" — naming neither the field nor the mistake."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/intents",
+          "status": "implemented",
+          "note": "Opens a session. The envelope's signer must equal `intent.requester_did`. Submitting the same Intent twice returns the same session with `duplicate: true`, because the Intent id is derived from its content."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}",
+          "status": "implemented",
+          "note": "Session state. Authenticated and bound to the session in the URL."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/proposal",
+          "status": "implemented",
+          "note": "The recommended proposal plus alternatives, with whether authorization is required."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/sessions/{session_id}/commitment",
+          "status": "implemented",
+          "note": "Returns the draft Commitment to sign. The body is itself the signed envelope."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/commitment",
+          "status": "implemented",
+          "note": "The session's Commitment once one exists."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/sessions/{session_id}/authorize",
+          "status": "implemented",
+          "note": "Authorizes the proposal and runs the work. Blocks for as long as the delivery takes — set no client timeout."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/sessions/{session_id}/cancel",
+          "status": "implemented",
+          "note": "Cancels a non-terminal session."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/result",
+          "status": "implemented",
+          "note": "The delivered result and its digest, once the session completes."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/receipt",
+          "status": "implemented",
+          "note": "The final receipt, including the settlement figure. **That figure is an accounting record and moves no value.** Fuel settlement is deliberately not wired on this deployment: no rate card is provisioned, so nothing is charged (deny-by-default)."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/sessions/{session_id}/events",
+          "status": "implemented",
+          "note": "A polling snapshot of the session's events. It is **not** a push stream — no SSE, no websocket. Poll it."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/objects",
+          "status": "implemented",
+          "note": "Upload an input object. The signature covers the digest of the bytes, so a captured upload envelope cannot be reused to store something else under your name."
+        },
+        {
+          "method": "GET",
+          "path": "/v1/objects/{object_id}",
+          "status": "implemented",
+          "note": "Download an object. Authenticated — an object id is derived from its content, so an unauthenticated read would serve any caller who could compute one."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/runtimes",
+          "status": "implemented",
+          "note": "Register an executable runtime package. Same digest-covering signature as object upload."
         }
       ]
     },

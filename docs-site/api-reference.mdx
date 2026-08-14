@@ -160,6 +160,129 @@ curl -s https://registry.libertynet.ai/v1/operator/me/nodes
 ```
 
 
+## Coordination — ask the network to do work
+
+**Base URL** `https://libertynet.ai/coordination` · **Auth** ed25519 signed envelope on every call, reads included; no API key, nothing issued
+
+### `GET /healthz` <Status level="implemented" />
+
+Liveness probe
+
+Gateway liveness. Unauthenticated on purpose, and rate limited by address like everything else.
+
+```bash
+curl -s https://libertynet.ai/coordination/healthz
+```
+
+### `GET /version` <Status level="implemented" />
+
+Contract and build version
+
+The contract version the gateway enforces and its own build version. Check this before blaming a signature: a client built against a different contract major fails as `signature_invalid`, which does not mention versions at all.
+
+```bash
+curl -s https://libertynet.ai/coordination/version
+```
+
+### `GET /openapi.json` <Status level="implemented" />
+
+This document
+
+The authoritative coordination contract, served by the process that enforces it. `api-spec/libertynet-v1.yaml` is generated from this, not the other way round.
+
+```bash
+curl -s https://libertynet.ai/coordination/openapi.json
+```
+
+### `GET /v1/capabilities` <Status level="implemented" />
+
+Capability catalogue
+
+What `capability_requirement.capability_type` may be set to. Guessing wrong used to fail later, at `get_proposal`, as "no capability passed qualification" — naming neither the field nor the mistake.
+
+```bash
+curl -s https://libertynet.ai/coordination/v1/capabilities
+```
+
+### `POST /v1/intents` <Status level="implemented" />
+
+Submit an Intent
+
+Opens a session. The envelope's signer must equal `intent.requester_did`. Submitting the same Intent twice returns the same session with `duplicate: true`, because the Intent id is derived from its content.
+
+### `GET /v1/sessions/{session_id}` <Status level="implemented" />
+
+Session status
+
+Session state. Authenticated and bound to the session in the URL.
+
+### `GET /v1/sessions/{session_id}/proposal` <Status level="implemented" />
+
+Get the recommended proposal and its alternatives
+
+The recommended proposal plus alternatives, with whether authorization is required.
+
+### `POST /v1/sessions/{session_id}/commitment` <Status level="implemented" />
+
+Prepare the draft Commitment for signing
+
+Returns the draft Commitment to sign. The body is itself the signed envelope.
+
+### `GET /v1/sessions/{session_id}/commitment` <Status level="implemented" />
+
+Get the session's Commitment, if one exists
+
+The session's Commitment once one exists.
+
+### `POST /v1/sessions/{session_id}/authorize` <Status level="implemented" />
+
+Authorize the proposal and start execution
+
+Authorizes the proposal and runs the work. Blocks for as long as the delivery takes — set no client timeout.
+
+### `POST /v1/sessions/{session_id}/cancel` <Status level="implemented" />
+
+Cancel the session
+
+Cancels a non-terminal session.
+
+### `GET /v1/sessions/{session_id}/result` <Status level="implemented" />
+
+Delivered result
+
+The delivered result and its digest, once the session completes.
+
+### `GET /v1/sessions/{session_id}/receipt` <Status level="implemented" />
+
+Final receipt
+
+The final receipt, including the settlement figure. **That figure is an accounting record and moves no value.** Fuel settlement is deliberately not wired on this deployment: no rate card is provisioned, so nothing is charged (deny-by-default).
+
+### `GET /v1/sessions/{session_id}/events` <Status level="implemented" />
+
+Session events (polling snapshot — NOT a push stream)
+
+A polling snapshot of the session's events. It is **not** a push stream — no SSE, no websocket. Poll it.
+
+### `POST /v1/objects` <Status level="implemented" />
+
+Upload an input object
+
+Upload an input object. The signature covers the digest of the bytes, so a captured upload envelope cannot be reused to store something else under your name.
+
+### `GET /v1/objects/{object_id}` <Status level="implemented" />
+
+Download an object
+
+Download an object. Authenticated — an object id is derived from its content, so an unauthenticated read would serve any caller who could compute one.
+
+### `POST /v1/runtimes` <Status level="implemented" />
+
+Register an executable runtime package
+
+Register an executable runtime package. Same digest-covering signature as object upload.
+
+
 ## Credits & contribution evidence
 
 **Base URL** `https://registry.libertynet.ai` · **Auth** bearer session

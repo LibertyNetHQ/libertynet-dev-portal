@@ -11,7 +11,7 @@
 import type { CapabilityStatus } from "./types.ts";
 
 /** When the matrix was last verified against the live network. */
-export const VERIFIED_AT = "2026-08-13";
+export const VERIFIED_AT = "2026-08-14";
 
 /**
  * Every capability, nested by area.
@@ -45,6 +45,25 @@ export const CAPABILITIES: Readonly<Record<string, Readonly<Record<string, Capab
       "POST /v1/auth/challenge": "implemented",
       "POST /v1/auth/device-login": "implemented",
       "GET /v1/operator/me/nodes": "implemented",
+    }),
+    "coordination": Object.freeze({
+      "GET /healthz": "implemented",
+      "GET /version": "implemented",
+      "GET /openapi.json": "implemented",
+      "GET /v1/capabilities": "implemented",
+      "POST /v1/intents": "implemented",
+      "GET /v1/sessions/{session_id}": "implemented",
+      "GET /v1/sessions/{session_id}/proposal": "implemented",
+      "POST /v1/sessions/{session_id}/commitment": "implemented",
+      "GET /v1/sessions/{session_id}/commitment": "implemented",
+      "POST /v1/sessions/{session_id}/authorize": "implemented",
+      "POST /v1/sessions/{session_id}/cancel": "implemented",
+      "GET /v1/sessions/{session_id}/result": "implemented",
+      "GET /v1/sessions/{session_id}/receipt": "implemented",
+      "GET /v1/sessions/{session_id}/events": "implemented",
+      "POST /v1/objects": "implemented",
+      "GET /v1/objects/{object_id}": "implemented",
+      "POST /v1/runtimes": "implemented",
     }),
     "economics": Object.freeze({
       "GET /v1/operator/me/credits": "not_yet_wired",
@@ -84,6 +103,7 @@ export const AREA_BASE_URLS: Readonly<Record<string, string | null>> = Object.fr
   "discovery": "https://registry.libertynet.ai",
   "binding": "https://registry.libertynet.ai",
   "identity": "https://registry.libertynet.ai",
+  "coordination": "https://libertynet.ai/coordination",
   "economics": "https://registry.libertynet.ai",
   "oracle": null,
   "wallet": null,
@@ -97,6 +117,7 @@ export const AREAS = Object.freeze([
   "discovery",
   "binding",
   "identity",
+  "coordination",
   "economics",
   "oracle",
   "wallet",

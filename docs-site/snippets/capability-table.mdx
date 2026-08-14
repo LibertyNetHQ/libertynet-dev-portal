@@ -2,7 +2,7 @@
 
 import { Status } from '/snippets/status.mdx';
 
-{/* Verified against the live network on 2026-08-13. */}
+{/* Verified against the live network on 2026-08-14. */}
 
 ### Node discovery
 
@@ -36,6 +36,30 @@ import { Status } from '/snippets/status.mdx';
 | `POST /v1/auth/challenge` | <Status level="implemented" /> | One-time challenge, 300s TTL. |
 | `POST /v1/auth/device-login` | <Status level="implemented" /> | Exchange a signed challenge for a bearer session token. |
 | `GET /v1/operator/me/nodes` | <Status level="implemented" /> | Nodes bound to the authenticated operator, with live online/last_seen. |
+
+### Coordination — ask the network to do work
+
+The Intent → Proposal → Commitment → authorize → Result → Receipt loop, served by ln-coordination-gateway in front of a coordination core and a real three-node provider fleet. Authentication is a signed envelope carried in `x-ln-signed-request` (or, for the four operations whose body is itself the envelope, the body). There is no anonymous read: `session_id` is derived from content a third party can compute, so an unauthenticated read path would hand any stranger another party's Result and Receipt. The full schemas are in the OpenAPI document; this table is the index.
+
+| Endpoint | Status | Notes |
+|---|---|---|
+| `GET /healthz` | <Status level="implemented" /> | Gateway liveness. Unauthenticated on purpose, and rate limited by address like everything else. |
+| `GET /version` | <Status level="implemented" /> | The contract version the gateway enforces and its own build version. Check this before blaming a signature: a client built against a different contract major fails as `signature_invalid`, which does not mention versions at all. |
+| `GET /openapi.json` | <Status level="implemented" /> | The authoritative coordination contract, served by the process that enforces it. `api-spec/libertynet-v1.yaml` is generated from this, not the other way round. |
+| `GET /v1/capabilities` | <Status level="implemented" /> | What `capability_requirement.capability_type` may be set to. Guessing wrong used to fail later, at `get_proposal`, as "no capability passed qualification" — naming neither the field nor the mistake. |
+| `POST /v1/intents` | <Status level="implemented" /> | Opens a session. The envelope's signer must equal `intent.requester_did`. Submitting the same Intent twice returns the same session with `duplicate: true`, because the Intent id is derived from its content. |
+| `GET /v1/sessions/{session_id}` | <Status level="implemented" /> | Session state. Authenticated and bound to the session in the URL. |
+| `GET /v1/sessions/{session_id}/proposal` | <Status level="implemented" /> | The recommended proposal plus alternatives, with whether authorization is required. |
+| `POST /v1/sessions/{session_id}/commitment` | <Status level="implemented" /> | Returns the draft Commitment to sign. The body is itself the signed envelope. |
+| `GET /v1/sessions/{session_id}/commitment` | <Status level="implemented" /> | The session's Commitment once one exists. |
+| `POST /v1/sessions/{session_id}/authorize` | <Status level="implemented" /> | Authorizes the proposal and runs the work. Blocks for as long as the delivery takes — set no client timeout. |
+| `POST /v1/sessions/{session_id}/cancel` | <Status level="implemented" /> | Cancels a non-terminal session. |
+| `GET /v1/sessions/{session_id}/result` | <Status level="implemented" /> | The delivered result and its digest, once the session completes. |
+| `GET /v1/sessions/{session_id}/receipt` | <Status level="implemented" /> | The final receipt, including the settlement figure. **That figure is an accounting record and moves no value.** Fuel settlement is deliberately not wired on this deployment: no rate card is provisioned, so nothing is charged (deny-by-default). |
+| `GET /v1/sessions/{session_id}/events` | <Status level="implemented" /> | A polling snapshot of the session's events. It is **not** a push stream — no SSE, no websocket. Poll it. |
+| `POST /v1/objects` | <Status level="implemented" /> | Upload an input object. The signature covers the digest of the bytes, so a captured upload envelope cannot be reused to store something else under your name. |
+| `GET /v1/objects/{object_id}` | <Status level="implemented" /> | Download an object. Authenticated — an object id is derived from its content, so an unauthenticated read would serve any caller who could compute one. |
+| `POST /v1/runtimes` | <Status level="implemented" /> | Register an executable runtime package. Same digest-covering signature as object upload. |
 
 ### Credits & contribution evidence
 
