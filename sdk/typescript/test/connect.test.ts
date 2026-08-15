@@ -29,6 +29,15 @@ import {
 
 const NOW = 1_800_000_000_000;
 
+/** A wallet origin with nothing behind it.
+ *
+ * Loopback on a port nothing listens on, rather than a `.invalid` hostname. Every test using it
+ * either supplies its own `fetchImpl` or fails before any request is made — but a URL written in a
+ * repository gets fetched by things that are not these tests, and one that cannot resolve is
+ * reported as a broken link by every checker that finds it.
+ */
+const WALLET_NOWHERE = "http://127.0.0.1:1";
+
 /** A wallet, standing in for one. It is only ever an Ed25519 key — that is the whole trust root. */
 async function wallet(): Promise<Identity> {
   return Identity.fromSeed("h", crypto.getRandomValues(new Uint8Array(32)));
@@ -277,7 +286,7 @@ test("step 6 — a revoked grant is refused when the caller looked it up", async
 // ---------------------------------------------------------------------------------------------
 
 test("a red-line scope is refused locally, by name, before any round trip", async () => {
-  const rp = new RelyingParty({ walletOrigin: "https://wallet.invalid", app: await AppIdentity.generate() });
+  const rp = new RelyingParty({ walletOrigin: WALLET_NOWHERE, app: await AppIdentity.generate() });
   await assert.rejects(
     () => rp.manifest({ name: "x", redirectUris: ["https://x.test/"], scopes: ["payment:transfer" as never] }),
     (error: unknown) => error instanceof ConnectError && error.failure === "refused_scope",
@@ -285,7 +294,7 @@ test("a red-line scope is refused locally, by name, before any round trip", asyn
 });
 
 test("a public client will not build a silent-renewal request", async () => {
-  const rp = new RelyingParty({ walletOrigin: "https://wallet.invalid", app: await AppIdentity.generate() });
+  const rp = new RelyingParty({ walletOrigin: WALLET_NOWHERE, app: await AppIdentity.generate() });
   await assert.rejects(
     () =>
       rp.authorizationUrl({
@@ -301,7 +310,7 @@ test("discovery refuses a wallet whose published key does not derive its own DID
   const real = await wallet();
   const other = await wallet();
   const rp = new RelyingParty({
-    walletOrigin: "https://wallet.invalid",
+    walletOrigin: WALLET_NOWHERE,
     app: await AppIdentity.generate(),
     fetchImpl: async () =>
       new Response(
@@ -309,7 +318,7 @@ test("discovery refuses a wallet whose published key does not derive its own DID
           protocol: "ln-connect/1",
           issuer_did: real.did,
           issuer_public_key: other.publicKeyBase58,
-          authorization_endpoint: "https://wallet.invalid/connect",
+          authorization_endpoint: `${WALLET_NOWHERE}/connect`,
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       ),
@@ -321,7 +330,7 @@ test("discovery refuses a wallet whose published key does not derive its own DID
 });
 
 test("a callback whose state does not match this authorization is refused", async () => {
-  const rp = new RelyingParty({ walletOrigin: "https://wallet.invalid", app: await AppIdentity.generate() });
+  const rp = new RelyingParty({ walletOrigin: WALLET_NOWHERE, app: await AppIdentity.generate() });
   const subject = await SubjectIdentity.generate();
   await assert.rejects(
     () => rp.acceptCallback("#grant=abc&state=someone-elses", { state: "mine", subject }),

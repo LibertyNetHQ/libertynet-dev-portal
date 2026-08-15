@@ -7,7 +7,7 @@
  *
  * ```ts
  * const app = await AppIdentity.generate();                 // or .fromSeed(seed)
- * const rp  = new RelyingParty({ walletOrigin: "https://wallet.libertynet.ai", app });
+ * const rp  = new RelyingParty({ walletOrigin: WALLET_ORIGIN, app });   // wherever their wallet lives
  *
  * // 1. Publish this at <your-origin>/.well-known/libertynet-app.json
  * const manifest = await rp.manifest({ name: "My App", redirectUris: ["https://my.app/"] });
@@ -526,7 +526,13 @@ export async function verifyGrant(
 // ---------------------------------------------------------------------------------------------
 
 export interface RelyingPartyOptions {
-  /** Origin of the wallet, e.g. `https://wallet.libertynet.ai`. */
+  /**
+   * Origin of the wallet this application is being authorized by.
+   *
+   * Deliberately not defaulted, and no public origin is named here: there is no hosted LibertyNet
+   * wallet to point at yet, and writing one into an SDK would be advertising an endpoint that does
+   * not answer. Locally this is the console's own origin — `http://127.0.0.1:3210` by default.
+   */
   readonly walletOrigin: string;
   /** This application's service identity. */
   readonly app: Identity;

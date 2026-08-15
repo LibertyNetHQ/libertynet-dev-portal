@@ -49,6 +49,7 @@ import {
   RelyingParty,
   SubjectIdentity,
   verifyGrant,
+  verifyConnectIdBinding,
   ConnectError,
 } from "../../sdk/typescript/src/index.ts";
 
@@ -172,7 +173,24 @@ try {
 check(!!config.issuer_did, `the wallet identifies itself as ${config.issuer_did}`);
 check(
   /^did:svrp:h:[0-9a-f]{8,10}$/.test(config.issuer_did),
-  "the issuer is a DID-001 human DID whose key derives it — not an unverifiable `o:` string",
+  "the issuer is a DID-001 human DID — not an unverifiable `o:` string",
+);
+// Arithmetic, not trust. `HEX(SHA256(public_key)[0..4])` must equal the id the wallet claims, and
+// that is checkable on this machine with the wallet unplugged. `discover()` already refuses a
+// wallet that fails it; done again here in the open, because this is the single most important
+// line in the protocol and an example that hides it inside a library teaches nothing.
+//
+// A valid signature is not a valid identity: skip this and anyone can present their own key, their
+// own good signature, and somebody else's DID — and every signature check downstream passes.
+check(
+  verifyConnectIdBinding(config.issuer_did, config.issuer_public_key),
+  "the wallet's published key actually derives the DID it claims (checked here, offline)",
+);
+// The negative control. Without it, a `verifyConnectIdBinding` that returned `true` for everything
+// would pass the line above and look identical in the output.
+check(
+  !verifyConnectIdBinding(config.issuer_did, (await SubjectIdentity.generate()).publicKeyBase58),
+  "and a different key does not derive it — the check above can fail",
 );
 check(
   Array.isArray(config.scopes_refused) && config.scopes_refused.includes("payment:transfer"),
