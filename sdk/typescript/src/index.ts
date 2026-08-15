@@ -81,6 +81,36 @@ export { Operator } from "./operator.ts";
 export { Binding } from "./binding.ts";
 export { Wallet, Dex, Oracle } from "./planned.ts";
 
+// LN-CONNECT-001. Not a namespace on `LibertyNet`, because a relying party is not a client of the
+// node registry — it talks to a wallet and to a platform gateway, neither of which this class holds
+// a connection to. Bundling it under `ln.connect` would have implied a relationship that does not
+// exist and a base URL that does not apply.
+export {
+  RelyingParty,
+  Identity,
+  AppIdentity,
+  SubjectIdentity,
+  ConnectError,
+  verifyGrant,
+  verifyIdBinding as verifyConnectIdBinding,
+  deriveDid as deriveConnectDid,
+  canonicalize as connectCanonicalize,
+  PROTOCOL_VERSION as CONNECT_PROTOCOL_VERSION,
+  ISSUABLE_SCOPES,
+  RED_LANE_SCOPES,
+  GRANT_MAX_LIFETIME_MS,
+  type Grant,
+  type HeldGrant,
+  type AppManifest,
+  type WalletConfiguration,
+  type IssuableScope,
+  type RedLaneScope,
+  type RelyingPartyOptions,
+  type AuthorizationStart,
+  type GrantVerification,
+  type VerifyGrantOptions,
+} from "./connect.ts";
+
 export {
   parseDid,
   verifyIdBinding,

@@ -361,6 +361,25 @@
           "self-verifies  true"
         ]
       }
+    },
+    {
+      "dir": "wallet-connect",
+      "title": "Be authorized by a wallet",
+      "teaches": "LN-CONNECT-001 end to end, as a second independent relying party: a grant is not a bearer token.",
+      "runs": [
+        {
+          "cmd": [
+            "node",
+            "--experimental-strip-types",
+            "connect.mjs"
+          ],
+          "expect": [
+            "ALL \\d+ SECTIONS PASSED"
+          ]
+        }
+      ],
+      "network": true,
+      "$comment": "Needs a wallet at LN_WALLET_URL (default http://127.0.0.1:3210) with LN_CONNECT_OPERATOR_PASSPHRASE set. Set LN_GATEWAY_URL to also run the platform-gate control. It does NOT skip when the wallet is absent — it exits 2 and says how to start one, because a suite that quietly passes on nothing checked is worse than one that fails."
     }
   ]
 }
