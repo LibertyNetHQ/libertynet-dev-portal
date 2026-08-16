@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — LibertyNet</title>
+<meta name="description" content="What LibertyNet records when you use it, where it goes, and how long it stays.">
+<link rel="stylesheet" href="/legal-assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="masthead">
+  <a class="home" href="https://libertynet.ai/compute/">← LibertyNet Compute</a>
+  <h1>Privacy</h1>
+  <p class="updated">Last updated 16 August 2026 · applies to <code>libertynet.ai/compute</code>, <code>libertynet.ai/coordination</code> and <code>libertynet.ai/wallet</code></p>
+</header>
+
+<div class="note">
+  <strong>This is not legal advice.</strong>
+  <p>It is a description of what the software actually does, written by the people who built it and checked against the running system. It is not drafted by a lawyer and it is not a compliance document. Consult a lawyer before relying on it for GDPR, CCPA or any other regulatory purpose.</p>
+</div>
+
+<p class="lede">LibertyNet is a prototype. This page tells you what it records, where that goes and how long it stays — including the parts that are not finished.</p>
+
+<h2>The short version</h2>
+
+<ul>
+  <li>There is <strong>no account</strong>. No email address, no password, no profile.</li>
+  <li>There are <strong>no cookies</strong> and <strong>no analytics</strong>. Nothing tracks you across pages or sites.</li>
+  <li>Your identity is a <strong>keypair your browser generates</strong>. We never see the private half.</li>
+  <li>Files you attach to a task <strong>are uploaded</strong> and are stored on the platform.</li>
+  <li>Server logs contain identifiers. <strong>We have not set a retention period for them.</strong> That is a gap, and it is stated rather than glossed over.</li>
+</ul>
+
+<h2>What we do not collect</h2>
+
+<p>Because there is no account, we hold no name, email address, phone number, postal address, password or payment instrument. We have never asked for any of them and there is nowhere in the product to enter them.</p>
+
+<p>There are no cookies. You can verify this yourself — open the developer tools on any LibertyNet page and look at the cookie jar; it is empty. There is no Google Analytics, no Segment, no pixel, no session-replay tool and no third-party script of any kind on <code>/compute</code>. The Content-Security-Policy on that origin forbids loading one.</p>
+
+<h2>Your identity</h2>
+
+<p>When you open the Compute app, your browser generates a fresh Ed25519 keypair using its own WebCrypto implementation. Your identifier — a <em>DID</em>, looking like <code>did:svrp:a:7f3ac9e2</code> — is derived from the public half by hashing it. Every request you make is signed with the private half.</p>
+
+<p><strong>The private key never leaves your browser and is never written to disk.</strong> It lives in a JavaScript variable for the lifetime of the tab. Reloading the page discards it and generates a new one, which means a reload gives you a new identity and your previous sessions become unreadable to you. That is a real limitation and we describe it under <a href="#browser">what your browser stores</a> below.</p>
+
+<p>We receive your public key and your DID with every request, because that is what proves the request is yours. Neither is linked to a person by us: a DID is self-certifying, so anyone can mint one at any time without telling us anything.</p>
+
+<h2>What the platform records</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th>What</th><th>Where it goes</th><th>Why</th></tr></thead>
+<tbody>
+<tr>
+  <td>Your DID and public key</td>
+  <td>Coordination database, on our server</td>
+  <td>It is attached to every session you open, and it is how we know a later request about that session is from you.</td>
+</tr>
+<tr>
+  <td>Your task description (the text you type)</td>
+  <td>Coordination database</td>
+  <td>It is the Intent — the thing being coordinated.</td>
+</tr>
+<tr>
+  <td><strong>The bytes of any file you attach</strong></td>
+  <td>Object store on our server, and the provider node that runs your task</td>
+  <td>The task has to read the data to process it. Do not upload anything you would mind us holding.</td>
+</tr>
+<tr>
+  <td>Session state, proposals, commitments, assignments and receipts</td>
+  <td>Coordination database</td>
+  <td>The record of what was agreed and what happened.</td>
+</tr>
+<tr>
+  <td>Your result and its digest</td>
+  <td>Provider node; the digest also in the coordination database</td>
+  <td>The digest is what verification is about.</td>
+</tr>
+<tr>
+  <td>Your IP address</td>
+  <td>Rate limiter (in memory) and the reverse proxy</td>
+  <td>Anyone can mint an identity for free, so per-identity limits alone would be decorative. The limiter needs a second key that is not free to change.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p>Until 16 August 2026 all of the above lived only in the server's memory, which meant it was destroyed on every restart. It is now stored in a database file on our server, so it survives a restart. We mention this because it changes how long your data exists, in both directions.</p>
+
+<h2>Server logs</h2>
+
+<p>Our gateway and coordination service write logs to the system journal on the server. Those logs contain session identifiers and, where a wallet authorization is involved, the DIDs of the parties to it. They do not contain your file contents or your results.</p>
+
+<div class="note">
+  <strong>We have not set a retention period.</strong>
+  <p>Log retention is currently whatever the operating system's journal defaults to on that machine. There is no policy, no rotation configuration and no automatic deletion that we have written down. This is a real gap. We are stating it because a privacy page that quietly omitted it would be worse than one that admits it.</p>
+</div>
+
+<p>There is also no per-request access log at all today, and the gateway does not issue a request identifier — so if something goes wrong for you, we have less information than you might expect, not more.</p>
+
+<h2 id="browser">What your browser stores</h2>
+
+<p>The Compute app keeps things in your browser's <code>localStorage</code>, on your device, under two keys:</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Key</th><th>Contents</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>libertynet-compute-prototype-v6</code></td>
+  <td>Your task list — titles, task descriptions, status, references, the facts about attached files (name, size, row count, columns), your result bytes, receipts, your draft, and your theme preference.</td>
+</tr>
+<tr>
+  <td><code>lnc.recentSessions</code></td>
+  <td>Session identifiers and goals for sessions this browser opened.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p>None of this is sent anywhere by us; it is how the app remembers what you did. Clearing your browser storage deletes it permanently — we cannot restore it, because your signing key is gone too.</p>
+
+<p>Your signing key is <em>not</em> in this list. It is never written to storage of any kind.</p>
+
+<p>The wallet at <code>libertynet.ai/wallet</code> is a different application and stores its own wallet-connection state. It connects to the Ethereum Sepolia <strong>test</strong> network; the tokens there have no value.</p>
+
+<h2>Who else sees your data</h2>
+
+<p>Running a task means sending it to a provider node. Today all provider nodes are operated by us, on our own machines. When that changes it will be a material change to this page and we will say so here.</p>
+
+<p>We do not sell data, we do not share it with advertisers, and there is no third party receiving analytics from these pages.</p>
+
+<p>The wallet application at <code>/wallet</code> bundles WalletConnect. If you use a WalletConnect-based wallet there, that connection involves WalletConnect's own infrastructure under their terms, not ours. Connecting a browser-extension wallet instead does not.</p>
+
+<h2>Deleting your data</h2>
+
+<p>Your browser's copy: clear site data for <code>libertynet.ai</code>, or use a private window.</p>
+
+<p>Our copy: there is no self-service deletion, because there is no account to authenticate a deletion request against. If you want data associated with a specific session identifier removed, <a href="https://github.com/LibertyNetHQ/libertynet-dev-portal/issues">open an issue</a> and we will remove it. Note that an issue is public — do not put anything sensitive in it beyond the session identifier.</p>
+
+<p>Because this is a prototype, we may also delete data without warning, including as part of ordinary maintenance. <strong>Download anything you want to keep.</strong></p>
+
+<h2>Security</h2>
+
+<p>Everything is served over TLS. Reads and writes to the coordination API are individually signed and are checked against the identity that opened the session, so another user cannot read your session even if they know its identifier. We fixed a flaw in exactly that area on 14 August 2026 — before the fix, an uncredentialed stranger who derived a session identifier offline could read most of another user's session, including their uploaded input. It is documented publicly in our repository.</p>
+
+<p>We cannot promise a prototype is free of similar flaws. If you find one, please tell us.</p>
+
+<h2>Changes</h2>
+
+<p>When this page changes materially we will update the date at the top. There is no mailing list to notify you, because we do not have your email address.</p>
+
+<h2>Contact</h2>
+
+<p>GitHub issues, on <a href="https://github.com/LibertyNetHQ/libertynet-dev-portal/issues">libertynet-dev-portal</a>. That is the only channel that is real today — there is no support email address and the Discord server does not exist yet.</p>
+
+<footer>
+  <p><a href="/terms">Terms of Use</a> · <a href="https://docs.libertynet.ai">Documentation</a> · <a href="https://libertynet.ai/compute/">Compute</a></p>
+</footer>
+
+</main>
+</body>
+</html>
