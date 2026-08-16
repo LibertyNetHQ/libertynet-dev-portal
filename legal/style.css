@@ -1,0 +1,115 @@
+/* Shared by /privacy and /terms.
+ *
+ * Deliberately one small stylesheet with no build step and no framework. These two pages are the
+ * ones that must still render correctly in five years, on a browser nobody has tested, after every
+ * toolchain in this repository has been replaced twice. Anything they depend on is a way for them
+ * to stop working quietly. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #16191d;
+  --muted: #5b6570;
+  --line: #e3e7ec;
+  --accent: #2f6df6;
+  --note-bg: #fff8e6;
+  --note-line: #e8c96a;
+  --note-fg: #6b5310;
+  --code-bg: #f4f6f8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f14;
+    --fg: #e6eaef;
+    --muted: #9aa5b1;
+    --line: #1e262f;
+    --accent: #6c9bff;
+    --note-bg: #241d09;
+    --note-line: #6d5716;
+    --note-fg: #e8c96a;
+    --code-bg: #131a21;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+main { max-width: 46rem; margin: 0 auto; padding: 3rem 1.25rem 6rem; }
+
+header.masthead {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+header.masthead a.home {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: .8rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+header.masthead a.home:hover { color: var(--accent); }
+
+h1 { font-size: 2rem; line-height: 1.25; margin: .75rem 0 .5rem; letter-spacing: -.02em; }
+h2 { font-size: 1.15rem; margin: 2.75rem 0 .75rem; letter-spacing: -.01em; }
+h3 { font-size: 1rem; margin: 1.75rem 0 .5rem; }
+
+.updated { color: var(--muted); font-size: .85rem; margin: 0; }
+
+p, li { color: var(--fg); }
+.lede { font-size: 1.05rem; color: var(--muted); }
+
+a { color: var(--accent); }
+
+code {
+  font: .875em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--code-bg);
+  padding: .1em .35em;
+  border-radius: 4px;
+}
+
+/* The disclaimer, and the honesty notices. Same treatment: this page is telling you something
+ * about itself rather than something about the world. */
+.note {
+  background: var(--note-bg);
+  border: 1px solid var(--note-line);
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+  margin: 1.75rem 0;
+  color: var(--note-fg);
+  font-size: .925rem;
+  line-height: 1.65;
+}
+.note strong { display: block; margin-bottom: .35rem; }
+.note p:last-child { margin-bottom: 0; }
+.note p { color: inherit; }
+
+table { border-collapse: collapse; width: 100%; margin: 1.25rem 0; font-size: .9rem; }
+th, td { text-align: left; padding: .6rem .7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+
+/* Wide tables scroll inside their own box rather than making the page scroll sideways. */
+.scroll { overflow-x: auto; }
+
+footer {
+  border-top: 1px solid var(--line);
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  color: var(--muted);
+  font-size: .85rem;
+}
+footer a { color: var(--muted); }
+
+@media (max-width: 34rem) {
+  main { padding: 2rem 1rem 4rem; }
+  h1 { font-size: 1.6rem; }
+}

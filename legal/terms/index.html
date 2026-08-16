@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms of Use — LibertyNet</title>
+<meta name="description" content="What LibertyNet is, what it does not promise, and what you agree to by using it.">
+<link rel="stylesheet" href="/legal-assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="masthead">
+  <a class="home" href="https://libertynet.ai/compute/">← LibertyNet Compute</a>
+  <h1>Terms of Use</h1>
+  <p class="updated">Last updated 16 August 2026 · applies to <code>libertynet.ai/compute</code>, <code>libertynet.ai/coordination</code> and <code>libertynet.ai/wallet</code></p>
+</header>
+
+<div class="note">
+  <strong>This is not legal advice.</strong>
+  <p>It is a plain description of what we offer and what we do not, written by the people who built the system. It is not drafted by a lawyer and it is not a substitute for one. Consult a lawyer before relying on it for compliance, contracting or any other legal purpose.</p>
+</div>
+
+<p class="lede">LibertyNet is a prototype, offered free of charge, with no guarantees. This page says what that means concretely.</p>
+
+<h2>1. What this is</h2>
+
+<p>LibertyNet Compute lets you describe a data task, sends it to a compute provider, and returns a result with evidence you can check. The coordination API underneath it is public and anyone may call it.</p>
+
+<p>It is <strong>prototype software</strong>. It is not a finished product, it carries no service level, and parts of it are explicitly unfinished — those parts are named in section 4 rather than left for you to discover.</p>
+
+<h2>2. No account, no signup</h2>
+
+<p>There is nothing to register for. Your identity is a keypair your browser generates and a DID derived from it; you prove who you are by signing each request. We issue no API keys and accept no passwords or bearer tokens.</p>
+
+<p>A consequence worth stating plainly: <strong>we cannot recover anything for you.</strong> There is no "forgot my password" because there is no password. If you reload the page, your browser makes a new key and your earlier sessions become unreadable — to you and to us alike. We cannot tell you apart from a stranger who guessed your session identifier, which is precisely what makes the system private, and also what makes recovery impossible.</p>
+
+<h2>3. It is free, and nothing is charged</h2>
+
+<p>There is no charge for using LibertyNet today. We take no payment, hold no payment instrument, and have no billing system.</p>
+
+<p>You will see prices quoted in "Fuel" and receipts recording amounts. <strong>These do not move value.</strong> The settlement engine is a stub: the coordinator runs with no rate card configured, fuel settlement is denied by default, and no delivery is ever charged. A receipt is an accounting record of what <em>would</em> have been owed, not evidence of a payment.</p>
+
+<p>The wallet at <code>libertynet.ai/wallet</code> connects to the Ethereum <strong>Sepolia test network</strong>. Balances and tokens there carry no real value and cannot be exchanged for anything. Do not send real assets to any address shown by this software.</p>
+
+<h2>4. What is unfinished</h2>
+
+<p>Stated here rather than discovered later:</p>
+
+<ul>
+  <li><strong>Settlement is a stub.</strong> See section 3.</li>
+  <li><strong>Confidential compute is unavailable.</strong> TEE, remote attestation, no-egress, private runtime, FHE, zkVM and differential privacy are all shown as Pending or Unavailable in the product, and a task requesting Confidential privacy is refused rather than quietly downgraded to Standard.</li>
+  <li><strong>Your identity does not persist.</strong> A page reload is a new identity. See section 2.</li>
+  <li><strong>There is no staging environment.</strong> Changes are deployed straight to the system you are using.</li>
+  <li><strong>Log retention is undefined.</strong> See the <a href="/privacy">Privacy</a> page.</li>
+  <li><strong>Provider nodes are all ours.</strong> The architecture is for a network of independent providers; today there is not one.</li>
+</ul>
+
+<h2>5. Your data may be deleted</h2>
+
+<p>Coordination state is now stored durably and survives a restart, which was not true before 16 August 2026. It is still a prototype: we may delete data during maintenance, during a migration, or by accident, without notice and without a way to restore it.</p>
+
+<p><strong>Download anything you want to keep.</strong> Result bytes are held on the provider node, not by the page you are looking at.</p>
+
+<h2>6. What you agree not to do</h2>
+
+<ul>
+  <li>Do not upload data you do not have the right to process, or that you would mind us holding. Files you attach are uploaded to our server and to the node that runs your task.</li>
+  <li>Do not upload unlawful content, malware, or anything designed to attack the runtime that executes it.</li>
+  <li>Do not attempt to access another user's session, result or receipt.</li>
+  <li>Do not attempt to overwhelm the service. The API is rate limited per identity and per source address; a 429 with a <code>retry_after_ms</code> is a request to slow down, and repeatedly ignoring it is abuse rather than enthusiasm.</li>
+  <li>Do not use the platform where its failure would cause harm — anything safety-critical, medical, financial or legally consequential. It has no service level and it is not built for that.</li>
+</ul>
+
+<p>We may rate-limit, refuse or remove anything, at any time, without notice. There is no appeals process, because there is no account system to run one through.</p>
+
+<h2>7. Your content stays yours</h2>
+
+<p>You keep all rights in the data you upload and the results you receive. We claim no ownership and no licence beyond what running your task requires: storing your input, passing it to the provider node that executes it, and returning the output to you.</p>
+
+<p>We do not use your data to train models. We do not sell it. See <a href="/privacy">Privacy</a> for what is recorded and where.</p>
+
+<h2>8. Our software</h2>
+
+<p>The LibertyNet source is published at <a href="https://github.com/LibertyNetHQ">github.com/LibertyNetHQ</a> under the licences stated in each repository. Nothing on this page changes those licences; where they conflict with this page for the source code, the licence governs.</p>
+
+<h2>9. No warranty</h2>
+
+<p>The service is provided <strong>as is</strong> and <strong>as available</strong>, with no warranty of any kind — express or implied — including fitness for a particular purpose, correctness of results, availability, or that verification will detect every possible fault.</p>
+
+<p>Results are independently recomputed where the platform can do so, and the app tells you which checks actually ran and which did not. That is a genuine check, and it is not a guarantee.</p>
+
+<h2>10. Limitation of liability</h2>
+
+<p>To the maximum extent the law allows, we are not liable for any loss arising from your use of the service — including lost data, lost results, lost time, lost profit, or decisions taken on the basis of a result.</p>
+
+<p>This is a free prototype. If it breaks and that costs you something, we cannot make you whole, and you should not use it in a situation where that matters. Some jurisdictions do not permit certain exclusions; where that is so, the exclusion applies to the extent permitted and no further.</p>
+
+<h2>11. Changes to these terms</h2>
+
+<p>We may change this page. When we do we will update the date at the top. There is no mailing list to notify you, because we have no email address for you. Continuing to use the service after a change means you accept it.</p>
+
+<h2>12. Ending it</h2>
+
+<p>You may stop at any time; there is nothing to cancel. We may withdraw the service, in whole or in part, at any time and without notice.</p>
+
+<h2>13. Contact</h2>
+
+<p>GitHub issues, on <a href="https://github.com/LibertyNetHQ/libertynet-dev-portal/issues">libertynet-dev-portal</a>. That is the only channel that is real today — there is no support email address and the Discord server does not exist yet.</p>
+
+<footer>
+  <p><a href="/privacy">Privacy</a> · <a href="https://docs.libertynet.ai">Documentation</a> · <a href="https://libertynet.ai/compute/">Compute</a></p>
+</footer>
+
+</main>
+</body>
+</html>
