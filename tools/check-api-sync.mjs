@@ -161,6 +161,35 @@ for (const group of status.groups) {
       });
     }
   }
+
+  // (5) claimed INTERNAL, but the public edge is serving it.
+  //
+  // The mirror image of every check above: these are endpoints we say a developer cannot reach,
+  // and the claim is only worth making if something verifies it. `/metrics` was public on
+  // compute.libertynet.ai until 2026-08-17 — an unauthenticated readout of every route, every
+  // error code being produced and how often the rate limiter is firing. It is 404 at the edge
+  // now, and this is what keeps it that way: re-publish it by accident and CI says so.
+  //
+  // `exists` is deliberately reused rather than a bare status check, so a proxy answering with an
+  // HTML error page does not read as "successfully hidden".
+  for (const internal of group.internal_endpoints ?? []) {
+    const result = await probe(internal.method, internal.path, group.base_url);
+    if (result.error) {
+      unverifiable.push(`${internal.method} ${internal.path} (internal): ${result.error}`);
+      continue;
+    }
+    if (routeExists(result)) {
+      findings.push({
+        severity: "exposure",
+        endpoint: `${internal.method} ${internal.path}`,
+        claimed: "internal, not publicly reachable",
+        observed: `HTTP ${result.status} from ${group.base_url}`,
+        detail:
+          "This is documented as unreachable from outside and it answered. Either the edge rule " +
+          "was lost or the endpoint moved. " + (internal.reason ?? ""),
+      });
+    }
+  }
 }
 
 // Identity drift: every record on the live registry must still verify. If this

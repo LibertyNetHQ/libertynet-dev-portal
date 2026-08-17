@@ -72,7 +72,6 @@ A working application, not a demo shim: it reaches the platform over `https://li
 | `GET /readyz` | <Status level="implemented" /> | Readiness, plus the platform gateway URL and contract version this build talks. |
 | `GET /version` | <Status level="implemented" /> | Service name, build version and the configured gateway. |
 | `GET /openapi.json` | <Status level="implemented" /> | This service's own contract — distinct from the platform's, which is at /coordination/openapi.json. |
-| `GET /metrics` | <Status level="implemented" /> | Prometheus text exposition. |
 | `GET /v1/task-package` | <Status level="implemented" /> | The WebAssembly task guest the browser registers before it can submit. A browser has no filesystem, so it fetches the bytes here and registers them with the platform itself. |
 | `POST /v1/derive-core-intent` | <Status level="implemented" /> | Turns a plain compute request into the exact platform Intent to sign, including the derived `intent_id`. Unsigned: it computes, it does not act. |
 | `POST /v1/intents` | <Status level="implemented" /> | Forwards the caller's signed `submit_intent` envelope to the platform unchanged. |

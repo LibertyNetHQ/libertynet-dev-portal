@@ -333,14 +333,6 @@ This service's own contract — distinct from the platform's, which is at /coord
 curl -s https://libertynet.ai/compute/openapi.json
 ```
 
-### `GET /metrics` <Status level="implemented" />
-
-Prometheus text exposition.
-
-```bash
-curl -s https://libertynet.ai/compute/metrics
-```
-
 ### `GET /v1/task-package` <Status level="implemented" />
 
 The WebAssembly task guest the browser registers before it can submit. A browser has no filesystem, so it fetches the bytes here and registers them with the platform itself.
@@ -418,6 +410,10 @@ Uploads an input object, forwarding the caller's signed envelope.
 Register an executable runtime package
 
 Registers a runtime package, forwarding the caller's signed envelope.
+
+### `GET /metrics` — not on the public surface
+
+Deliberately NOT on the public surface. lnc-server serves a Prometheus exposition on its own VPC-internal listener, and since 2026-08-17 the edge answers 404 for /metrics on every public host — an exposition names every route, every error code being produced and how often the limiter is firing, which is a free feedback channel for anyone probing the API. The LIO collector scrapes it over the VPC. Listed here so its absence is a decision on record rather than something a reader has to discover with curl.
 
 
 ## Credits & contribution evidence
