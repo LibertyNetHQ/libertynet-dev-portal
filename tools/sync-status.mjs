@@ -346,6 +346,21 @@ async function apiReference() {
         sections.push("```bash\ncurl -s " + base + e.path + "\n```\n");
       }
     }
+
+    // Endpoints that exist and are deliberately NOT reachable from outside.
+    //
+    // Documented rather than omitted so that the absence is a decision on record instead of
+    // something a reader finds with curl and reads as a broken deployment. They carry no
+    // <Status> badge on purpose: the four statuses all describe how far along something is, and
+    // "you cannot call this" is a different axis. They carry no curl line either, for the reason
+    // three lines up — printing a command that will 404 invites the wrong conclusion.
+    //
+    // `check-api-sync.mjs` probes each of these and FAILS if one answers, so this section is a
+    // verified claim rather than a promise.
+    for (const e of group.internal_endpoints ?? []) {
+      sections.push(`### \`${e.method} ${e.path}\` — not on the public surface\n`);
+      if (e.reason) sections.push(`${e.reason}\n`);
+    }
   }
 
   const content = `---

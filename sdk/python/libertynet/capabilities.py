@@ -79,7 +79,6 @@ CAPABILITIES = MappingProxyType({
         "GET /readyz": "implemented",
         "GET /version": "implemented",
         "GET /openapi.json": "implemented",
-        "GET /metrics": "implemented",
         "GET /v1/task-package": "implemented",
         "POST /v1/derive-core-intent": "implemented",
         "POST /v1/intents": "implemented",
