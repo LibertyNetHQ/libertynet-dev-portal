@@ -1,5 +1,11 @@
 {
   "locale": "fr",
+  "testnet": {
+    "label": "RÉSEAU DE TEST",
+    "headline": "LibertyNet fonctionne comme un réseau de test.",
+    "noValue": "Tous les jetons, soldes et récompenses affichés ici sont des unités de test. Ils n'ont aucune valeur monétaire, ne peuvent être ni échangés, ni vendus, ni convertis en argent, et ne constituent aucun droit sur quoi que ce soit de valeur.",
+    "mayReset": "La chaîne peut être réinitialisée à tout moment. Rien de ce qui s'y trouve n'est garanti d'être conservé : soldes, historique et enregistrements peuvent être effacés sans préavis."
+  },
   "nav": {
     "search": "Rechercher dans la documentation",
     "searchPlaceholder": "Rechercher…",

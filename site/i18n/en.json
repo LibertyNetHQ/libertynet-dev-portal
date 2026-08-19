@@ -1,6 +1,12 @@
 {
   "$comment": "UI chrome for the docs site. Long-form page content lives in docs-site/<locale>/*.mdx. Keys here are shared by every page, so a locale with only this file still gets a fully localised interface around English content.",
   "locale": "en",
+  "testnet": {
+    "label": "TESTNET",
+    "headline": "LibertyNet is running as a test network.",
+    "noValue": "Every token, balance and reward shown here is a test unit. It has no monetary value, cannot be redeemed, sold or exchanged for money, and is not a claim on anything of value.",
+    "mayReset": "The chain can be reset at any time. Nothing on it is guaranteed to be kept — balances, history and records may be erased without notice."
+  },
   "nav": {
     "search": "Search the docs",
     "searchPlaceholder": "Search…",
