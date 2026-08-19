@@ -216,6 +216,36 @@ function sectionsBehind(english, translation) {
   return Math.max(0, count(english) - count(translation));
 }
 
+
+/**
+ * The test-network banner.
+ *
+ * Site-wide, above the page title, on every page in every locale, with no way to dismiss it.
+ *
+ * These docs teach people to call an API that hands back token balances and Credits figures. A
+ * reader who copies a quickstart and sees a number has no way to know, from the number, that it is
+ * play money on a chain that may be wiped next week — unless the docs say so before they get
+ * there. `safety.creditsTestUnit` already said part of it, but only on the pages that chose to
+ * include it, which is exactly the pages whose authors had already thought about it.
+ *
+ * It renders inside the article flow rather than as a fixed strip so that it is captured by
+ * `Copy for AI` too: an assistant that ingests a page and then reasons about the balances as money
+ * is the same failure with more leverage.
+ */
+function testnetBanner(strings) {
+  const t = strings.testnet;
+  if (!t) return "";
+  return (
+    `<aside class="testnet" role="note" aria-label="${escapeHtml(t.label)}">` +
+    `<span class="testnet__tag">${escapeHtml(t.label)}</span>` +
+    `<div class="testnet__body">` +
+    `<strong>${escapeHtml(t.headline)}</strong>` +
+    `<p>${escapeHtml(t.noValue)}</p>` +
+    `<p>${escapeHtml(t.mayReset)}</p>` +
+    `</div></aside>`
+  );
+}
+
 function shell({ slug, locale, meta, body, headings, nav, pages, strings, prev, next, translated, behind = 0, counts = {} }) {
   const l = byCode[locale];
   const prefix = localePrefix(locale);
@@ -307,6 +337,7 @@ ${alternates}
 <div class="layout">
   <nav class="side" data-side>${sidebar(nav, slug, locale, localeIndex(pages, locale), strings)}</nav>
   <main>
+    ${testnetBanner(strings)}
     ${notice}
     <article${articleDir(locale, translated)}>
       <div class="page-head">
@@ -648,9 +679,20 @@ function toMarkdown(source, strings) {
     .replace(/[ \t]+$/gm, "")
     .replace(/\n{3,}/g, "\n\n");
 
+  // The twin is what `Copy for AI` puts into an assistant, and what `curl page.md`
+  // returns. An assistant that ingests a page full of balance figures without the
+  // three facts will reason about them as money — the same failure as a human
+  // reader making that mistake, with more leverage and no hesitation. So the
+  // notice is part of the prose, not part of the page chrome that the twin drops.
+  const t = strings?.testnet;
+  const notice = t
+    ? `\n> **${t.label} — ${t.headline}**\n>\n> ${t.noValue}\n>\n> ${t.mayReset}\n`
+    : "";
+
   return [
     `# ${source.meta.title}`,
     source.meta.description ? `\n> ${source.meta.description}` : "",
+    notice,
     `\n${body}`,
   ]
     .filter(Boolean)

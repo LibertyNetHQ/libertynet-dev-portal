@@ -1,5 +1,11 @@
 {
   "locale": "es",
+  "testnet": {
+    "label": "RED DE PRUEBAS",
+    "headline": "LibertyNet funciona como una red de pruebas.",
+    "noValue": "Todos los tokens, saldos y recompensas que se muestran aquí son unidades de prueba. No tienen valor monetario, no se pueden canjear, vender ni cambiar por dinero, y no representan un derecho sobre nada de valor.",
+    "mayReset": "La cadena puede reiniciarse en cualquier momento. No se garantiza que se conserve nada de lo que hay en ella: saldos, historial y registros pueden borrarse sin previo aviso."
+  },
   "nav": {
     "search": "Buscar en la documentación",
     "searchPlaceholder": "Buscar…",

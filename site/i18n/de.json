@@ -1,5 +1,11 @@
 {
   "locale": "de",
+  "testnet": {
+    "label": "TESTNETZ",
+    "headline": "LibertyNet läuft als Testnetz.",
+    "noValue": "Alle hier angezeigten Token, Guthaben und Belohnungen sind Testeinheiten. Sie haben keinen Geldwert, können nicht eingelöst, verkauft oder in Geld getauscht werden und stellen keinen Anspruch auf irgendeinen Wert dar.",
+    "mayReset": "Die Chain kann jederzeit zurückgesetzt werden. Für nichts darauf ist der Erhalt garantiert — Guthaben, Verlauf und Aufzeichnungen können ohne Vorankündigung gelöscht werden."
+  },
   "nav": {
     "search": "Dokumentation durchsuchen",
     "searchPlaceholder": "Suchen…",

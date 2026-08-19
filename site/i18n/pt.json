@@ -1,5 +1,11 @@
 {
   "locale": "pt",
+  "testnet": {
+    "label": "REDE DE TESTES",
+    "headline": "A LibertyNet está funcionando como uma rede de testes.",
+    "noValue": "Todos os tokens, saldos e recompensas exibidos aqui são unidades de teste. Não têm valor monetário, não podem ser resgatados, vendidos ou trocados por dinheiro, e não representam direito sobre nada de valor.",
+    "mayReset": "A rede pode ser reiniciada a qualquer momento. Nada nela tem preservação garantida — saldos, histórico e registros podem ser apagados sem aviso."
+  },
   "nav": {
     "search": "Pesquisar na documentação",
     "searchPlaceholder": "Pesquisar…",

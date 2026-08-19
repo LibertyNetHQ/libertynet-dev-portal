@@ -1,6 +1,12 @@
 {
   "$comment": "Arabic — RTL. The build stamps dir=rtl on <html> and mirrors the layout. Latin technical identifiers (did:svrp:, last_seen, status) are wrapped in bidi isolation at render time so they read left-to-right inside Arabic sentences.",
   "locale": "ar",
+  "testnet": {
+    "label": "شبكة اختبار",
+    "headline": "تعمل LibertyNet حاليًا كشبكة اختبار.",
+    "noValue": "كل الرموز والأرصدة والمكافآت المعروضة هنا هي وحدات اختبارية. ليس لها أي قيمة مالية، ولا يمكن استبدالها أو بيعها أو تحويلها إلى نقود، ولا تمثل حقًا في أي شيء ذي قيمة.",
+    "mayReset": "قد تُعاد تهيئة السلسلة في أي وقت. لا يوجد أي ضمان بالاحتفاظ بما عليها — قد تُمحى الأرصدة والسجلات والتاريخ دون إشعار مسبق."
+  },
   "dir": "rtl",
   "nav": {
     "search": "ابحث في الوثائق",
