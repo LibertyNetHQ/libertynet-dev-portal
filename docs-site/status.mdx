@@ -38,7 +38,7 @@ Public. No key, no signup, no rate limit to apply for.
 | `GET /health` | <Status level="implemented" /> | Liveness + registered node count. |
 | `GET /nodes` | <Status level="implemented" /> | The full node table. |
 | `GET /peers` | <Status level="implemented" /> | Plain text, one peer per line, for shell tooling. |
-| `GET /api/v1/peers` | <Status level="not_yet_wired" /> | Returns 200 with a well-formed envelope, but the list inside is always empty — it is **not** the JSON form of `/peers`. Probed 2026-08-13: `/peers` returned real nodes while this returned `{"ok": true, "data": [], "error": null}` at the same moment. Use `/peers` or `/nodes`. |
+| `GET /api/v1/peers` | <Status level="implemented" /> | JSON envelope with the peer list inside. Re-probed 2026-08-20: 13 entries carrying `did`, `direct_addrs`, `relay_urls`, `region`, `last_heartbeat`, while `/peers` returned 16 lines at the same moment. It was genuinely empty on 2026-08-13 and this row said so; it has since been wired and the row had not caught up. Still not identical to `/peers`: different format, more fields, and different freshness filters, so the counts need not match. |
 | `POST /api/v1/register` | <Status level="implemented" /> | A node announces itself. Signature checking is in grace mode. |
 | `POST /api/v1/heartbeat` | <Status level="implemented" /> | Refreshes `last_seen`. |
 

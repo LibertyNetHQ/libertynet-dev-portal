@@ -6,6 +6,13 @@
     "noValue": "Todos os tokens, saldos e recompensas exibidos aqui são unidades de teste. Não têm valor monetário, não podem ser resgatados, vendidos ou trocados por dinheiro, e não representam direito sobre nada de valor.",
     "mayReset": "A rede pode ser reiniciada a qualquer momento. Nada nela tem preservação garantida — saldos, histórico e registros podem ser apagados sem aviso."
   },
+  "nodeScope": {
+    "label": "O QUE ESTE NÓ FAZ",
+    "headline": "Um nó que você instala hoje retransmite e é descobrível. Ele não executa tarefas de computação.",
+    "does": "Ele entra na rede pública com uma identidade autocertificada, aparece no registro, retransmite tráfego de outros nós e pode ser vinculado a um Operador no Console.",
+    "doesNot": "Ele nunca recebe trabalho de computação. O escalonador despacha por uma capacidade que esta versão não anuncia, então nenhuma tarefa chegará — não é erro de configuração e nenhuma opção muda isso.",
+    "planned": "Contribuir com computação a partir de um nó instalado por você está planejado e ainda não está aberto. Até lá, o resumo honesto é: retransmissão e descoberta, nada mais."
+  },
   "nav": {
     "search": "Pesquisar na documentação",
     "searchPlaceholder": "Pesquisar…",

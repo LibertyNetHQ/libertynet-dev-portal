@@ -6,6 +6,13 @@
     "noValue": "Tous les jetons, soldes et récompenses affichés ici sont des unités de test. Ils n'ont aucune valeur monétaire, ne peuvent être ni échangés, ni vendus, ni convertis en argent, et ne constituent aucun droit sur quoi que ce soit de valeur.",
     "mayReset": "La chaîne peut être réinitialisée à tout moment. Rien de ce qui s'y trouve n'est garanti d'être conservé : soldes, historique et enregistrements peuvent être effacés sans préavis."
   },
+  "nodeScope": {
+    "label": "CE QUE FAIT CE NŒUD",
+    "headline": "Un nœud installé aujourd'hui relaie et se laisse découvrir. Il n'exécute pas de tâches de calcul.",
+    "does": "Il rejoint le réseau public avec une identité auto-certifiée, apparaît dans le registre, relaie le trafic d'autres nœuds et peut être lié à un Opérateur dans la Console.",
+    "doesNot": "Il ne reçoit jamais de travail de calcul. L'ordonnanceur répartit selon une capacité que cette version n'annonce pas : aucune tâche n'arrivera donc jamais. Ce n'est pas une erreur de configuration et aucun réglage n'y change quoi que ce soit.",
+    "planned": "Contribuer du calcul depuis un nœud que vous avez installé est prévu et n'est pas encore ouvert. D'ici là, le résumé honnête est : relais et découverte, rien de plus."
+  },
   "nav": {
     "search": "Rechercher dans la documentation",
     "searchPlaceholder": "Rechercher…",
