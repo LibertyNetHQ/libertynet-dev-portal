@@ -60,7 +60,7 @@ matrix rather than written by hand.
 | Operator login | <Status level="implemented" /> | Challenge → device-key signature → 1-hour session. No passwords. |
 | Node ↔ operator binding | <Status level="implemented" /> | Full double-signature handshake, all four signatures re-verified. |
 | Coordination — Intent → Result | <Status level="implemented" /> | Live at `https://libertynet.ai/coordination`. `POST /v1/intents`, then `GET /v1/sessions/{session_id}/proposal`, `POST /v1/sessions/{session_id}/authorize`, `GET /v1/sessions/{session_id}/result` and `GET /v1/sessions/{session_id}/receipt`. Every call signed, reads included. |
-| Compute App — an application using it | <Status level="implemented" /> | Live at `https://libertynet.ai/compute`. The first real user of the coordination API above, reaching it over the same public endpoints and no private ones. It holds no requester key: the browser signs, the App forwards. |
+| Compute App — an application using it | <Status level="implemented" /> | Live at `https://compute.libertynet.ai` (`libertynet.ai/compute` is a 301 to it). The first real user of the coordination API above, reaching it over the same public endpoints and no private ones. It holds no requester key: the browser signs, the App forwards. |
 | Credits & evidence | <Status level="not_yet_wired" /> | Endpoints live and return `200`, but no ledger behind them. They return zeros and say so. |
 | Oracle contracts | <Status level="testing" /> | 23/23 tests pass. Not deployed to any public network. |
 | Wallet · DEX · token | <Status level="planned" /> | Not built. Nothing to call. |
