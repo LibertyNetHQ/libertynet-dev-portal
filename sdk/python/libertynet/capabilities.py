@@ -34,7 +34,7 @@ CAPABILITIES = MappingProxyType({
         "GET /health": "implemented",
         "GET /nodes": "implemented",
         "GET /peers": "implemented",
-        "GET /api/v1/peers": "not_yet_wired",
+        "GET /api/v1/peers": "implemented",
         "POST /api/v1/register": "implemented",
         "POST /api/v1/heartbeat": "implemented",
         "GET /nodes?callable=1": "implemented",

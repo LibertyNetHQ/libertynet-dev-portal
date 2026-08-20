@@ -57,7 +57,11 @@ curl -s https://registry.libertynet.ai/peers
 
 List peers (JSON envelope)
 
-Returns a JSON envelope with the peer list inside. Re-probed 2026-08-20: 13 entries with did / transport_id / direct_addrs / relay_urls / region / registered_at / last_heartbeat, while GET /peers returned 16 lines at the same moment. It was genuinely empty when probed 2026-08-13 and this page said so; it has since been wired and the page had not caught up. The two still differ: /peers is plain text for shell tooling, this is JSON with more fields, and the counts need not match — they apply different freshness filters.
+Returns a JSON envelope with the peer list inside. Re-probed 2026-08-20: 13 entries with did / transport_id / direct_addrs / relay_urls / region / registered_at / last_heartbeat, while GET /peers returned 16 lines at the same moment. It was genuinely empty when probed 2026-08-13 and this entry said so; it has since been wired and the entry had not caught up. The two endpoints still differ: /peers is plain text for shell tooling, this one is JSON with more fields, and the counts need not match — they apply different freshness filters.
+
+```bash
+curl -s https://registry.libertynet.ai/api/v1/peers
+```
 
 ### `POST /api/v1/register` <Status level="implemented" />
 

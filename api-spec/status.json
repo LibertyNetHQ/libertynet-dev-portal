@@ -39,7 +39,7 @@
           "method": "GET",
           "path": "/api/v1/peers",
           "status": "implemented",
-          "note": "Returns a JSON envelope with the peer list inside. Re-probed 2026-08-20: 13 entries with did / transport_id / direct_addrs / relay_urls / region / registered_at / last_heartbeat, while GET /peers returned 16 lines at the same moment. It was genuinely empty when probed 2026-08-13 and this entry said so; it has since been wired and the entry had not caught up. The two endpoints still differ: /peers is plain text for shell tooling, this one is JSON with more fields, and the counts need not match \\u2014 they apply different freshness filters."
+          "note": "Returns a JSON envelope with the peer list inside. Re-probed 2026-08-20: 13 entries with did / transport_id / direct_addrs / relay_urls / region / registered_at / last_heartbeat, while GET /peers returned 16 lines at the same moment. It was genuinely empty when probed 2026-08-13 and this entry said so; it has since been wired and the entry had not caught up. The two endpoints still differ: /peers is plain text for shell tooling, this one is JSON with more fields, and the counts need not match — they apply different freshness filters."
         },
         {
           "method": "POST",
