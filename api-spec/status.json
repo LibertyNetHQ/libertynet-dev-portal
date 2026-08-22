@@ -1,6 +1,6 @@
 {
-  "$comment": "Machine-readable capability matrix for the LibertyNet developer portal. SINGLE SOURCE OF TRUTH for every 'Implemented / Testing / Planned' badge rendered in the docs, the SDKs and the dashboard. Never hand-edit a badge in an .mdx file \u2014 edit this file and re-run `node tools/check-docs-drift.mjs`.",
-  "spec": "LIBERTYNET-DEV-PORTAL-AIPM-001 \u00a79",
+  "$comment": "Machine-readable capability matrix for the LibertyNet developer portal. SINGLE SOURCE OF TRUTH for every 'Implemented / Testing / Planned' badge rendered in the docs, the SDKs and the dashboard. Never hand-edit a badge in an .mdx file — edit this file and re-run `node tools/check-docs-drift.mjs`.",
+  "spec": "LIBERTYNET-DEV-PORTAL-AIPM-001 §9",
   "generated_by": "human-authored, endpoint-probed",
   "verified_at": "2026-08-14",
   "verified_against": "https://registry.libertynet.ai (live probe) + https://libertynet.ai/demo-node (end-to-end loop) + https://libertynet.ai/coordination (gateway at libertynet-coordination f659fc1, redeployed 2026-08-14: a full Intent -> Proposal -> Commitment -> authorize -> Result -> Receipt run from an external client, twice consecutively; the read-path authorization control in both directions, plus its --expect-bypass positive control, which correctly FAILS against this deployment; and the contract-drift suite, where a 1.0.0-shaped Intent gets 400 schema_invalid naming the missing field while a deliberately corrupted signature still gets 401 signature_invalid) + https://libertynet.ai/compute (Compute App at libertynet-compute 61ed652, first deployed 2026-08-14; every endpoint in its group probed from outside the deployment host). See TEST-EVIDENCE.md.",
@@ -27,7 +27,7 @@
           "method": "GET",
           "path": "/nodes",
           "status": "implemented",
-          "note": "Full node table as JSON. Each record carries computed `reachability` (public|private|unroutable) and `signature_present`. Use `?callable=1` for only publicly-reachable, signed nodes \u2014 today that is 1 of 28."
+          "note": "Full node table as JSON. Each record carries computed `reachability` (public|private|unroutable) and `signature_present`. Use `?callable=1` for only publicly-reachable, signed nodes — today that is 1 of 28."
         },
         {
           "method": "GET",
@@ -38,8 +38,8 @@
         {
           "method": "GET",
           "path": "/api/v1/peers",
-          "status": "not_yet_wired",
-          "note": "Returns 200 with a well-formed envelope, but the peer list inside is always empty \u2014 it is NOT the JSON form of /peers. Probed 2026-08-13: GET /peers returned 4+ real nodes with endpoints, while GET /api/v1/peers returned {\"ok\": true, \"data\": [], \"error\": null} at the same moment. Use /peers or /nodes until this is wired."
+          "status": "implemented",
+          "note": "Returns a JSON envelope with the peer list inside. Re-probed 2026-08-20: 13 entries with did / transport_id / direct_addrs / relay_urls / region / registered_at / last_heartbeat, while GET /peers returned 16 lines at the same moment. It was genuinely empty when probed 2026-08-13 and this entry said so; it has since been wired and the entry had not caught up. The two endpoints still differ: /peers is plain text for shell tooling, this one is JSON with more fields, and the counts need not match — they apply different freshness filters."
         },
         {
           "method": "POST",
@@ -63,7 +63,7 @@
     },
     {
       "id": "binding",
-      "title": "Node \u2194 operator binding (double-signature)",
+      "title": "Node ↔ operator binding (double-signature)",
       "base_url": "https://registry.libertynet.ai",
       "auth": "ed25519 signatures; no API key",
       "endpoints": [
@@ -121,7 +121,7 @@
       "id": "identity",
       "title": "Operator identity & session",
       "base_url": "https://registry.libertynet.ai",
-      "auth": "challenge \u2192 device-key signature \u2192 bearer session (1h)",
+      "auth": "challenge → device-key signature → bearer session (1h)",
       "endpoints": [
         {
           "method": "POST",
@@ -145,10 +145,10 @@
     },
     {
       "id": "coordination",
-      "title": "Coordination \u2014 ask the network to do work",
+      "title": "Coordination — ask the network to do work",
       "base_url": "https://libertynet.ai/coordination",
       "auth": "ed25519 signed envelope on every call, reads included; no API key, nothing issued",
-      "note": "The Intent \u2192 Proposal \u2192 Commitment \u2192 authorize \u2192 Result \u2192 Receipt loop, served by ln-coordination-gateway in front of a coordination core and a real three-node provider fleet. Authentication is a signed envelope carried in `x-ln-signed-request` (or, for the four operations whose body is itself the envelope, the body). There is no anonymous read: `session_id` is derived from content a third party can compute, so an unauthenticated read path would hand any stranger another party's Result and Receipt. The full schemas are in the OpenAPI document; this table is the index.",
+      "note": "The Intent → Proposal → Commitment → authorize → Result → Receipt loop, served by ln-coordination-gateway in front of a coordination core and a real three-node provider fleet. Authentication is a signed envelope carried in `x-ln-signed-request` (or, for the four operations whose body is itself the envelope, the body). There is no anonymous read: `session_id` is derived from content a third party can compute, so an unauthenticated read path would hand any stranger another party's Result and Receipt. The full schemas are in the OpenAPI document; this table is the index.",
       "endpoints": [
         {
           "method": "GET",
@@ -172,7 +172,7 @@
           "method": "GET",
           "path": "/v1/capabilities",
           "status": "implemented",
-          "note": "What `capability_requirement.capability_type` may be set to. Guessing wrong used to fail later, at `get_proposal`, as \"no capability passed qualification\" \u2014 naming neither the field nor the mistake."
+          "note": "What `capability_requirement.capability_type` may be set to. Guessing wrong used to fail later, at `get_proposal`, as \"no capability passed qualification\" — naming neither the field nor the mistake."
         },
         {
           "method": "POST",
@@ -208,7 +208,7 @@
           "method": "POST",
           "path": "/v1/sessions/{session_id}/authorize",
           "status": "implemented",
-          "note": "Authorizes the proposal and runs the work. Blocks for as long as the delivery takes \u2014 set no client timeout."
+          "note": "Authorizes the proposal and runs the work. Blocks for as long as the delivery takes — set no client timeout."
         },
         {
           "method": "POST",
@@ -232,7 +232,7 @@
           "method": "GET",
           "path": "/v1/sessions/{session_id}/events",
           "status": "implemented",
-          "note": "A polling snapshot of the session's events. It is **not** a push stream \u2014 no SSE, no websocket. Poll it."
+          "note": "A polling snapshot of the session's events. It is **not** a push stream — no SSE, no websocket. Poll it."
         },
         {
           "method": "POST",
@@ -244,7 +244,7 @@
           "method": "GET",
           "path": "/v1/objects/{object_id}",
           "status": "implemented",
-          "note": "Download an object. Authenticated \u2014 an object id is derived from its content, so an unauthenticated read would serve any caller who could compute one."
+          "note": "Download an object. Authenticated — an object id is derived from its content, so an unauthenticated read would serve any caller who could compute one."
         },
         {
           "method": "POST",
@@ -256,10 +256,10 @@
     },
     {
       "id": "compute",
-      "title": "Compute App \u2014 the first application on the coordination API",
+      "title": "Compute App — the first application on the coordination API",
       "base_url": "https://libertynet.ai/compute",
       "auth": "the caller's own ed25519 envelopes, forwarded unchanged; this service holds no key",
-      "note": "A working application, not a demo shim: it reaches the platform over `https://libertynet.ai/coordination` and no private path, so what works here is exactly what works for anyone else. It holds **no requester key** \u2014 every mutating call carries the browser's already-signed envelope verbatim, and reads carry the browser's signed read credentials in `x-lnc-read-credentials`. That is why a session belongs to the browser that opened it and this service cannot read it on your behalf. `GET /` is the six-page browser UI, which signs with WebCrypto and keeps the key in the tab's memory only \u2014 reloading the page is a new identity.",
+      "note": "A working application, not a demo shim: it reaches the platform over `https://libertynet.ai/coordination` and no private path, so what works here is exactly what works for anyone else. It holds **no requester key** — every mutating call carries the browser's already-signed envelope verbatim, and reads carry the browser's signed read credentials in `x-lnc-read-credentials`. That is why a session belongs to the browser that opened it and this service cannot read it on your behalf. `GET /` is the six-page browser UI, which signs with WebCrypto and keeps the key in the tab's memory only — reloading the page is a new identity.",
       "endpoints": [
         {
           "method": "GET",
@@ -289,7 +289,7 @@
           "method": "GET",
           "path": "/openapi.json",
           "status": "implemented",
-          "note": "This service's own contract \u2014 distinct from the platform's, which is at /coordination/openapi.json."
+          "note": "This service's own contract — distinct from the platform's, which is at /coordination/openapi.json."
         },
         {
           "method": "GET",
@@ -331,7 +331,7 @@
           "method": "POST",
           "path": "/v1/sessions/{session_id}/authorize",
           "status": "implemented",
-          "note": "Authorizes and runs the work. Blocks for as long as the delivery takes \u2014 do not set a short client timeout."
+          "note": "Authorizes and runs the work. Blocks for as long as the delivery takes — do not set a short client timeout."
         },
         {
           "method": "POST",
@@ -349,7 +349,7 @@
           "method": "GET",
           "path": "/v1/sessions/{session_id}/receipt",
           "status": "implemented",
-          "note": "The receipt. Signed read. The settlement figure is an accounting record and moves no value \u2014 see the coordination group."
+          "note": "The receipt. Signed read. The settlement figure is an accounting record and moves no value — see the coordination group."
         },
         {
           "method": "GET",
@@ -374,7 +374,7 @@
         {
           "method": "GET",
           "path": "/metrics",
-          "reason": "Deliberately NOT on the public surface. lnc-server serves a Prometheus exposition on its own VPC-internal listener, and since 2026-08-17 the edge answers 404 for /metrics on every public host \u2014 an exposition names every route, every error code being produced and how often the limiter is firing, which is a free feedback channel for anyone probing the API. The LIO collector scrapes it over the VPC. Listed here so its absence is a decision on record rather than something a reader has to discover with curl."
+          "reason": "Deliberately NOT on the public surface. lnc-server serves a Prometheus exposition on its own VPC-internal listener, and since 2026-08-17 the edge answers 404 for /metrics on every public host — an exposition names every route, every error code being produced and how often the limiter is firing, which is a free feedback channel for anyone probing the API. The LIO collector scrapes it over the VPC. Listed here so its absence is a decision on record rather than something a reader has to discover with curl."
         }
       ]
     },
@@ -408,7 +408,7 @@
           "method": "CONTRACT",
           "path": "EvidenceOracle.submitEvidence",
           "status": "testing",
-          "note": "Solidity contract exists with a passing 23/23 suite (libertynet-oracle/, Phase 1). NOT deployed to any public network \u2014 there is no address to call."
+          "note": "Solidity contract exists with a passing 23/23 suite (libertynet-oracle/, Phase 1). NOT deployed to any public network — there is no address to call."
         },
         {
           "method": "CONTRACT",
@@ -532,7 +532,7 @@
           "method": "LINK",
           "path": "https://discord.gg/libertynet",
           "status": "planned",
-          "note": "The Discord server does not exist yet \u2014 creating one needs an interactive login. The address is reserved and referenced in the docs so that it can be swapped in one command (community/apply-invite.mjs) the moment it is real. Until then every reference to it is badged `planned`."
+          "note": "The Discord server does not exist yet — creating one needs an interactive login. The address is reserved and referenced in the docs so that it can be swapped in one command (community/apply-invite.mjs) the moment it is real. Until then every reference to it is badged `planned`."
         },
         {
           "method": "LINK",

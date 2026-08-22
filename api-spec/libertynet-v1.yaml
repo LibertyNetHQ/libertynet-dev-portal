@@ -207,7 +207,7 @@ paths:
       summary: List peers (JSON envelope)
       tags: [Discovery]
       security: []
-      x-ln-status: not_yet_wired
+      x-ln-status: implemented
       responses:
         '200':
           description: Peer list wrapped in the standard envelope.

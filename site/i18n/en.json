@@ -7,6 +7,13 @@
     "noValue": "Every token, balance and reward shown here is a test unit. It has no monetary value, cannot be redeemed, sold or exchanged for money, and is not a claim on anything of value.",
     "mayReset": "The chain can be reset at any time. Nothing on it is guaranteed to be kept — balances, history and records may be erased without notice."
   },
+  "nodeScope": {
+    "label": "WHAT THIS NODE DOES",
+    "headline": "A node you install today relays and is discoverable. It does not run compute tasks.",
+    "does": "It joins the public network with a self-certifying identity, appears in the registry, relays traffic for other nodes, and can be bound to an Operator in the Console.",
+    "doesNot": "It is never sent compute work. The scheduler dispatches on a capability this build does not advertise, so no task will ever arrive — this is not a misconfiguration and no setting changes it.",
+    "planned": "Contributing compute from a node you installed yourself is planned and not open yet. Until it is, the honest summary is: relay and discovery, nothing else."
+  },
   "nav": {
     "search": "Search the docs",
     "searchPlaceholder": "Search…",

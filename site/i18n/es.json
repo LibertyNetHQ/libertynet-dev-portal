@@ -6,6 +6,13 @@
     "noValue": "Todos los tokens, saldos y recompensas que se muestran aquí son unidades de prueba. No tienen valor monetario, no se pueden canjear, vender ni cambiar por dinero, y no representan un derecho sobre nada de valor.",
     "mayReset": "La cadena puede reiniciarse en cualquier momento. No se garantiza que se conserve nada de lo que hay en ella: saldos, historial y registros pueden borrarse sin previo aviso."
   },
+  "nodeScope": {
+    "label": "QUÉ HACE ESTE NODO",
+    "headline": "Un nodo que instales hoy retransmite y es detectable. No ejecuta tareas de cómputo.",
+    "does": "Se une a la red pública con una identidad autocertificada, aparece en el registro, retransmite tráfico de otros nodos y puede vincularse a un Operador en la Consola.",
+    "doesNot": "Nunca recibe trabajo de cómputo. El planificador asigna según una capacidad que esta versión no anuncia, así que ninguna tarea llegará jamás: no es un error de configuración y ningún ajuste lo cambia.",
+    "planned": "Aportar cómputo desde un nodo instalado por ti está planificado y aún no está abierto. Hasta entonces, el resumen honesto es: retransmisión y descubrimiento, nada más."
+  },
   "nav": {
     "search": "Buscar en la documentación",
     "searchPlaceholder": "Buscar…",

@@ -6,6 +6,13 @@
     "noValue": "Alle hier angezeigten Token, Guthaben und Belohnungen sind Testeinheiten. Sie haben keinen Geldwert, können nicht eingelöst, verkauft oder in Geld getauscht werden und stellen keinen Anspruch auf irgendeinen Wert dar.",
     "mayReset": "Die Chain kann jederzeit zurückgesetzt werden. Für nichts darauf ist der Erhalt garantiert — Guthaben, Verlauf und Aufzeichnungen können ohne Vorankündigung gelöscht werden."
   },
+  "nodeScope": {
+    "label": "WAS DIESER KNOTEN TUT",
+    "headline": "Ein heute installierter Knoten leitet weiter und ist auffindbar. Rechenaufgaben führt er nicht aus.",
+    "does": "Er tritt dem öffentlichen Netz mit einer selbstzertifizierenden Identität bei, erscheint in der Registry, leitet Verkehr für andere Knoten weiter und lässt sich in der Console an einen Operator binden.",
+    "doesNot": "Rechenarbeit erhält er nie. Der Scheduler verteilt anhand einer Fähigkeit, die dieser Build nicht ankündigt — es wird also nie eine Aufgabe eintreffen. Das ist kein Konfigurationsfehler, und keine Einstellung ändert es.",
+    "planned": "Rechenleistung von einem selbst installierten Knoten beizusteuern ist geplant und noch nicht offen. Bis dahin lautet die ehrliche Zusammenfassung: Weiterleitung und Auffindbarkeit, sonst nichts."
+  },
   "nav": {
     "search": "Dokumentation durchsuchen",
     "searchPlaceholder": "Suchen…",

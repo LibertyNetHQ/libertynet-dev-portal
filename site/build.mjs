@@ -246,6 +246,38 @@ function testnetBanner(strings) {
   );
 }
 
+/**
+ * What a node an outsider installs actually does — and what it does not.
+ *
+ * A5 external verification, 2026-08-20: a stranger followed these docs on a clean machine,
+ * installed a node, bound it to an Operator, watched it go active in the registry — and it could
+ * not receive a compute task, and never would. The capability the coordinator schedules on is not
+ * one this build advertises, and no config key, flag or env var produces it. Nothing on this site
+ * said so; several pages invite you to install a node and contribute.
+ *
+ * That gap is not a caveat, so it is not rendered as one. It sits in the article flow, at the same
+ * weight as the instructions it qualifies, and it comes from `i18n/*.json` rather than the page
+ * body — every page here except the quickstarts is English-only, and a reader in Arabic following
+ * an English page must still get this sentence in Arabic.
+ *
+ * Pages opt in with `nodeScope: true` in frontmatter: it belongs where someone is being told to
+ * run a node, not on the API reference.
+ */
+function nodeScopeBanner(strings) {
+  const t = strings.nodeScope;
+  if (!t) return "";
+  return (
+    `<aside class="scope" role="note" aria-label="${escapeHtml(t.label)}">` +
+    `<span class="scope__tag">${escapeHtml(t.label)}</span>` +
+    `<div class="scope__body">` +
+    `<strong>${escapeHtml(t.headline)}</strong>` +
+    `<p>${escapeHtml(t.does)}</p>` +
+    `<p>${escapeHtml(t.doesNot)}</p>` +
+    `<p>${escapeHtml(t.planned)}</p>` +
+    `</div></aside>`
+  );
+}
+
 function shell({ slug, locale, meta, body, headings, nav, pages, strings, prev, next, translated, behind = 0, counts = {} }) {
   const l = byCode[locale];
   const prefix = localePrefix(locale);
@@ -338,6 +370,7 @@ ${alternates}
   <nav class="side" data-side>${sidebar(nav, slug, locale, localeIndex(pages, locale), strings)}</nav>
   <main>
     ${testnetBanner(strings)}
+    ${meta.nodeScope ? nodeScopeBanner(strings) : ""}
     ${notice}
     <article${articleDir(locale, translated)}>
       <div class="page-head">
@@ -689,10 +722,19 @@ function toMarkdown(source, strings) {
     ? `\n> **${t.label} — ${t.headline}**\n>\n> ${t.noValue}\n>\n> ${t.mayReset}\n`
     : "";
 
+  // Same argument, one step further: an assistant that ingests the install page and is then asked
+  // "will my node earn anything" must not answer from instructions alone. The scope note is the
+  // part that stops it inventing a yes.
+  const ns = source.meta?.nodeScope ? strings?.nodeScope : null;
+  const scope = ns
+    ? `\n> **${ns.label} — ${ns.headline}**\n>\n> ${ns.does}\n>\n> ${ns.doesNot}\n>\n> ${ns.planned}\n`
+    : "";
+
   return [
     `# ${source.meta.title}`,
     source.meta.description ? `\n> ${source.meta.description}` : "",
     notice,
+    scope,
     `\n${body}`,
   ]
     .filter(Boolean)

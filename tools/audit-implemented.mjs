@@ -339,13 +339,35 @@ const FEATURE_CLAIMS = [
       // checking is *which* platform it reaches: the whole point of this App is that it uses the
       // published coordination URL any third party can use, so a build quietly pointed at an
       // internal address would make the sentence false while every page still loaded.
-      const res = await fetch("https://libertynet.ai/compute/readyz", {
+      // The App now lives at one origin. `libertynet.ai/compute` is a 301 to
+      // `compute.libertynet.ai` and serves nothing of its own, so both halves are checked
+      // against what is actually there: the retired address must still redirect (a second
+      // deployment quietly restored at the apex would serve a bundle built for the wrong
+      // origin and answer /readyz correctly the whole time), and the live origin must name the
+      // published coordination host.
+      //
+      // This expectation used to be the apex *path* form. That form is cross-origin at the
+      // subdomain, matches nothing under its CSP, and is no longer what any deployment reports
+      // — so the check was asserting a value that had stopped being true.
+      const redirect = await fetch("https://libertynet.ai/compute/", {
+        redirect: "manual",
+        signal: AbortSignal.timeout(20_000),
+      });
+      const location = redirect.headers.get("location") ?? "";
+      const redirects = redirect.status === 301 && location.startsWith("https://compute.libertynet.ai");
+
+      const res = await fetch("https://compute.libertynet.ai/readyz", {
         signal: AbortSignal.timeout(20_000),
       });
       const body = await res.json().catch(() => ({}));
       const gateway = body.gateway_url;
-      const ok = res.ok && gateway === "https://libertynet.ai/coordination";
-      return [ok, ok ? `ready, gateway_url=${gateway}` : `status ${res.status}, gateway_url=${gateway ?? "absent"}`];
+      const ok = res.ok && gateway === "https://coordination.libertynet.ai" && redirects;
+      return [
+        ok,
+        ok
+          ? `ready, gateway_url=${gateway}, apex still 301`
+          : `status ${res.status}, gateway_url=${gateway ?? "absent"}, apex 301=${redirects}`,
+      ];
     },
   },
   {
