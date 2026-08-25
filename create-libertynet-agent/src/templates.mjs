@@ -34,7 +34,9 @@ export const AGENT_TYPES = [
     id: "solver",
     label: "Intent solver",
     blurb: "Skeleton for solving user intents.",
-    detail: "The intent system is not built yet — this generates the shape, not a working solver.",
+    detail:
+      "The intent DEX is live, but third-party solving is not open yet (permissioned registry, " +
+      "single trusted solver). This generates the shape. If you want to TRADE, you can do that today.",
     runnable: true,
   },
   {
@@ -287,17 +289,26 @@ server.listen(PORT, () => {
 const SOLVER = String.raw`/**
  * Intent solver — skeleton.
  *
- * Read this before building on it: **the intent system does not exist yet.**
- * There is no intent endpoint, no quoting engine and no settlement path. Every
- * status is 'planned' at https://docs.libertynet.ai/status
+ * Read this before building on it, because the situation changed and the
+ * distinction is easy to get wrong:
  *
- * So this file generates the *shape* of a solver — the loop, the boundaries, the
- * place your pricing logic goes — with the network calls clearly marked as not
- * yet real. It will not silently start working; when the API ships, the marked
- * functions are the ones to replace.
+ *   * The intent DEX **is live** on a public testnet. Intents are signed,
+ *     auctioned, filled and settled on chain today.
+ *   * **Third-party solving is not open.** Admission to SolverRegistry is
+ *     permissioned — a credit threshold plus a stake — and the solver actually
+ *     serving the venue is a single trusted service. So there is still no
+ *     endpoint an outside solver can call, and the two functions below still
+ *     throw rather than return a plausible-looking answer.
  *
- * What DOES work today is everything below the line: discovering and verifying
- * the nodes you would be competing with and settling against.
+ * If what you want is to TRADE rather than to solve, you can do that right now
+ * and you do not need this template: an agent signs an intent with a session
+ * key, posts it, and a solver fills it — no gas, no route, no funded EOA. The
+ * onboarding document and a runnable example ship in the libertynet-dex repo
+ * (docs/EXTERNAL-AGENT-ONBOARDING.md). Capability status, as always:
+ * https://docs.libertynet.ai/status
+ *
+ * What works today in THIS file is everything below the line: discovering and
+ * verifying the nodes you would be competing with and settling against.
  */
 
 import { LibertyNet } from "./libertynet.mjs";
@@ -313,17 +324,21 @@ const ln = new LibertyNet({
 
 function notBuilt(what) {
   throw new Error(
-    what + " is planned, not built. There is no endpoint behind it. " +
-    "Track it at https://docs.libertynet.ai/status",
+    what + " is planned, not built. The intent DEX is live, but third-party " +
+    "solving is not open: SolverRegistry admission is permissioned and the " +
+    "venue is served by a single trusted solver, so there is no endpoint " +
+    "behind this. To TRADE instead you need no solver admission at all: sign an " +
+    "intent with a session key and post it. " +
+    "Track solver opening at https://docs.libertynet.ai/status",
   );
 }
 
-/** Fetch open intents. @throws always, until the intent system ships. */
+/** Fetch open intents. @throws always, until third-party solving opens. */
 export async function fetchIntents() {
   notBuilt("GET /v1/dex/intent");
 }
 
-/** Submit a solution. @throws always, until the intent system ships. */
+/** Submit a solution. @throws always, until third-party solving opens. */
 export async function submitSolution(_intentId, _solution) {
   notBuilt("POST /v1/dex/solve");
 }
@@ -517,7 +532,7 @@ function readme(ctx) {
     ctx.type === "service"
       ? `\n## Becoming discoverable\n\nThe service runs locally right now. Being *findable on the network* is a separate\nstep: the \`ln-node\` daemon registers your node and heartbeats for it. This\nproject does not fake that — until you run \`ln-node\`, nobody else can find this\nservice.\n\nSee [Service agent guide](https://docs.libertynet.ai/guides/service-agent).\n`
       : ctx.type === "solver"
-        ? `\n## Read this first\n\nThe intent system **does not exist yet**. \`fetchIntents()\` and\n\`submitSolution()\` throw on purpose rather than returning invented data.\n\nWhat you can do today: write and test \`priceIntent()\`, which is pure and needs\nno network. Check [capability status](https://docs.libertynet.ai/status) before\nplanning around any of it.\n`
+        ? `\n## Read this first\n\nThe intent DEX **is live** on a public testnet — but **third-party solving is not\nopen**: registry admission is permissioned and the venue is served by a single\ntrusted solver. So \`fetchIntents()\` and \`submitSolution()\` still throw on purpose\nrather than returning invented data.\n\n**If you want to trade rather than solve, you can do that today** and you do not\nneed this template: the onboarding document and a runnable example ship in the\nlibertynet-dex repo as \`docs/EXTERNAL-AGENT-ONBOARDING.md\`.\n\nWhat you can do here today: write and test \`priceIntent()\`, which is pure and\nneeds no network. Check [capability status](https://docs.libertynet.ai/status)\nbefore planning around the rest.\n`
         : "";
 
   return `# ${ctx.name}
